@@ -1,0 +1,55 @@
+-- Habilitar la extensión para generar UUIDs (si no está activa por defecto)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 1. Tabla de Clientes
+CREATE TABLE taller_clientes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    documento VARCHAR(50) UNIQUE NOT NULL,
+    nombre_completo VARCHAR(255) NOT NULL,
+    telefono VARCHAR(50),
+    email VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Tabla de Vehículos
+CREATE TABLE taller_vehiculos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cliente_id UUID REFERENCES taller_clientes(id) ON DELETE CASCADE,
+    placa VARCHAR(10) UNIQUE NOT NULL,
+    marca VARCHAR(100),      -- Ej: Kia
+    linea VARCHAR(100),      -- Ej: Picanto Ion
+    modelo_anio INTEGER,     -- Ej: 2014
+    color VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Tabla de Ingresos (El core de la operación)
+CREATE TABLE taller_ingresos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    vehiculo_id UUID REFERENCES taller_vehiculos(id) ON DELETE CASCADE,
+    fecha_ingreso TIMESTAMPTZ DEFAULT NOW(),
+    kilometraje INTEGER NOT NULL,
+    nivel_gasolina VARCHAR(20),  -- Ej: 'Reserva', '1/4', '1/2', '3/4', 'Lleno'
+    motivo_visita TEXT NOT NULL,
+    
+    -- Usamos JSONB para el checklist del estado del vehículo. 
+    -- Te permite guardar un objeto dinámico: 
+    -- {"tiene_gato": true, "llanta_repuesto": true, "rayones_puerta": false}
+    checklist_inventario JSONB DEFAULT '{}'::jsonb,
+    
+    -- Otro JSONB por si quieres marcar el estado visual (diagrama del carro)
+    estado_carroceria JSONB DEFAULT '{}'::jsonb, 
+    
+    observaciones_recepcion TEXT,
+    
+    -- Flujo básico del taller
+    estado VARCHAR(50) DEFAULT 'recepcion', -- recepcion, diagnostico, cotizacion, en_reparacion, listo, entregado
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Crear índices para búsquedas rápidas (Vital para el buscador de la app)
+CREATE INDEX idx_taller_vehiculos_placa ON taller_vehiculos(placa);
+CREATE INDEX idx_taller_clientes_documento ON taller_clientes(documento);
+CREATE INDEX idx_taller_ingresos_estado ON taller_ingresos(estado);
