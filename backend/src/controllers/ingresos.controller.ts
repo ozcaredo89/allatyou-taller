@@ -49,3 +49,39 @@ export const createIngreso = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getIngresoById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabase
+      .from('taller_ingresos')
+      .select('*, taller_vehiculos(*, taller_clientes(*))')
+      .eq('id', id)
+      .single();
+      
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateIngreso = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+    
+    // Si updateamos el diagnostico/fotos o generamos "checkout" final.
+    const { data, error } = await supabase
+      .from('taller_ingresos')
+      .update(body)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

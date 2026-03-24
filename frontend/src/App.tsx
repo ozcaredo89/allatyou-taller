@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import { Wrench, PlusCircle, LayoutDashboard } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import NuevoIngreso from './pages/NuevoIngreso';
+import Diagnostico from './pages/Diagnostico';
+import Checkout from './pages/Checkout';
 
 const Navbar = () => {
   const location = useLocation();
@@ -25,8 +27,8 @@ const Navbar = () => {
               <span className="hidden sm:inline">Dashboard</span>
             </Link>
             <Link 
-              to="/ingreso" 
-              className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname === '/ingreso' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+              to="/nuevo-ingreso" 
+              className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname === '/nuevo-ingreso' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <PlusCircle size={18} />
               <span className="hidden sm:inline">Nuevo Ingreso</span>
@@ -46,7 +48,9 @@ function App() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/ingreso" element={<NuevoIngreso />} />
+            <Route path="/nuevo-ingreso" element={<NuevoIngreso />} />
+            <Route path="/diagnostico/:id" element={<Diagnostico />} />
+            <Route path="/checkout/:id" element={<Checkout />} />
           </Routes>
         </main>
       </div>

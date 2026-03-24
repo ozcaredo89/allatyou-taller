@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
-import { UserSearch, CarFront, FileEdit, Check, AlertCircle, Save, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UserSearch, CarFront, FileEdit, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import CreatableSelect from 'react-select/creatable';
+
+interface OptionType {
+  value: string;
+  label: string;
+  __isNew__?: boolean;
+}
 
 const ChecklistItems = [
   { id: 'tiene_gato', label: 'Gato' },
@@ -15,17 +22,26 @@ const NivelesGasolina = ['Reserva', '1/4', '1/2', '3/4', 'Lleno'];
 
 const NuevoIngreso: React.FC = () => {
   const navigate = useNavigate();
-  // Cliente State
-  const [documento, setDocumento] = useState('');
-  const [cliente, setCliente] = useState<any>(null);
-  const [isCreatingCliente, setIsCreatingCliente] = useState(false);
-  const [newCliente, setNewCliente] = useState({ nombre_completo: '', telefono: '', email: '' });
-
+  
   // Vehículo State
   const [placa, setPlaca] = useState('');
+  const [hasSearchedPlaca, setHasSearchedPlaca] = useState(false);
   const [vehiculo, setVehiculo] = useState<any>(null);
   const [isCreatingVehiculo, setIsCreatingVehiculo] = useState(false);
   const [newVehiculo, setNewVehiculo] = useState({ marca: '', linea: '', modelo_anio: '', color: '' });
+
+  // Autocomplete State
+  const [marcasOptions, setMarcasOptions] = useState<OptionType[]>([]);
+  const [lineasOptions, setLineasOptions] = useState<OptionType[]>([]);
+  const [selectedMarca, setSelectedMarca] = useState<OptionType | null>(null);
+  const [selectedLinea, setSelectedLinea] = useState<OptionType | null>(null);
+
+  // Cliente State
+  const [documento, setDocumento] = useState('');
+  const [hasSearchedDocumento, setHasSearchedDocumento] = useState(false);
+  const [cliente, setCliente] = useState<any>(null);
+  const [isCreatingCliente, setIsCreatingCliente] = useState(false);
+  const [newCliente, setNewCliente] = useState({ nombre_completo: '', telefono: '', email: '' });
 
   // Ingreso State
   const [ingreso, setIngreso] = useState({ kilometraje: '', nivel_gasolina: '1/2', motivo_visita: '', observaciones_recepcion: '' });
@@ -34,12 +50,85 @@ const NuevoIngreso: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Acciones Cliente
+  // Efectos Autocomplete
+  useEffect(() => {
+    if (isCreatingVehiculo && marcasOptions.length === 0) {
+      cargarMarcas();
+    }
+  }, [isCreatingVehiculo]);
+
+  const cargarMarcas = async () => {
+    try {
+      const { data } = await api.get('/marcas');
+      setMarcasOptions(data.map((m: any) => ({ value: m.id, label: m.nombre })));
+    } catch (err) {
+      console.error('Error cargando marcas', err);
+    }
+  };
+
+  const handleMarcaChange = async (newValue: any) => {
+    setSelectedMarca(newValue);
+    setSelectedLinea(null);
+    setNewVehiculo(prev => ({ ...prev, marca: newValue?.label || '', linea: '' }));
+    
+    if (newValue && !newValue.__isNew__) {
+      try {
+        const { data } = await api.get(`/marcas/${newValue.value}/lineas`);
+        setLineasOptions(data.map((l: any) => ({ value: l.id, label: l.nombre })));
+      } catch (err) {
+        console.error('Error cargando líneas', err);
+      }
+    } else {
+      setLineasOptions([]);
+    }
+  };
+
+  const handleLineaChange = (newValue: any) => {
+    setSelectedLinea(newValue);
+    setNewVehiculo(prev => ({ ...prev, linea: newValue?.label || '' }));
+  };
+
+  // 1. Buscar Vehículo
+  const buscarVehiculo = async () => {
+    if (!placa) return;
+    try {
+      setLoading(true);
+      setError('');
+      setHasSearchedPlaca(true);
+      const { data } = await api.get(`/vehiculos/${placa}`);
+      
+      // Si existe, seteamos el vehiculo y auto-completamos el cliente
+      setVehiculo(data);
+      if (data.taller_clientes) {
+        setCliente(data.taller_clientes);
+        setDocumento(data.taller_clientes.documento);
+        setHasSearchedDocumento(true);
+        setIsCreatingCliente(false);
+      }
+      setIsCreatingVehiculo(false);
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        setVehiculo(null);
+        setCliente(null);
+        setDocumento('');
+        setHasSearchedDocumento(false);
+        setIsCreatingCliente(false);
+        setIsCreatingVehiculo(true);
+      } else {
+        setError('Error buscando vehículo.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Buscar Cliente (Solo si el vehículo no existía)
   const buscarCliente = async () => {
     if (!documento) return;
     try {
       setLoading(true);
       setError('');
+      setHasSearchedDocumento(true);
       const { data } = await api.get(`/clientes/${documento}`);
       setCliente(data);
       setIsCreatingCliente(false);
@@ -55,67 +144,8 @@ const NuevoIngreso: React.FC = () => {
     }
   };
 
-  const guardarCliente = async () => {
-    try {
-      setLoading(true);
-      const { data } = await api.post('/clientes', { documento, ...newCliente });
-      setCliente(data);
-      setIsCreatingCliente(false);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Error creando cliente');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Acciones Vehículo
-  const buscarVehiculo = async () => {
-    if (!placa) return;
-    try {
-      setLoading(true);
-      setError('');
-      const { data } = await api.get(`/vehiculos/${placa}`);
-      setVehiculo(data);
-      // Associate with client if not matched? We'll assume the vehicle is tied to this client.
-      setIsCreatingVehiculo(false);
-    } catch (err: any) {
-      if (err.response?.status === 404) {
-        setVehiculo(null);
-        setIsCreatingVehiculo(true);
-      } else {
-        setError('Error buscando vehículo.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const guardarVehiculo = async () => {
-    if (!cliente) return;
-    try {
-      setLoading(true);
-      const payload = {
-        cliente_id: cliente.id,
-        placa,
-        ...newVehiculo,
-        modelo_anio: parseInt(newVehiculo.modelo_anio) || null
-      };
-      const { data } = await api.post('/vehiculos', payload);
-      setVehiculo(data);
-      setIsCreatingVehiculo(false);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Error creando vehículo');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Crear Ingreso
-  const handleCrearIngreso = async () => {
-    if (!vehiculo) {
-      setError('Debes seleccionar o crear un vehículo primero.');
-      return;
-    }
+  // 3. Crear Todo y Registrar Ingreso
+  const handleRegistrarIngreso = async () => {
     if (!ingreso.kilometraje || !ingreso.motivo_visita) {
       setError('El kilometraje y motivo son obligatorios.');
       return;
@@ -123,18 +153,58 @@ const NuevoIngreso: React.FC = () => {
 
     try {
       setLoading(true);
-      const payload = {
-        vehiculo_id: vehiculo.id,
+      setError('');
+      
+      let currentClienteId = cliente?.id;
+      
+      // A. Crear cliente si es flujo nuevo
+      if (isCreatingVehiculo && isCreatingCliente && !cliente) {
+        const resC = await api.post('/clientes', { documento, ...newCliente });
+        currentClienteId = resC.data.id;
+        setCliente(resC.data);
+      }
+
+      // B. Crear vehiculo si es flujo nuevo
+      let currentVehiculoId = vehiculo?.id;
+      if (isCreatingVehiculo && !vehiculo) {
+        
+        // Crear marca si es nueva
+        let finalMarcaId = selectedMarca && !selectedMarca.__isNew__ ? selectedMarca.value : null;
+        if (selectedMarca && selectedMarca.__isNew__) {
+          const mRes = await api.post('/marcas', { nombre: selectedMarca.label });
+          finalMarcaId = mRes.data.id;
+        }
+
+        // Crear linea si es nueva
+        if (selectedLinea && selectedLinea.__isNew__ && finalMarcaId) {
+          await api.post(`/marcas/${finalMarcaId}/lineas`, { nombre: selectedLinea.label });
+        }
+
+        const payloadVehiculo = {
+          cliente_id: currentClienteId,
+          placa,
+          ...newVehiculo,
+          modelo_anio: parseInt(newVehiculo.modelo_anio) || null
+        };
+        const resV = await api.post('/vehiculos', payloadVehiculo);
+        currentVehiculoId = resV.data.id;
+        setVehiculo(resV.data);
+      }
+
+      // C. Crear ingreso
+      const payloadIngreso = {
+        vehiculo_id: currentVehiculoId,
         kilometraje: parseInt(ingreso.kilometraje),
         nivel_gasolina: ingreso.nivel_gasolina,
         motivo_visita: ingreso.motivo_visita,
         observaciones_recepcion: ingreso.observaciones_recepcion,
         checklist_inventario: checklist
       };
-      await api.post('/ingresos', payload);
+      await api.post('/ingresos', payloadIngreso);
+      
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Error creando ingreso');
+      setError(err.response?.data?.error || 'Error procesando el registro.');
     } finally {
       setLoading(false);
     }
@@ -144,11 +214,31 @@ const NuevoIngreso: React.FC = () => {
     setChecklist(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const isFormValid = () => {
+    if (!hasSearchedPlaca) return false;
+    if (isCreatingVehiculo && (!newVehiculo.marca || !newVehiculo.linea)) return false;
+    if (isCreatingVehiculo && !hasSearchedDocumento) return false;
+    if (isCreatingVehiculo && isCreatingCliente && !newCliente.nombre_completo) return false;
+    if (!ingreso.kilometraje || !ingreso.motivo_visita) return false;
+    return true;
+  };
+
+  const resetAll = () => {
+    setVehiculo(null);
+    setCliente(null);
+    setIsCreatingVehiculo(false);
+    setIsCreatingCliente(false);
+    setHasSearchedPlaca(false);
+    setHasSearchedDocumento(false);
+    setPlaca('');
+    setDocumento('');
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Nuevo Ingreso</h1>
-        <p className="text-slate-500 mt-1">Registra la entrada de un vehículo al taller.</p>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Recepción de Vehículo</h1>
+        <p className="text-slate-500 mt-1">Busca el vehículo por placa para iniciar el proceso de ingreso.</p>
       </div>
 
       {error && (
@@ -158,215 +248,231 @@ const NuevoIngreso: React.FC = () => {
         </div>
       )}
 
-      {/* SECTION 1: CLIENTE */}
+      {/* SECTION 1: VEHICULO (IDENTIFICADOR PRINCIPAL) */}
       <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200">
         <div className="flex items-center gap-3 mb-6">
-          <div className="bg-indigo-100 p-2 rounded-lg">
-            <UserSearch className="text-indigo-600 w-6 h-6" />
+          <div className="bg-blue-100 p-2 rounded-lg">
+            <CarFront className="text-blue-600 w-6 h-6" />
           </div>
-          <h2 className="text-xl font-semibold text-slate-800">1. Datos del Cliente</h2>
+          <h2 className="text-xl font-semibold text-slate-800">1. Identificación del Vehículo</h2>
         </div>
 
-        {!cliente ? (
-          <div className="space-y-6">
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Documento</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                    placeholder="Ej. 10203040"
-                    value={documento}
-                    onChange={(e) => setDocumento(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && buscarCliente()}
-                  />
-                  <button 
-                    onClick={buscarCliente}
-                    disabled={loading || !documento}
-                    className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
-                  >
-                    Buscar
-                  </button>
-                </div>
+        {!vehiculo && !isCreatingVehiculo ? (
+          <div className="flex gap-4">
+            <div className="flex-1 max-w-md">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Placa del Vehículo</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 uppercase text-lg font-bold tracking-widest focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="AAA123"
+                  value={placa}
+                  onChange={(e) => setPlaca(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && buscarVehiculo()}
+                />
+                <button 
+                  onClick={buscarVehiculo}
+                  disabled={loading || !placa}
+                  className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
+                >
+                  Buscar
+                </button>
               </div>
             </div>
-
-            {isCreatingCliente && (
-              <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-4">
-                <p className="text-sm text-indigo-600 font-medium mb-4">Cliente no encontrado, por favor regístralo:</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
-                    <input 
-                      type="text" 
-                      className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                      value={newCliente.nombre_completo}
-                      onChange={e => setNewCliente({...newCliente, nombre_completo: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
-                    <input 
-                      type="text" 
-                      className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                      value={newCliente.telefono}
-                      onChange={e => setNewCliente({...newCliente, telefono: e.target.value})}
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                    <input 
-                      type="email" 
-                      className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                      value={newCliente.email}
-                      onChange={e => setNewCliente({...newCliente, email: e.target.value})}
-                    />
-                  </div>
+          </div>
+        ) : vehiculo ? (
+          // Vehículo encontrado
+          <div className="space-y-4">
+            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-bold tracking-widest text-emerald-900 mb-1">{vehiculo.placa}</p>
+                <p className="text-sm font-medium text-emerald-700">{vehiculo.marca} {vehiculo.linea} - {vehiculo.color}</p>
+              </div>
+              <button onClick={resetAll} className="text-sm font-medium text-emerald-700 hover:text-emerald-900 underline">Nueva Búsqueda</button>
+            </div>
+            {cliente && (
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-center gap-3">
+                <div className="p-2 bg-slate-200 rounded-full"><UserSearch size={18} className="text-slate-600" /></div>
+                <div>
+                  <p className="font-semibold text-slate-800">{cliente.nombre_completo}</p>
+                  <p className="text-xs text-slate-500">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
                 </div>
-                <button 
-                  onClick={guardarCliente}
-                  disabled={loading || !newCliente.nombre_completo}
-                  className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                >
-                  <Save size={18} /> Guardar Cliente
-                </button>
               </div>
             )}
           </div>
         ) : (
-          <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex justify-between items-center">
-            <div>
-              <p className="font-semibold text-emerald-900">{cliente.nombre_completo}</p>
-              <p className="text-sm text-emerald-700">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
+          // Vehículo NO encontrado -> Crear nuevo vehículo + Buscar cliente
+          <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
+            <div className="flex justify-between items-center bg-blue-50 border border-blue-200 p-3 rounded-xl">
+              <div>
+                <p className="text-sm text-blue-800 font-medium">Placa: <span className="font-bold text-lg tracking-widest">{placa}</span></p>
+                <p className="text-xs text-blue-600">Vehículo no registrado. Por favor completa los datos.</p>
+              </div>
+              <button onClick={resetAll} className="text-xs font-medium text-blue-700 hover:text-blue-900 underline">Cambiar placa</button>
             </div>
-            <button 
-              onClick={() => { setCliente(null); setIsCreatingCliente(false); setDocumento(''); }}
-              className="text-sm font-medium text-emerald-700 hover:text-emerald-900 underline"
-            >
-              Cambiar
-            </button>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Marca*</label>
+                <CreatableSelect
+                  options={marcasOptions}
+                  value={selectedMarca}
+                  onChange={handleMarcaChange}
+                  placeholder="Ej. Chevrolet"
+                  className="react-select-container"
+                  classNamePrefix="react-select"
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderColor: '#cbd5e1',
+                      borderRadius: '0.5rem',
+                      padding: '2px',
+                      boxShadow: 'none',
+                      '&:hover': { borderColor: '#3b82f6' }
+                    })
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Línea*</label>
+                <CreatableSelect
+                  options={lineasOptions}
+                  value={selectedLinea}
+                  onChange={handleLineaChange}
+                  isDisabled={!selectedMarca}
+                  placeholder="Ej. Spark"
+                  className="react-select-container"
+                  classNamePrefix="react-select"
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderColor: '#cbd5e1',
+                      borderRadius: '0.5rem',
+                      padding: '2px',
+                      boxShadow: 'none',
+                      '&:hover': { borderColor: '#3b82f6' }
+                    })
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Modelo (Año)</label>
+                <input 
+                  type="number" 
+                  className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={newVehiculo.modelo_anio}
+                  onChange={e => setNewVehiculo({...newVehiculo, modelo_anio: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Color</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={newVehiculo.color}
+                  onChange={e => setNewVehiculo({...newVehiculo, color: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <hr className="border-slate-200" />
+            
+            {/* SUB-SECCIÓN: CLIENTE (Solo para vehículo nuevo) */}
+            <div className="pt-2">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <UserSearch size={20} className="text-slate-400" />
+                Propietario del Vehículo
+              </h3>
+
+              {!cliente && !isCreatingCliente ? (
+                <div className="flex gap-4 max-w-md">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Documento del Cliente</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        placeholder="Ej. 10203040"
+                        value={documento}
+                        onChange={(e) => setDocumento(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && buscarCliente()}
+                      />
+                      <button 
+                        onClick={buscarCliente}
+                        disabled={loading || !documento}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                      >
+                        Buscar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : cliente ? (
+                // Cliente encontrado y asociado automáticamente visualmente
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-emerald-900">{cliente.nombre_completo}</p>
+                    <p className="text-sm text-emerald-700">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
+                  </div>
+                  <button onClick={() => { setCliente(null); setHasSearchedDocumento(false); }} className="text-sm font-medium text-emerald-700 underline">Cambiar</button>
+                </div>
+              ) : (
+                // Crear cliente
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-4">
+                  <div className="flex justify-between">
+                    <p className="text-sm text-indigo-600 font-medium">Cliente no encontrado. Por favor completa sus datos:</p>
+                    <button onClick={() => { setIsCreatingCliente(false); setHasSearchedDocumento(false); }} className="text-xs font-medium text-indigo-700 underline">Cambiar documento</button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo*</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        value={newCliente.nombre_completo}
+                        onChange={e => setNewCliente({...newCliente, nombre_completo: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        value={newCliente.telefono}
+                        onChange={e => setNewCliente({...newCliente, telefono: e.target.value})}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                      <input 
+                        type="email" 
+                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        value={newCliente.email}
+                        onChange={e => setNewCliente({...newCliente, email: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>
 
-      {/* SECTION 2: VEHICULO */}
-      {cliente && (
-        <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <CarFront className="text-blue-600 w-6 h-6" />
-            </div>
-            <h2 className="text-xl font-semibold text-slate-800">2. Datos del Vehículo</h2>
-          </div>
-
-          {!vehiculo ? (
-            <div className="space-y-6">
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Placa</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 uppercase focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="Ej. AAA123"
-                      value={placa}
-                      onChange={(e) => setPlaca(e.target.value.toUpperCase())}
-                      onKeyDown={(e) => e.key === 'Enter' && buscarVehiculo()}
-                    />
-                    <button 
-                      onClick={buscarVehiculo}
-                      disabled={loading || !placa}
-                      className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
-                    >
-                      Buscar
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {isCreatingVehiculo && (
-                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-4">
-                  <p className="text-sm text-blue-600 font-medium mb-4">Vehículo no encontrado, por favor regístralo:</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Marca</label>
-                      <input 
-                        type="text" 
-                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={newVehiculo.marca}
-                        onChange={e => setNewVehiculo({...newVehiculo, marca: e.target.value})}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Línea</label>
-                      <input 
-                        type="text" 
-                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={newVehiculo.linea}
-                        onChange={e => setNewVehiculo({...newVehiculo, linea: e.target.value})}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Modelo (Año)</label>
-                      <input 
-                        type="number" 
-                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={newVehiculo.modelo_anio}
-                        onChange={e => setNewVehiculo({...newVehiculo, modelo_anio: e.target.value})}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Color</label>
-                      <input 
-                        type="text" 
-                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={newVehiculo.color}
-                        onChange={e => setNewVehiculo({...newVehiculo, color: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                  <button 
-                    onClick={guardarVehiculo}
-                    disabled={loading || !newVehiculo.marca}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                  >
-                    <Save size={18} /> Guardar Vehículo
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex justify-between items-center">
-              <div>
-                <p className="font-semibold text-emerald-900">Placa: {vehiculo.placa}</p>
-                <p className="text-sm text-emerald-700">{vehiculo.marca} {vehiculo.linea} - {vehiculo.color}</p>
-              </div>
-              <button 
-                onClick={() => { setVehiculo(null); setIsCreatingVehiculo(false); setPlaca(''); }}
-                className="text-sm font-medium text-emerald-700 hover:text-emerald-900 underline"
-              >
-                Cambiar
-              </button>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* SECTION 3: INGRESO & CHECKLIST */}
-      {vehiculo && (
+      {/* SECTION 2: INGRESO & CHECKLIST (Solo visible si ya completamos la Parte 1) */}
+      {hasSearchedPlaca && (vehiculo || hasSearchedDocumento) && (
         <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center gap-3 mb-6">
             <div className="bg-orange-100 p-2 rounded-lg">
               <FileEdit className="text-orange-600 w-6 h-6" />
             </div>
-            <h2 className="text-xl font-semibold text-slate-800">3. Detalles del Ingreso</h2>
+            <h2 className="text-xl font-semibold text-slate-800">2. Detalles del Ingreso</h2>
           </div>
 
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Kilometraje actual</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Kilometraje actual*</label>
                 <input 
                   type="number" 
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 outline-none"
@@ -389,7 +495,7 @@ const NuevoIngreso: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Motivo de visita</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Motivo de visita*</label>
               <textarea 
                 className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 h-24 focus:ring-2 focus:ring-orange-500 outline-none resize-none"
                 placeholder="Describe el problema o servicio solicitado..."
@@ -436,8 +542,8 @@ const NuevoIngreso: React.FC = () => {
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
               <button 
-                onClick={handleCrearIngreso}
-                disabled={loading || !ingreso.kilometraje || !ingreso.motivo_visita}
+                onClick={handleRegistrarIngreso}
+                disabled={loading || !isFormValid()}
                 className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
               >
                 <CheckCircle2 size={24} /> Registrar Ingreso

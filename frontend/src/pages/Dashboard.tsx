@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, ChevronRight, Wrench, Receipt } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 interface Cliente {
@@ -41,6 +42,7 @@ const estadoLabels: Record<string, string> = {
 const Dashboard: React.FC = () => {
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchIngresos();
@@ -86,8 +88,8 @@ const Dashboard: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {ingresos.map((ingreso) => (
-            <div key={ingreso.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 group">
-              <div className="p-6">
+            <div key={ingreso.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
+              <div className="p-6 flex-1">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
                     <div className="bg-slate-100 p-3 rounded-xl text-slate-700">
@@ -134,9 +136,22 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               
-              <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-between items-center group-hover:bg-indigo-50 transition-colors duration-300 cursor-pointer">
-                <span className="text-sm font-medium text-slate-600 group-hover:text-indigo-700">Ver detalles</span>
-                <ChevronRight size={18} className="text-slate-400 group-hover:text-indigo-600 transition-transform duration-300 group-hover:translate-x-1" />
+              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex gap-2">
+                {['recepcion', 'diagnostico'].includes(ingreso.estado) ? (
+                  <button 
+                    onClick={() => navigate(`/diagnostico/${ingreso.id}`)}
+                    className="flex-1 flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    <Wrench size={16} /> Diagnóstico
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => navigate(`/checkout/${ingreso.id}`)}
+                    className="flex-1 flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    <Receipt size={16} /> Terminar / Checkout
+                  </button>
+                )}
               </div>
             </div>
           ))}

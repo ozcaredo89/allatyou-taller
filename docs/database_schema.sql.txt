@@ -53,3 +53,99 @@ CREATE TABLE taller_ingresos (
 CREATE INDEX idx_taller_vehiculos_placa ON taller_vehiculos(placa);
 CREATE INDEX idx_taller_clientes_documento ON taller_clientes(documento);
 CREATE INDEX idx_taller_ingresos_estado ON taller_ingresos(estado);
+
+-- 1. Crear tabla de catálogo para Marcas
+CREATE TABLE taller_marcas (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre VARCHAR(100) UNIQUE NOT NULL
+);
+
+-- 2. Crear tabla de catálogo para Líneas
+CREATE TABLE taller_lineas (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    marca_id UUID REFERENCES taller_marcas(id) ON DELETE CASCADE,
+    nombre VARCHAR(100) NOT NULL,
+    UNIQUE(marca_id, nombre) -- Evita duplicados exactos de la misma línea en una marca
+);
+
+-- 3. Carga inicial de Marcas comunes
+INSERT INTO taller_marcas (nombre) VALUES 
+('Chevrolet'), ('Renault'), ('Kia'), ('Mazda'), ('Toyota'), ('Nissan'), ('Volkswagen'), ('Ford'), ('Hyundai');
+
+-- 4. Carga inicial de algunas Líneas muy comunes (relacionadas a sus marcas)
+INSERT INTO taller_lineas (marca_id, nombre) VALUES
+((SELECT id FROM taller_marcas WHERE nombre = 'Kia'), 'Picanto Ion'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Kia'), 'Rio'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Kia'), 'Sportage'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Spark GT'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Tracker'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Sandero'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Logan'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Duster'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Mazda'), 'Mazda 2'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Mazda'), 'Mazda 3'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Toyota'), 'Prado'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Toyota'), 'Hilux');
+
+-- 1. Agregar un par de marcas adicionales que nos faltaban
+INSERT INTO taller_marcas (nombre) VALUES 
+('Suzuki'), ('Honda'), ('Peugeot')
+ON CONFLICT (nombre) DO NOTHING;
+
+-- 2. Los clásicos y guerreros de Chevrolet
+INSERT INTO taller_lineas (marca_id, nombre) VALUES
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Sprint'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Spark Life'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Aveo'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Sail'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Optra'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Captiva'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'N300'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Chevrolet'), 'Corsa')
+ON CONFLICT DO NOTHING;
+
+-- 3. Los inmortales de Renault
+INSERT INTO taller_lineas (marca_id, nombre) VALUES
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Twingo'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Clio'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Stepway'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Kwid'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Kangoo'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Renault'), 'Symbol')
+ON CONFLICT DO NOTHING;
+
+-- 4. Mazda (Los infaltables)
+INSERT INTO taller_lineas (marca_id, nombre) VALUES
+((SELECT id FROM taller_marcas WHERE nombre = 'Mazda'), '323'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Mazda'), 'Allegro'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Mazda'), 'CX-5')
+ON CONFLICT DO NOTHING;
+
+-- 5. Kia y Hyundai (Taxis y particulares populares)
+INSERT INTO taller_lineas (marca_id, nombre) VALUES
+((SELECT id FROM taller_marcas WHERE nombre = 'Kia'), 'Cerato'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Kia'), 'Soluto'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Kia'), 'Sephia'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Hyundai'), 'i10'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Hyundai'), 'Accent'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Hyundai'), 'Tucson')
+ON CONFLICT DO NOTHING;
+
+-- 6. Nissan y Toyota
+INSERT INTO taller_lineas (marca_id, nombre) VALUES
+((SELECT id FROM taller_marcas WHERE nombre = 'Nissan'), 'March'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Nissan'), 'Versa'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Nissan'), 'Frontier'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Toyota'), 'Corolla'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Toyota'), 'Fortuner'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Toyota'), 'TXL')
+ON CONFLICT DO NOTHING;
+
+-- 7. Suzuki y Honda
+INSERT INTO taller_lineas (marca_id, nombre) VALUES
+((SELECT id FROM taller_marcas WHERE nombre = 'Suzuki'), 'Swift'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Suzuki'), 'Vitara'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Suzuki'), 'Grand Vitara'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Honda'), 'Civic'),
+((SELECT id FROM taller_marcas WHERE nombre = 'Honda'), 'CR-V')
+ON CONFLICT DO NOTHING;
