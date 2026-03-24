@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, ChevronRight, Wrench, Receipt } from 'lucide-react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
