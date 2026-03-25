@@ -13,11 +13,13 @@ interface ItemDiagnostico {
 }
 
 interface DiagnosticoMecanico {
+  rodamientos: ItemDiagnostico;
   frenos: ItemDiagnostico;
   motor: ItemDiagnostico;
   suspension: ItemDiagnostico;
   direccion: ItemDiagnostico;
   pintura: ItemDiagnostico;
+  interior_y_accesorios: ItemDiagnostico;
   aire_acondicionado: ItemDiagnostico;
   [key: string]: any;
 }
@@ -25,20 +27,24 @@ interface DiagnosticoMecanico {
 const defaultItem: ItemDiagnostico = { estado: 'buen_estado', fallas_comunes: [], notas: '', fotos: [] };
 
 const FALLAS_COMUNES: Record<string, string[]> = {
+  rodamientos: ['Balineras de rueda', 'Retenedores', 'Bocines', 'Ejes/Semiejes', 'Guardapolvos'],
   frenos: ['Pastillas desgastadas', 'Discos rayados', 'Fuga de líquido', 'Ruido/Chillido'],
   motor: ['Fuga de aceite', 'Ruido extraño', 'Testigo encendido', 'Falla en ralentí'],
   suspension: ['Amortiguador estallado', 'Rótula/Terminal con juego', 'Bujes dañados'],
   direccion: ['Fuga de líquido', 'Dirección dura', 'Ruido al girar'],
   pintura: ['Rayón superficial', 'Rayón profundo', 'Abolladura', 'Pintura quemada'],
+  interior_y_accesorios: ['Cinturones de seguridad', 'Radio / Pantalla', 'Elevavidrios', 'Seguros eléctricos', 'Tablero de instrumentos', 'Tapicería'],
   aire_acondicionado: ['No enfría', 'Ruido en compresor', 'Mal olor']
 };
 
 const SISTEMAS = [
+  { key: 'rodamientos', label: 'Rodamientos' },
   { key: 'frenos', label: 'Frenos' },
   { key: 'motor', label: 'Motor' },
   { key: 'suspension', label: 'Suspensión' },
   { key: 'direccion', label: 'Dirección' },
   { key: 'pintura', label: 'Pintura' },
+  { key: 'interior_y_accesorios', label: 'Interior y Accesorios' },
   { key: 'aire_acondicionado', label: 'Aire Acondicionado' }
 ];
 
@@ -48,11 +54,13 @@ const Diagnostico: React.FC = () => {
   
   const [ingreso, setIngreso] = useState<any>(null);
   const [diagnostico, setDiagnostico] = useState<DiagnosticoMecanico>({
+    rodamientos: { ...defaultItem },
     frenos: { ...defaultItem },
     motor: { ...defaultItem },
     suspension: { ...defaultItem },
     direccion: { ...defaultItem },
     pintura: { ...defaultItem },
+    interior_y_accesorios: { ...defaultItem },
     aire_acondicionado: { ...defaultItem }
   });
   
@@ -100,11 +108,13 @@ const Diagnostico: React.FC = () => {
         }
 
         setDiagnostico({
+          rodamientos: parseItem('rodamientos'),
           frenos: parseItem('frenos'),
           motor: parseItem('motor'),
           suspension: parseItem('suspension'),
           direccion: parseItem('direccion'),
           pintura: parseItem('pintura'),
+          interior_y_accesorios: parseItem('interior_y_accesorios'),
           aire_acondicionado: parseItem('aire_acondicionado')
         });
       }
