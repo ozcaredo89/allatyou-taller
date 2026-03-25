@@ -2,8 +2,84 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase';
 import { sendEmail } from '../services/emailService';
+import crypto from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'allatyou-super-secret-key';
+
+export const registro = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { nombre, email } = req.body;
+    if (!nombre || !email) {
+      res.status(400).json({ error: 'Faltan campos requeridos (nombre, email).' });
+      return;
+    }
+
+    // 1. Generar Slug
+    let baseSlug = nombre.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    let finalSlug = baseSlug;
+    let suffix = 1;
+
+    // Verificar si el slug existe
+    while (true) {
+      const { data: existing } = await supabase
+        .from('taller_empresas')
+        .select('id')
+        .eq('slug', finalSlug)
+        .limit(1);
+
+      if (!existing || existing.length === 0) break;
+      finalSlug = `${baseSlug}-${suffix}`;
+      suffix++;
+    }
+
+    // 2. Insertar Empresa
+    const { data: nuevaEmpresa, error: empresaError } = await supabase
+      .from('taller_empresas')
+      .insert({
+        nombre,
+        slug: finalSlug,
+        codigo_acceso: crypto.randomUUID()
+      })
+      .select('id')
+      .single();
+
+    if (empresaError || !nuevaEmpresa) {
+      throw new Error(`Error creando empresa: ${empresaError?.message}`);
+    }
+
+    // 3. Generar OTP y guardar Correo
+    const initialOtp = Math.floor(1000 + Math.random() * 9000).toString();
+
+    const { error: correoError } = await supabase
+      .from('taller_empresas_correos')
+      .insert({
+        empresa_id: nuevaEmpresa.id,
+        email,
+        otp_code: initialOtp
+      });
+
+    if (correoError) {
+      throw new Error(`Error registrando correo: ${correoError.message}`);
+    }
+
+    // 4. Enviar OTP
+    await sendEmail({
+      to: email,
+      subject: `¡Bienvenido a AllAtYou Renting - ${nombre}!`,
+      text: `Hola,\n\nTu taller "${nombre}" ha sido registrado exitosamente.\n\nEl código de verificación de 4 dígitos para acceder por primera vez a tu tablero es: ${initialOtp}\n\nEscríbelo en la pantalla para continuar.`
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      empresa_id: nuevaEmpresa.id, 
+      slug: finalSlug, 
+      message: 'Registro exitoso y OTP enviado' 
+    });
+
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
 export const getEmpresas = async (req: Request, res: Response): Promise<void> => {
   try {

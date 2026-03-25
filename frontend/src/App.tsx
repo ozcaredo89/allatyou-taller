@@ -7,6 +7,7 @@ import NuevoIngreso from './pages/NuevoIngreso';
 import Diagnostico from './pages/Diagnostico';
 import Checkout from './pages/Checkout';
 import Login from './pages/Login';
+import Registro from './pages/Registro';
 
 const Navbar = () => {
   const location = useLocation();
@@ -88,6 +89,7 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           
           <Route path="/login" element={<Login />} />
+          <Route path="/registro" element={<Registro />} />
           
           <Route path="/:slug" element={<ProtectedLayout />}>
             <Route index element={<Dashboard />} />
