@@ -7,6 +7,7 @@ export const getMarcas = async (req: Request, res: Response): Promise<void> => {
     const { data, error } = await supabase
       .from('taller_marcas')
       .select('*')
+      .eq('empresa_id', req.empresa_id)
       .order('nombre', { ascending: true });
       
     if (error) throw error;
@@ -24,6 +25,7 @@ export const createMarca = async (req: Request, res: Response): Promise<void> =>
     const { data: existing } = await supabase
       .from('taller_marcas')
       .select('*')
+      .eq('empresa_id', req.empresa_id)
       .ilike('nombre', nombre)
       .single();
 
@@ -34,7 +36,7 @@ export const createMarca = async (req: Request, res: Response): Promise<void> =>
 
     const { data, error } = await supabase
       .from('taller_marcas')
-      .insert([{ nombre }])
+      .insert([{ nombre, empresa_id: req.empresa_id }])
       .select()
       .single();
 
@@ -52,6 +54,7 @@ export const getLineasByMarca = async (req: Request, res: Response): Promise<voi
     const { data, error } = await supabase
       .from('taller_lineas')
       .select('*')
+      .eq('empresa_id', req.empresa_id)
       .eq('marca_id', id)
       .order('nombre', { ascending: true });
       
@@ -71,6 +74,7 @@ export const createLinea = async (req: Request, res: Response): Promise<void> =>
     const { data: existing } = await supabase
       .from('taller_lineas')
       .select('*')
+      .eq('empresa_id', req.empresa_id)
       .eq('marca_id', id)
       .ilike('nombre', nombre)
       .single();
@@ -82,7 +86,7 @@ export const createLinea = async (req: Request, res: Response): Promise<void> =>
 
     const { data, error } = await supabase
       .from('taller_lineas')
-      .insert([{ marca_id: id, nombre }])
+      .insert([{ marca_id: id, nombre, empresa_id: req.empresa_id }])
       .select()
       .single();
 

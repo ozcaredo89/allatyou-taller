@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { getIngresosActivos, createIngreso, getIngresoById, updateIngreso } from '../controllers/ingresos.controller';
+import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
+
+router.use(requireAuth);
 
 router.get('/activos', getIngresosActivos);
 router.post('/', createIngreso);

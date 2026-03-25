@@ -43,7 +43,7 @@ const SISTEMAS = [
 ];
 
 const Diagnostico: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, slug } = useParams<{ id: string, slug: string }>();
   const navigate = useNavigate();
   
   const [ingreso, setIngreso] = useState<any>(null);
@@ -184,7 +184,7 @@ const Diagnostico: React.FC = () => {
         diagnostico_mecanico: diagnostico,
         estado: 'en_reparacion'
       });
-      navigate('/');
+      navigate(`/${slug}`);
     } catch (err: any) {
       setError('Error al finalizar el diagnóstico.');
       setSaving(false);
@@ -199,7 +199,7 @@ const Diagnostico: React.FC = () => {
       {/* Header Sticky para Auto-guardado indicator */}
       <div className="sticky top-0 z-20 bg-slate-50/90 backdrop-blur-md pb-4 pt-4 -mx-4 px-4 border-b border-slate-200 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-2 bg-white border border-slate-200 rounded-full shadow-sm hover:bg-slate-100 transition-colors">
+          <button onClick={() => navigate(`/${slug}`)} className="p-2 bg-white border border-slate-200 rounded-full shadow-sm hover:bg-slate-100 transition-colors">
             <ArrowLeft size={20} className="text-slate-700" />
           </button>
           <div>

@@ -16,7 +16,10 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+import authRoutes from './routes/auth.routes';
+
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/vehiculos', vehiculosRoutes);
 app.use('/api/ingresos', ingresosRoutes);

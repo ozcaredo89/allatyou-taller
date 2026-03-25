@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserSearch, CarFront, FileEdit, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
 import api from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import CreatableSelect from 'react-select/creatable';
 
 interface OptionType {
@@ -22,7 +22,7 @@ const NivelesGasolina = ['Reserva', '1/4', '1/2', '3/4', 'Lleno'];
 
 const NuevoIngreso: React.FC = () => {
   const navigate = useNavigate();
-  
+  const { slug } = useParams<{ slug: string }>();
   // Vehículo State
   const [placa, setPlaca] = useState('');
   const [hasSearchedPlaca, setHasSearchedPlaca] = useState(false);
@@ -202,7 +202,7 @@ const NuevoIngreso: React.FC = () => {
       };
       await api.post('/ingresos', payloadIngreso);
       
-      navigate('/');
+      navigate(`/${slug}`);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Error procesando el registro.');
     } finally {
