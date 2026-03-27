@@ -21,6 +21,8 @@ interface DiagnosticoMecanico {
   pintura: ItemDiagnostico;
   interior_y_accesorios: ItemDiagnostico;
   aire_acondicionado: ItemDiagnostico;
+  lavado: ItemDiagnostico;
+  lubricacion: ItemDiagnostico;
   [key: string]: any;
 }
 
@@ -34,7 +36,9 @@ const FALLAS_COMUNES: Record<string, string[]> = {
   direccion: ['Fuga de líquido', 'Dirección dura', 'Ruido al girar'],
   pintura: ['Rayón superficial', 'Rayón profundo', 'Abolladura', 'Pintura quemada'],
   interior_y_accesorios: ['Cinturones de seguridad', 'Radio / Pantalla', 'Elevavidrios', 'Seguros eléctricos', 'Tablero de instrumentos', 'Tapicería'],
-  aire_acondicionado: ['No enfría', 'Ruido en compresor', 'Mal olor']
+  aire_acondicionado: ['No enfría', 'Ruido en compresor', 'Mal olor'],
+  lavado: ['Lavado sencillo', 'Lavado detallado', 'Lavado de motor', 'Polichado', 'Porcelanizado', 'Limpieza de cojinería'],
+  lubricacion: ['Cambio de aceite motor', 'Cambio filtro de aceite', 'Cambio filtro de aire', 'Cambio aceite de caja', 'Revisión de niveles', 'Engrase general']
 };
 
 const SISTEMAS = [
@@ -45,7 +49,9 @@ const SISTEMAS = [
   { key: 'direccion', label: 'Dirección' },
   { key: 'pintura', label: 'Pintura' },
   { key: 'interior_y_accesorios', label: 'Interior y Accesorios' },
-  { key: 'aire_acondicionado', label: 'Aire Acondicionado' }
+  { key: 'aire_acondicionado', label: 'Aire Acondicionado' },
+  { key: 'lavado', label: 'Lavado y Estética' },
+  { key: 'lubricacion', label: 'Lubricación y Fluidos' }
 ];
 
 const Diagnostico: React.FC = () => {
@@ -61,7 +67,9 @@ const Diagnostico: React.FC = () => {
     direccion: { ...defaultItem },
     pintura: { ...defaultItem },
     interior_y_accesorios: { ...defaultItem },
-    aire_acondicionado: { ...defaultItem }
+    aire_acondicionado: { ...defaultItem },
+    lavado: { ...defaultItem },
+    lubricacion: { ...defaultItem }
   });
   
   const [loading, setLoading] = useState(true);
@@ -115,7 +123,9 @@ const Diagnostico: React.FC = () => {
           direccion: parseItem('direccion'),
           pintura: parseItem('pintura'),
           interior_y_accesorios: parseItem('interior_y_accesorios'),
-          aire_acondicionado: parseItem('aire_acondicionado')
+          aire_acondicionado: parseItem('aire_acondicionado'),
+          lavado: parseItem('lavado'),
+          lubricacion: parseItem('lubricacion')
         });
       }
     } catch (err: any) {
