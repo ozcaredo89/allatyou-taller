@@ -74,7 +74,8 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     const { id } = req.params;
     const body = req.body;
     
-    // Si updateamos el diagnostico/fotos o generamos "checkout" final.
+    console.log(`[updateIngreso] id=${id} empresa_id=${req.empresa_id} body_keys=${Object.keys(body).join(',')}`);
+
     const { data, error } = await supabase
       .from('taller_ingresos')
       .update(body)
@@ -83,9 +84,13 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[updateIngreso] Supabase error:', JSON.stringify(error));
+      throw error;
+    }
     res.json(data);
   } catch (error: any) {
+    console.error('[updateIngreso] Caught error:', error.message);
     res.status(500).json({ error: error.message });
   }
 };
