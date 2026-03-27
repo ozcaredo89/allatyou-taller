@@ -149,3 +149,5 @@ INSERT INTO taller_lineas (marca_id, nombre) VALUES
 ((SELECT id FROM taller_marcas WHERE nombre = 'Honda'), 'Civic'),
 ((SELECT id FROM taller_marcas WHERE nombre = 'Honda'), 'CR-V')
 ON CONFLICT DO NOTHING;
+
+ALTER TABLE taller_empresas_correos ADD COLUMN otp_code VARCHAR(10);

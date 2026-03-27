@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, ChevronRight, Wrench, Receipt } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import api from '../services/api';
 
 interface Cliente {
@@ -43,6 +43,7 @@ const Dashboard: React.FC = () => {
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
 
   useEffect(() => {
     fetchIngresos();
@@ -139,14 +140,14 @@ const Dashboard: React.FC = () => {
               <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex gap-2">
                 {['recepcion', 'diagnostico'].includes(ingreso.estado) ? (
                   <button 
-                    onClick={() => navigate(`/diagnostico/${ingreso.id}`)}
+                    onClick={() => navigate(`/${slug}/diagnostico/${ingreso.id}`)}
                     className="flex-1 flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                   >
                     <Wrench size={16} /> Diagnóstico
                   </button>
                 ) : (
                   <button 
-                    onClick={() => navigate(`/checkout/${ingreso.id}`)}
+                    onClick={() => navigate(`/${slug}/checkout/${ingreso.id}`)}
                     className="flex-1 flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                   >
                     <Receipt size={16} /> Terminar / Checkout

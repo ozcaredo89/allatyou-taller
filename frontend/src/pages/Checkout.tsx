@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Printer, CheckSquare, Loader2, ArrowLeft } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const Checkout: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, slug } = useParams<{ id: string, slug: string }>();
   const navigate = useNavigate();
+  const { empresaNombre } = useAuth();
   
   const [ingreso, setIngreso] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ const Checkout: React.FC = () => {
       await api.put(`/ingresos/${id}`, {
         estado: 'entregado'
       });
-      navigate('/');
+      navigate(`/${slug}`);
     } catch (err: any) {
       setError('Error al entregar el vehículo.');
     } finally {
@@ -59,7 +61,7 @@ const Checkout: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Botones Header - Non-printable */}
       <div className="flex justify-between items-center print:hidden">
-        <button onClick={() => navigate('/')} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
+        <button onClick={() => navigate(`/${slug}`)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
           <ArrowLeft size={20} className="text-slate-700" />
         </button>
         <div className="flex gap-3">
@@ -93,10 +95,10 @@ const Checkout: React.FC = () => {
         <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
           <div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Factura</h1>
-            <p className="text-slate-500 font-medium">Orden de Servicio #{ingreso.id}</p>
+            <p className="text-slate-500 font-medium">Orden de Servicio #{ingreso.id.substring(0, 8)}</p>
           </div>
           <div className="text-right">
-            <h2 className="text-xl font-bold text-slate-800">Taller Mecánico MVP</h2>
+            <h2 className="text-xl font-bold text-slate-800">{empresaNombre || 'TallerPro'}</h2>
             <p className="text-slate-500 text-sm">NIT: 900.000.000-1</p>
             <p className="text-slate-500 text-sm">Calle Falsa 123, Ciudad</p>
             <p className="text-slate-500 text-sm">Tel: +57 300 000 0000</p>
@@ -199,7 +201,7 @@ const Checkout: React.FC = () => {
         {/* Footer */}
         <div className="mt-16 text-center text-slate-400 text-sm">
           <p>Esta factura de venta se asimila en todos sus efectos a una letra de cambio.</p>
-          <p>Gracias por confiar en Taller Mecánico MVP.</p>
+          <p>Gracias por confiar en {empresaNombre || 'TallerPro'}.</p>
         </div>
 
       </div>

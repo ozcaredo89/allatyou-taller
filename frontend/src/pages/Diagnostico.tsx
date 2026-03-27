@@ -13,47 +13,63 @@ interface ItemDiagnostico {
 }
 
 interface DiagnosticoMecanico {
+  rodamientos: ItemDiagnostico;
   frenos: ItemDiagnostico;
   motor: ItemDiagnostico;
   suspension: ItemDiagnostico;
   direccion: ItemDiagnostico;
   pintura: ItemDiagnostico;
+  interior_y_accesorios: ItemDiagnostico;
   aire_acondicionado: ItemDiagnostico;
+  lavado: ItemDiagnostico;
+  lubricacion: ItemDiagnostico;
   [key: string]: any;
 }
 
 const defaultItem: ItemDiagnostico = { estado: 'buen_estado', fallas_comunes: [], notas: '', fotos: [] };
 
 const FALLAS_COMUNES: Record<string, string[]> = {
+  rodamientos: ['Balineras de rueda', 'Retenedores', 'Bocines', 'Ejes/Semiejes', 'Guardapolvos'],
   frenos: ['Pastillas desgastadas', 'Discos rayados', 'Fuga de líquido', 'Ruido/Chillido'],
   motor: ['Fuga de aceite', 'Ruido extraño', 'Testigo encendido', 'Falla en ralentí'],
   suspension: ['Amortiguador estallado', 'Rótula/Terminal con juego', 'Bujes dañados'],
   direccion: ['Fuga de líquido', 'Dirección dura', 'Ruido al girar'],
   pintura: ['Rayón superficial', 'Rayón profundo', 'Abolladura', 'Pintura quemada'],
-  aire_acondicionado: ['No enfría', 'Ruido en compresor', 'Mal olor']
+  interior_y_accesorios: ['Cinturones de seguridad', 'Radio / Pantalla', 'Elevavidrios', 'Seguros eléctricos', 'Tablero de instrumentos', 'Tapicería'],
+  aire_acondicionado: ['No enfría', 'Ruido en compresor', 'Mal olor'],
+  lavado: ['Lavado sencillo', 'Lavado detallado', 'Lavado de motor', 'Polichado', 'Porcelanizado', 'Limpieza de cojinería'],
+  lubricacion: ['Cambio de aceite motor', 'Cambio filtro de aceite', 'Cambio filtro de aire', 'Cambio aceite de caja', 'Revisión de niveles', 'Engrase general']
 };
 
 const SISTEMAS = [
+  { key: 'rodamientos', label: 'Rodamientos' },
   { key: 'frenos', label: 'Frenos' },
   { key: 'motor', label: 'Motor' },
   { key: 'suspension', label: 'Suspensión' },
   { key: 'direccion', label: 'Dirección' },
   { key: 'pintura', label: 'Pintura' },
-  { key: 'aire_acondicionado', label: 'Aire Acondicionado' }
+  { key: 'interior_y_accesorios', label: 'Interior y Accesorios' },
+  { key: 'aire_acondicionado', label: 'Aire Acondicionado' },
+  { key: 'lavado', label: 'Lavado y Estética' },
+  { key: 'lubricacion', label: 'Lubricación y Fluidos' }
 ];
 
 const Diagnostico: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, slug } = useParams<{ id: string, slug: string }>();
   const navigate = useNavigate();
   
   const [ingreso, setIngreso] = useState<any>(null);
   const [diagnostico, setDiagnostico] = useState<DiagnosticoMecanico>({
+    rodamientos: { ...defaultItem },
     frenos: { ...defaultItem },
     motor: { ...defaultItem },
     suspension: { ...defaultItem },
     direccion: { ...defaultItem },
     pintura: { ...defaultItem },
-    aire_acondicionado: { ...defaultItem }
+    interior_y_accesorios: { ...defaultItem },
+    aire_acondicionado: { ...defaultItem },
+    lavado: { ...defaultItem },
+    lubricacion: { ...defaultItem }
   });
   
   const [loading, setLoading] = useState(true);
@@ -100,12 +116,16 @@ const Diagnostico: React.FC = () => {
         }
 
         setDiagnostico({
+          rodamientos: parseItem('rodamientos'),
           frenos: parseItem('frenos'),
           motor: parseItem('motor'),
           suspension: parseItem('suspension'),
           direccion: parseItem('direccion'),
           pintura: parseItem('pintura'),
-          aire_acondicionado: parseItem('aire_acondicionado')
+          interior_y_accesorios: parseItem('interior_y_accesorios'),
+          aire_acondicionado: parseItem('aire_acondicionado'),
+          lavado: parseItem('lavado'),
+          lubricacion: parseItem('lubricacion')
         });
       }
     } catch (err: any) {
@@ -184,7 +204,7 @@ const Diagnostico: React.FC = () => {
         diagnostico_mecanico: diagnostico,
         estado: 'en_reparacion'
       });
-      navigate('/');
+      navigate(`/${slug}`);
     } catch (err: any) {
       setError('Error al finalizar el diagnóstico.');
       setSaving(false);
@@ -199,7 +219,7 @@ const Diagnostico: React.FC = () => {
       {/* Header Sticky para Auto-guardado indicator */}
       <div className="sticky top-0 z-20 bg-slate-50/90 backdrop-blur-md pb-4 pt-4 -mx-4 px-4 border-b border-slate-200 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-2 bg-white border border-slate-200 rounded-full shadow-sm hover:bg-slate-100 transition-colors">
+          <button onClick={() => navigate(`/${slug}`)} className="p-2 bg-white border border-slate-200 rounded-full shadow-sm hover:bg-slate-100 transition-colors">
             <ArrowLeft size={20} className="text-slate-700" />
           </button>
           <div>

@@ -7,6 +7,7 @@ export const getIngresosActivos = async (req: Request, res: Response): Promise<v
     const { data, error } = await supabase
       .from('taller_ingresos')
       .select('*, taller_vehiculos(*, taller_clientes(*))')
+      .eq('empresa_id', req.empresa_id)
       .in('estado', ['recepcion', 'diagnostico', 'en_reparacion', 'cotizacion']);
       
     if (error) throw error;
@@ -38,7 +39,8 @@ export const createIngreso = async (req: Request, res: Response): Promise<void> 
         checklist_inventario: checklist_inventario || {},
         estado_carroceria: estado_carroceria || {},
         observaciones_recepcion,
-        estado: 'recepcion' // Estado inicial por defecto
+        estado: 'recepcion', // Estado inicial por defecto
+        empresa_id: req.empresa_id
       }])
       .select()
       .single();
@@ -56,6 +58,7 @@ export const getIngresoById = async (req: Request, res: Response): Promise<void>
     const { data, error } = await supabase
       .from('taller_ingresos')
       .select('*, taller_vehiculos(*, taller_clientes(*))')
+      .eq('empresa_id', req.empresa_id)
       .eq('id', id)
       .single();
       
@@ -75,6 +78,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     const { data, error } = await supabase
       .from('taller_ingresos')
       .update(body)
+      .eq('empresa_id', req.empresa_id)
       .eq('id', id)
       .select()
       .single();
