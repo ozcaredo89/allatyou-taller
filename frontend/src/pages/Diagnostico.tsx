@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon } from 'lucide-react';
+import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon, Settings, Eye, EyeOff, Plus, X } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 type EstadoItem = 'buen_estado' | 'revisar' | 'danado';
 
@@ -24,6 +25,10 @@ interface DiagnosticoMecanico {
   lavado: ItemDiagnostico;
   lubricacion: ItemDiagnostico;
   [key: string]: any;
+}
+
+interface ConfigDiagnostico {
+  [key: string]: { visible: boolean; fallas_adicionales: string[] };
 }
 
 const defaultItem: ItemDiagnostico = { estado: 'buen_estado', fallas_comunes: [], notas: '', fotos: [] };
@@ -57,6 +62,7 @@ const SISTEMAS = [
 const Diagnostico: React.FC = () => {
   const { id, slug } = useParams<{ id: string, slug: string }>();
   const navigate = useNavigate();
+  const { empresaId } = useAuth();
   
   const [ingreso, setIngreso] = useState<any>(null);
   const [diagnostico, setDiagnostico] = useState<DiagnosticoMecanico>({
@@ -71,6 +77,14 @@ const Diagnostico: React.FC = () => {
     lavado: { ...defaultItem },
     lubricacion: { ...defaultItem }
   });
+
+  // --- Edit Mode State ---
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [configDiagnostico, setConfigDiagnostico] = useState<ConfigDiagnostico>({});
+  const [configOriginal, setConfigOriginal] = useState<ConfigDiagnostico>({}); // para cancelar
+  const [nuevaFalla, setNuevaFalla] = useState('');
+  const [sistemaActivoParaFalla, setSistemaActivoParaFalla] = useState<string | null>(null);
+  const [savingConfig, setSavingConfig] = useState(false);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -127,6 +141,14 @@ const Diagnostico: React.FC = () => {
           lavado: parseItem('lavado'),
           lubricacion: parseItem('lubricacion')
         });
+      }
+      // Cargar config de empresa
+      if (empresaId) {
+        const { data: empresaData } = await api.get(`/auth/empresas`);
+        const empresa = (empresaData || []).find((e: any) => e.id === empresaId);
+        const cfg: ConfigDiagnostico = empresa?.config_diagnostico || {};
+        setConfigDiagnostico(cfg);
+        setConfigOriginal(cfg);
       }
     } catch (err: any) {
       setError('No se pudo cargar la información del ingreso.');
@@ -211,6 +233,75 @@ const Diagnostico: React.FC = () => {
     }
   };
 
+  // --- Edit Mode Helpers ---
+
+  // Derived list of systems to render (hides invisible ones when not in edit mode)
+  const sistemasVisibles = SISTEMAS.filter(sys => {
+    if (isEditMode) return true; // en modo edición, mostrar todos
+    const cfg = configDiagnostico[sys.key];
+    return cfg === undefined || cfg.visible !== false;
+  });
+
+  const getFallas = (key: string): string[] => {
+    const base = FALLAS_COMUNES[key] || [];
+    const extras = configDiagnostico[key]?.fallas_adicionales || [];
+    return [...base, ...extras];
+  };
+
+  const toggleVisibilidad = (key: string) => {
+    setConfigDiagnostico(prev => ({
+      ...prev,
+      [key]: {
+        visible: prev[key]?.visible === false ? true : false,
+        fallas_adicionales: prev[key]?.fallas_adicionales || []
+      }
+    }));
+  };
+
+  const agregarFallaPersonalizada = (key: string) => {
+    const trimmed = nuevaFalla.trim();
+    if (!trimmed) return;
+    setConfigDiagnostico(prev => ({
+      ...prev,
+      [key]: {
+        visible: prev[key]?.visible !== false,
+        fallas_adicionales: [...(prev[key]?.fallas_adicionales || []), trimmed]
+      }
+    }));
+    setNuevaFalla('');
+    setSistemaActivoParaFalla(null);
+  };
+
+  const eliminarFallaPersonalizada = (key: string, falla: string) => {
+    setConfigDiagnostico(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        fallas_adicionales: (prev[key]?.fallas_adicionales || []).filter((f: string) => f !== falla)
+      }
+    }));
+  };
+
+  const guardarConfiguracion = async () => {
+    try {
+      setSavingConfig(true);
+      await api.patch(`/auth/empresas/${empresaId}/config`, { config_diagnostico: configDiagnostico });
+      setConfigOriginal(configDiagnostico);
+      setIsEditMode(false);
+    } catch (err: any) {
+      setError('Error guardando la configuración.');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const cancelarEdicion = () => {
+    setConfigDiagnostico(configOriginal);
+    setNuevaFalla('');
+    setSistemaActivoParaFalla(null);
+    setIsEditMode(false);
+  };
+
   if (loading) return <div className="p-8 flex items-center justify-center"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>;
   if (!ingreso) return <div className="p-8 text-center text-red-500">Ingreso no encontrado.</div>;
 
@@ -244,14 +335,66 @@ const Diagnostico: React.FC = () => {
         </div>
       )}
 
+      {/* Toolbar de Modo Edición */}
+      <div className={`flex items-center justify-between rounded-xl px-3 py-2 mb-1 transition-all ${
+        isEditMode ? 'bg-amber-50 border border-dashed border-amber-300' : 'bg-transparent'
+      }`}>
+        <span className={`text-xs font-bold uppercase tracking-wider ${isEditMode ? 'text-amber-700' : 'text-slate-400'}`}>
+          {isEditMode ? '✏️ Modo Personalización activo' : 'Sistemas de evaluación'}
+        </span>
+        <div className="flex gap-2">
+          {!isEditMode ? (
+            <button
+              onClick={() => setIsEditMode(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-300 bg-white px-2.5 py-1.5 rounded-lg transition"
+            >
+              <Settings size={13} /> Personalizar
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={cancelarEdicion}
+                className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 bg-white px-2.5 py-1.5 rounded-lg transition"
+              >
+                <X size={13} /> Cancelar
+              </button>
+              <button
+                onClick={guardarConfiguracion}
+                disabled={savingConfig}
+                className="flex items-center gap-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1.5 rounded-lg transition disabled:opacity-60"
+              >
+                {savingConfig ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                Guardar
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-4">
-        {SISTEMAS.map((sys) => {
+        {sistemasVisibles.map((sys) => {
           const item = diagnostico[sys.key];
+          const isVisible = configDiagnostico[sys.key]?.visible !== false;
           
           return (
-            <section key={sys.key} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+            <section key={sys.key} className={`bg-white rounded-2xl p-4 shadow-sm border transition-all ${
+              isEditMode && !isVisible ? 'border-dashed border-slate-300 opacity-50' : 'border-slate-200'
+            }`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-1">
-                <h2 className="text-base font-bold text-slate-700">{sys.label}</h2>
+                <div className="flex items-center gap-2">
+                  {isEditMode && (
+                    <button
+                      onClick={() => toggleVisibilidad(sys.key)}
+                      className={`p-1 rounded-md transition ${
+                        isVisible ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-100'
+                      }`}
+                      title={isVisible ? 'Ocultar sistema' : 'Mostrar sistema'}
+                    >
+                      {isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </button>
+                  )}
+                  <h2 className="text-base font-bold text-slate-700">{sys.label}</h2>
+                </div>
                 
                 {/* Botones de Estado Compactos */}
                 <div className="flex rounded-xl bg-slate-100 p-1 self-start sm:self-auto">
@@ -298,11 +441,13 @@ const Diagnostico: React.FC = () => {
                 <div className="mt-4 pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-200">
                   
                   {/* Checkboxes Fallas Comunes */}
-                  {FALLAS_COMUNES[sys.key] && (
+                  {getFallas(sys.key).length > 0 && (
                     <div className="mb-4">
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Fallas Comunes</p>
                       <div className="flex flex-wrap gap-2">
-                        {FALLAS_COMUNES[sys.key].map(falla => (
+                        {getFallas(sys.key).map(falla => {
+                          const isPersonalizada = !(FALLAS_COMUNES[sys.key] || []).includes(falla);
+                          return (
                           <button
                             key={falla}
                             onClick={() => toggleFalla(sys.key, falla)}
@@ -313,9 +458,44 @@ const Diagnostico: React.FC = () => {
                             }`}
                           >
                             {falla}
+                            {isEditMode && isPersonalizada && (
+                              <span
+                                role="button"
+                                onClick={(e) => { e.stopPropagation(); eliminarFallaPersonalizada(sys.key, falla); }}
+                                className="ml-1.5 text-red-400 hover:text-red-600"
+                              >&times;</span>
+                            )}
                           </button>
-                        ))}
+                        )})}
                       </div>
+
+                      {/* Input para agregar falla personalizada en modo edición */}
+                      {isEditMode && (
+                        <div className="mt-3 flex items-center gap-2">
+                          {sistemaActivoParaFalla === sys.key ? (
+                            <>
+                              <input
+                                type="text"
+                                value={nuevaFalla}
+                                onChange={e => setNuevaFalla(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && agregarFallaPersonalizada(sys.key)}
+                                placeholder="Nueva falla..."
+                                className="flex-1 text-xs bg-white border border-dashed border-indigo-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                autoFocus
+                              />
+                              <button onClick={() => agregarFallaPersonalizada(sys.key)} className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"><Plus size={14} /></button>
+                              <button onClick={() => { setSistemaActivoParaFalla(null); setNuevaFalla(''); }} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={14} /></button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setSistemaActivoParaFalla(sys.key)}
+                              className="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1 border border-dashed border-indigo-200 px-2.5 py-1 rounded-full transition"
+                            >
+                              <Plus size={12} /> Añadir falla
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                   

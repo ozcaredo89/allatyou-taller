@@ -85,10 +85,32 @@ export const getEmpresas = async (req: Request, res: Response): Promise<void> =>
   try {
     const { data: empresas, error } = await supabase
       .from('taller_empresas')
-      .select('id, nombre, slug');
+      .select('id, nombre, slug, config_diagnostico');
 
     if (error) throw error;
     res.json(empresas || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const updateEmpresaConfig = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { config_diagnostico } = req.body;
+
+    if (!id || config_diagnostico === undefined) {
+      res.status(400).json({ error: 'Faltan datos requeridos.' });
+      return;
+    }
+
+    const { error } = await supabase
+      .from('taller_empresas')
+      .update({ config_diagnostico })
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
