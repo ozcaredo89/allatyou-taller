@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 interface Cliente {
@@ -33,18 +34,12 @@ const estadoColors: Record<string, string> = {
   cotizacion: 'bg-orange-100 text-orange-800 border-orange-200',
 };
 
-const estadoLabels: Record<string, string> = {
-  recepcion: 'Recepción',
-  diagnostico: 'Diagnóstico',
-  en_reparacion: 'En Reparación',
-  cotizacion: 'Cotización',
-};
-
 const Dashboard: React.FC = () => {
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
+  const { t } = useTranslation();
 
   // Cancellation modal state
   const [cancelTarget, setCancelTarget] = useState<Ingreso | null>(null);
@@ -100,22 +95,22 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-100 rounded-full"><AlertTriangle size={22} className="text-red-600" /></div>
               <div>
-                <h3 className="font-bold text-slate-900 text-lg">Cancelar Proceso</h3>
-                <p className="text-slate-500 text-sm">Vehículo: <strong>{cancelTarget.taller_vehiculos?.placa}</strong></p>
+                <h3 className="font-bold text-slate-900 text-lg">{t('cancel_modal.title')}</h3>
+                <p className="text-slate-500 text-sm">{t('cancel_modal.vehicle')} <strong>{cancelTarget.taller_vehiculos?.placa}</strong></p>
               </div>
             </div>
-            <p className="text-slate-600 text-sm">Esta acción moverá el ingreso al historial como cancelado. Por favor indica el motivo.</p>
+            <p className="text-slate-600 text-sm">{t('cancel_modal.warning')}</p>
             <textarea
               rows={3}
               className="w-full border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none resize-none"
-              placeholder="Ej: Cliente desistió, vehículo retirado sin reparación..."
+              placeholder={t('cancel_modal.placeholder')}
               value={motivoCancelacion}
               onChange={e => setMotivoCancelacion(e.target.value)}
               autoFocus
             />
             <div className="flex gap-3 justify-end">
               <button onClick={() => { setCancelTarget(null); setMotivoCancelacion(''); }} className="px-5 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition">
-                Volver
+                {t('cancel_modal.btn_back')}
               </button>
               <button
                 onClick={confirmarCancelacion}
@@ -123,7 +118,7 @@ const Dashboard: React.FC = () => {
                 className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-2"
               >
                 {cancelling ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                Confirmar Cancelación
+                {t('cancel_modal.btn_confirm')}
               </button>
             </div>
           </div>
@@ -132,14 +127,14 @@ const Dashboard: React.FC = () => {
 
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Vehículos en Taller</h1>
-          <p className="text-slate-500 mt-1">Monitorea el estado de los vehículos ingresados actualmente.</p>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t('dashboard.title')}</h1>
+          <p className="text-slate-500 mt-1">{t('dashboard.subtitle')}</p>
         </div>
         <button
           onClick={() => navigate(`/${slug}/historial`)}
           className="flex items-center gap-2 border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-xl font-medium text-sm transition shadow-sm"
         >
-          <History size={16} /> Historial
+          <History size={16} /> {t('dashboard.btn_historial')}
         </button>
       </div>
 
@@ -148,8 +143,8 @@ const Dashboard: React.FC = () => {
           <div className="bg-slate-50 p-4 rounded-full mb-4">
             <CheckCircle2 size={48} className="text-slate-300" />
           </div>
-          <h3 className="text-xl font-medium text-slate-900">No hay vehículos en el taller</h3>
-          <p className="text-slate-500 mt-2 max-w-md">No tienes vehículos registrados en los estados de recepción, diagnóstico o reparación.</p>
+          <h3 className="text-xl font-medium text-slate-900">{t('dashboard.no_vehicles')}</h3>
+          <p className="text-slate-500 mt-2 max-w-md">{t('dashboard.no_vehicles_desc')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -171,7 +166,7 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${estadoColors[ingreso.estado] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
-                    {estadoLabels[ingreso.estado] || ingreso.estado}
+                    {t(`estado.${ingreso.estado}`)}
                   </span>
                 </div>
 
@@ -179,22 +174,28 @@ const Dashboard: React.FC = () => {
                   <div className="flex items-center gap-3 text-slate-600 text-sm">
                     <FileText size={15} className="text-slate-400 shrink-0" />
                     <span className="truncate" title={ingreso.motivo_visita}>
-                      <span className="font-medium text-slate-900 mr-1">Motivo:</span>
+                      <span className="font-medium text-slate-900 mr-1">{t('card.motivo')}</span>
                       {ingreso.motivo_visita}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-slate-600 text-sm">
                     <Key size={15} className="text-slate-400 shrink-0" />
-                    <span>{ingreso.taller_vehiculos?.taller_clientes?.nombre_completo}</span>
+                    <span>
+                      <span className="font-medium text-slate-900 mr-1">{t('card.cliente')}</span>  
+                      {ingreso.taller_vehiculos?.taller_clientes?.nombre_completo}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3 text-slate-600 text-sm">
                     <CalendarDays size={15} className="text-slate-400 shrink-0" />
-                    <span>{new Date(ingreso.fecha_ingreso).toLocaleDateString('es-CO')}</span>
+                    <span>
+                      <span className="font-medium text-slate-900 mr-1">{t('card.ingreso')}</span>
+                      {new Date(ingreso.fecha_ingreso).toLocaleDateString()}
+                    </span>
                   </div>
                   {ingreso.tecnico_asignado && (
                     <div className="flex items-center gap-3 text-slate-600 text-sm">
                       <Wrench size={15} className="text-slate-400 shrink-0" />
-                      <span>Técnico: <strong>{ingreso.tecnico_asignado}</strong></span>
+                      <span>{t('card.tecnico')} <strong>{ingreso.tecnico_asignado}</strong></span>
                     </div>
                   )}
                 </div>
@@ -204,7 +205,7 @@ const Dashboard: React.FC = () => {
                 <button
                   onClick={() => setCancelTarget(ingreso)}
                   className="flex items-center justify-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 font-medium py-2 px-3 rounded-lg transition text-sm"
-                  title="Cancelar proceso"
+                  title={t('cancel_modal.title')}
                 >
                   <XCircle size={15} />
                 </button>
@@ -213,14 +214,14 @@ const Dashboard: React.FC = () => {
                     onClick={() => navigate(`/${slug}/diagnostico/${ingreso.id}`)}
                     className="flex-1 flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
                   >
-                    <Wrench size={15} /> Diagnóstico
+                    <Wrench size={15} /> {t('card.btn_diagnostico')}
                   </button>
                 ) : (
                   <button
                     onClick={() => navigate(`/${slug}/checkout/${ingreso.id}`)}
                     className="flex-1 flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
                   >
-                    <Receipt size={15} /> Terminar / Checkout
+                    <Receipt size={15} /> {t('card.btn_checkout')}
                   </button>
                 )}
               </div>

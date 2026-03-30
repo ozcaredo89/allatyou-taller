@@ -3,6 +3,7 @@ import { UserSearch, CarFront, FileEdit, Check, AlertCircle, CheckCircle2 } from
 import api from '../services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 import CreatableSelect from 'react-select/creatable';
+import { useTranslation } from 'react-i18next';
 
 interface OptionType {
   value: string;
@@ -11,11 +12,11 @@ interface OptionType {
 }
 
 const ChecklistItems = [
-  { id: 'tiene_gato', label: 'Gato' },
-  { id: 'llanta_repuesto', label: 'Llanta de repuesto' },
-  { id: 'herramienta', label: 'Herramienta' },
-  { id: 'radio', label: 'Radio' },
-  { id: 'documentos', label: 'Documentos' },
+  { id: 'tiene_gato', label: 'Gato', en_label: 'Jack' },
+  { id: 'llanta_repuesto', label: 'Llanta de repuesto', en_label: 'Spare Tire' },
+  { id: 'herramienta', label: 'Herramienta', en_label: 'Tools' },
+  { id: 'radio', label: 'Radio', en_label: 'Radio' },
+  { id: 'documentos', label: 'Documentos', en_label: 'Documents' },
 ];
 
 const NivelesGasolina = ['Reserva', '1/4', '1/2', '3/4', 'Lleno'];
@@ -23,6 +24,8 @@ const NivelesGasolina = ['Reserva', '1/4', '1/2', '3/4', 'Lleno'];
 const NuevoIngreso: React.FC = () => {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
+  const { t, i18n } = useTranslation();
+  
   // Vehículo State
   const [placa, setPlaca] = useState('');
   const [hasSearchedPlaca, setHasSearchedPlaca] = useState(false);
@@ -115,14 +118,14 @@ const NuevoIngreso: React.FC = () => {
         setIsCreatingCliente(false);
         setIsCreatingVehiculo(true);
       } else {
-        setError('Error buscando vehículo.');
+        setError(t('nuevo_ingreso.error_search_vehicle'));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // 2. Buscar Cliente (Solo si el vehículo no existía)
+  // 2. Buscar Cliente
   const buscarCliente = async () => {
     if (!documento) return;
     try {
@@ -137,17 +140,16 @@ const NuevoIngreso: React.FC = () => {
         setCliente(null);
         setIsCreatingCliente(true);
       } else {
-        setError('Error buscando cliente.');
+        setError(t('nuevo_ingreso.error_search_client'));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. Crear Todo y Registrar Ingreso
   const handleRegistrarIngreso = async () => {
     if (!ingreso.kilometraje || !ingreso.motivo_visita) {
-      setError('El kilometraje y motivo son obligatorios.');
+      setError(t('nuevo_ingreso.validation_error'));
       return;
     }
 
@@ -157,25 +159,20 @@ const NuevoIngreso: React.FC = () => {
       
       let currentClienteId = cliente?.id;
       
-      // A. Crear cliente si es flujo nuevo
       if (isCreatingVehiculo && isCreatingCliente && !cliente) {
         const resC = await api.post('/clientes', { documento, ...newCliente });
         currentClienteId = resC.data.id;
         setCliente(resC.data);
       }
 
-      // B. Crear vehiculo si es flujo nuevo
       let currentVehiculoId = vehiculo?.id;
       if (isCreatingVehiculo && !vehiculo) {
-        
-        // Crear marca si es nueva
         let finalMarcaId = selectedMarca && !selectedMarca.__isNew__ ? selectedMarca.value : null;
         if (selectedMarca && selectedMarca.__isNew__) {
           const mRes = await api.post('/marcas', { nombre: selectedMarca.label });
           finalMarcaId = mRes.data.id;
         }
 
-        // Crear linea si es nueva
         if (selectedLinea && selectedLinea.__isNew__ && finalMarcaId) {
           await api.post(`/marcas/${finalMarcaId}/lineas`, { nombre: selectedLinea.label });
         }
@@ -191,7 +188,6 @@ const NuevoIngreso: React.FC = () => {
         setVehiculo(resV.data);
       }
 
-      // C. Crear ingreso
       const payloadIngreso = {
         vehiculo_id: currentVehiculoId,
         kilometraje: parseInt(ingreso.kilometraje),
@@ -237,8 +233,8 @@ const NuevoIngreso: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Recepción de Vehículo</h1>
-        <p className="text-slate-500 mt-1">Busca el vehículo por placa para iniciar el proceso de ingreso.</p>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t('nuevo_ingreso.title')}</h1>
+        <p className="text-slate-500 mt-1">{t('nuevo_ingreso.subtitle')}</p>
       </div>
 
       {error && (
@@ -248,24 +244,24 @@ const NuevoIngreso: React.FC = () => {
         </div>
       )}
 
-      {/* SECTION 1: VEHICULO (IDENTIFICADOR PRINCIPAL) */}
+      {/* SECTION 1: VEHICULO */}
       <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200">
         <div className="flex items-center gap-3 mb-6">
           <div className="bg-blue-100 p-2 rounded-lg">
             <CarFront className="text-blue-600 w-6 h-6" />
           </div>
-          <h2 className="text-xl font-semibold text-slate-800">1. Identificación del Vehículo</h2>
+          <h2 className="text-xl font-semibold text-slate-800">{t('nuevo_ingreso.step_1')}</h2>
         </div>
 
         {!vehiculo && !isCreatingVehiculo ? (
           <div className="flex gap-4">
             <div className="flex-1 max-w-md">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Placa del Vehículo</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.placa_label')}</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 uppercase text-lg font-bold tracking-widest focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="AAA123"
+                  placeholder={t('nuevo_ingreso.placa_placeholder')}
                   value={placa}
                   onChange={(e) => setPlaca(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === 'Enter' && buscarVehiculo()}
@@ -275,7 +271,7 @@ const NuevoIngreso: React.FC = () => {
                   disabled={loading || !placa}
                   className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
                 >
-                  Buscar
+                  {t('nuevo_ingreso.btn_search')}
                 </button>
               </div>
             </div>
@@ -288,7 +284,7 @@ const NuevoIngreso: React.FC = () => {
                 <p className="text-2xl font-bold tracking-widest text-emerald-900 mb-1">{vehiculo.placa}</p>
                 <p className="text-sm font-medium text-emerald-700">{vehiculo.marca} {vehiculo.linea} - {vehiculo.color}</p>
               </div>
-              <button onClick={resetAll} className="text-sm font-medium text-emerald-700 hover:text-emerald-900 underline">Nueva Búsqueda</button>
+              <button onClick={resetAll} className="text-sm font-medium text-emerald-700 hover:text-emerald-900 underline">{t('nuevo_ingreso.btn_new_search')}</button>
             </div>
             {cliente && (
               <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-center gap-3">
@@ -301,62 +297,40 @@ const NuevoIngreso: React.FC = () => {
             )}
           </div>
         ) : (
-          // Vehículo NO encontrado -> Crear nuevo vehículo + Buscar cliente
+          // Vehículo NO encontrado
           <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
             <div className="flex justify-between items-center bg-blue-50 border border-blue-200 p-3 rounded-xl">
               <div>
                 <p className="text-sm text-blue-800 font-medium">Placa: <span className="font-bold text-lg tracking-widest">{placa}</span></p>
-                <p className="text-xs text-blue-600">Vehículo no registrado. Por favor completa los datos.</p>
+                <p className="text-xs text-blue-600">{t('nuevo_ingreso.not_found')}</p>
               </div>
-              <button onClick={resetAll} className="text-xs font-medium text-blue-700 hover:text-blue-900 underline">Cambiar placa</button>
+              <button onClick={resetAll} className="text-xs font-medium text-blue-700 hover:text-blue-900 underline">{t('nuevo_ingreso.btn_change_placa')}</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Marca*</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.marca_label')}</label>
                 <CreatableSelect
                   options={marcasOptions}
                   value={selectedMarca}
                   onChange={handleMarcaChange}
-                  placeholder="Ej. Chevrolet"
                   className="react-select-container"
                   classNamePrefix="react-select"
-                  styles={{
-                    control: (base) => ({
-                      ...base,
-                      borderColor: '#cbd5e1',
-                      borderRadius: '0.5rem',
-                      padding: '2px',
-                      boxShadow: 'none',
-                      '&:hover': { borderColor: '#3b82f6' }
-                    })
-                  }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Línea*</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.linea_label')}</label>
                 <CreatableSelect
                   options={lineasOptions}
                   value={selectedLinea}
                   onChange={handleLineaChange}
                   isDisabled={!selectedMarca}
-                  placeholder="Ej. Spark"
                   className="react-select-container"
                   classNamePrefix="react-select"
-                  styles={{
-                    control: (base) => ({
-                      ...base,
-                      borderColor: '#cbd5e1',
-                      borderRadius: '0.5rem',
-                      padding: '2px',
-                      boxShadow: 'none',
-                      '&:hover': { borderColor: '#3b82f6' }
-                    })
-                  }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Modelo (Año)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.modelo_label')}</label>
                 <input 
                   type="number" 
                   className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -365,7 +339,7 @@ const NuevoIngreso: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Color</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.color_label')}</label>
                 <input 
                   type="text" 
                   className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -377,22 +351,21 @@ const NuevoIngreso: React.FC = () => {
 
             <hr className="border-slate-200" />
             
-            {/* SUB-SECCIÓN: CLIENTE (Solo para vehículo nuevo) */}
             <div className="pt-2">
               <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <UserSearch size={20} className="text-slate-400" />
-                Propietario del Vehículo
+                {t('nuevo_ingreso.propietario_title')}
               </h3>
 
               {!cliente && !isCreatingCliente ? (
                 <div className="flex gap-4 max-w-md">
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Documento del Cliente</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.doc_label')}</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
                         className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                        placeholder="Ej. 10203040"
+                        placeholder={t('nuevo_ingreso.doc_placeholder')}
                         value={documento}
                         onChange={(e) => setDocumento(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && buscarCliente()}
@@ -402,30 +375,28 @@ const NuevoIngreso: React.FC = () => {
                         disabled={loading || !documento}
                         className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
                       >
-                        Buscar
+                        {t('nuevo_ingreso.btn_search')}
                       </button>
                     </div>
                   </div>
                 </div>
               ) : cliente ? (
-                // Cliente encontrado y asociado automáticamente visualmente
                 <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between">
                   <div>
                     <p className="font-semibold text-emerald-900">{cliente.nombre_completo}</p>
                     <p className="text-sm text-emerald-700">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
                   </div>
-                  <button onClick={() => { setCliente(null); setHasSearchedDocumento(false); }} className="text-sm font-medium text-emerald-700 underline">Cambiar</button>
+                  <button onClick={() => { setCliente(null); setHasSearchedDocumento(false); }} className="text-sm font-medium text-emerald-700 underline">{t('nuevo_ingreso.btn_change_doc')}</button>
                 </div>
               ) : (
-                // Crear cliente
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-4">
                   <div className="flex justify-between">
-                    <p className="text-sm text-indigo-600 font-medium">Cliente no encontrado. Por favor completa sus datos:</p>
-                    <button onClick={() => { setIsCreatingCliente(false); setHasSearchedDocumento(false); }} className="text-xs font-medium text-indigo-700 underline">Cambiar documento</button>
+                    <p className="text-sm text-indigo-600 font-medium">{t('nuevo_ingreso.client_not_found')}</p>
+                    <button onClick={() => { setIsCreatingCliente(false); setHasSearchedDocumento(false); }} className="text-xs font-medium text-indigo-700 underline">{t('nuevo_ingreso.btn_change_doc')}</button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo*</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.nombre_label')}</label>
                       <input 
                         type="text" 
                         className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -434,7 +405,7 @@ const NuevoIngreso: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.telefono_label')}</label>
                       <input 
                         type="text" 
                         className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -443,7 +414,7 @@ const NuevoIngreso: React.FC = () => {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.email_label')}</label>
                       <input 
                         type="email" 
                         className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -459,20 +430,20 @@ const NuevoIngreso: React.FC = () => {
         )}
       </section>
 
-      {/* SECTION 2: INGRESO & CHECKLIST (Solo visible si ya completamos la Parte 1) */}
+      {/* SECTION 2: INGRESO & CHECKLIST */}
       {hasSearchedPlaca && (vehiculo || hasSearchedDocumento) && (
         <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center gap-3 mb-6">
             <div className="bg-orange-100 p-2 rounded-lg">
               <FileEdit className="text-orange-600 w-6 h-6" />
             </div>
-            <h2 className="text-xl font-semibold text-slate-800">2. Detalles del Ingreso</h2>
+            <h2 className="text-xl font-semibold text-slate-800">{t('nuevo_ingreso.step_2')}</h2>
           </div>
 
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Kilometraje actual*</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.km_label')}</label>
                 <input 
                   type="number" 
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 outline-none"
@@ -481,7 +452,7 @@ const NuevoIngreso: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nivel de gasolina</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.gasOLINA_label')}</label>
                 <select 
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 outline-none"
                   value={ingreso.nivel_gasolina}
@@ -495,10 +466,10 @@ const NuevoIngreso: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Motivo de visita*</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.motivo_label')}</label>
               <textarea 
                 className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 h-24 focus:ring-2 focus:ring-orange-500 outline-none resize-none"
-                placeholder="Describe el problema o servicio solicitado..."
+                placeholder={t('nuevo_ingreso.motivo_placeholder')}
                 value={ingreso.motivo_visita}
                 onChange={e => setIngreso({...ingreso, motivo_visita: e.target.value})}
               />
@@ -506,11 +477,12 @@ const NuevoIngreso: React.FC = () => {
 
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-                <span className="font-medium text-slate-800">Checklist de Recepción (Inventario)</span>
+                <span className="font-medium text-slate-800">{t('nuevo_ingreso.checklist_title')}</span>
               </div>
               <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
                 {ChecklistItems.map(item => {
                   const isChecked = !!checklist[item.id];
+                  const label = i18n.language === 'en' && item.en_label ? item.en_label : item.label;
                   return (
                     <div 
                       key={item.id} 
@@ -523,7 +495,7 @@ const NuevoIngreso: React.FC = () => {
                         {isChecked && <Check size={14} className="text-white" />}
                       </div>
                       <span className={`text-sm select-none ${isChecked ? 'text-indigo-900 font-medium' : 'text-slate-700'}`}>
-                        {item.label}
+                        {label}
                       </span>
                     </div>
                   )
@@ -532,7 +504,7 @@ const NuevoIngreso: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Observaciones adicionales (Daños visuales, etc.)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('nuevo_ingreso.observaciones_label')}</label>
               <textarea 
                 className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 h-20 focus:ring-2 focus:ring-orange-500 outline-none resize-none"
                 value={ingreso.observaciones_recepcion}
@@ -546,7 +518,7 @@ const NuevoIngreso: React.FC = () => {
                 disabled={loading || !isFormValid()}
                 className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
               >
-                <CheckCircle2 size={24} /> Registrar Ingreso
+                <CheckCircle2 size={24} /> {t('nuevo_ingreso.btn_register')}
               </button>
             </div>
           </div>

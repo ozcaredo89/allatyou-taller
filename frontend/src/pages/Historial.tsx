@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { History, Car, CalendarDays, CheckCircle2, XCircle, Loader2, ArrowLeft, ChevronRight, Receipt } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 interface HistorialIngreso {
@@ -34,6 +35,7 @@ const calcTotal = (items: ItemFactura[] = []) =>
 const Historial: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [registros, setRegistros] = useState<HistorialIngreso[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,17 +60,17 @@ const Historial: React.FC = () => {
         </button>
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-            <History size={28} className="text-indigo-600" /> Historial de Servicios
+            <History size={28} className="text-indigo-600" /> {t('historial.title')}
           </h1>
-          <p className="text-slate-500 mt-1">Servicios finalizados y cancelados.</p>
+          <p className="text-slate-500 mt-1">{t('historial.subtitle')}</p>
         </div>
       </div>
 
       {registros.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center flex flex-col items-center">
           <History size={48} className="text-slate-300 mb-4" />
-          <h3 className="text-xl font-medium text-slate-900">No hay registros</h3>
-          <p className="text-slate-500 mt-2">Los vehículos entregados o cancelados aparecerán aquí.</p>
+          <h3 className="text-xl font-medium text-slate-900">{t('historial.no_records')}</h3>
+          <p className="text-slate-500 mt-2">{t('historial.no_records_desc')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -93,7 +95,7 @@ const Historial: React.FC = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-bold text-slate-800 text-lg">{reg.taller_vehiculos?.placa}</span>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${isCancelado ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                        {isCancelado ? 'Cancelado' : 'Entregado'}
+                        {isCancelado ? t('estado.cancelado') : t('estado.entregado')}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-slate-500">
@@ -104,7 +106,7 @@ const Historial: React.FC = () => {
                         {reg.taller_vehiculos?.taller_clientes?.nombre_completo}
                       </span>
                       <span className="flex items-center gap-1">
-                        <CalendarDays size={13} /> {new Date(reg.updated_at || reg.fecha_ingreso).toLocaleDateString('es-CO')}
+                        <CalendarDays size={13} /> {new Date(reg.updated_at || reg.fecha_ingreso).toLocaleDateString()}
                       </span>
                     </div>
                   </div>

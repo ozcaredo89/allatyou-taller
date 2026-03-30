@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 import Dashboard from './pages/Dashboard';
 import NuevoIngreso from './pages/NuevoIngreso';
@@ -15,7 +16,12 @@ const Navbar = () => {
   const location = useLocation();
   const { slug } = useParams<{ slug: string }>();
   const { empresaNombre, logout } = useAuth();
+  const { t, i18n } = useTranslation();
   
+  const toggleLanguage = () => {
+    i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es');
+  };
+
   return (
     <nav className="bg-slate-900 border-b border-slate-800 text-white shadow-xl sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,31 +38,41 @@ const Navbar = () => {
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname === `/${slug}` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <LayoutDashboard size={18} />
-              <span className="hidden sm:inline">Dashboard</span>
+              <span className="hidden sm:inline">{t('navbar.dashboard')}</span>
             </Link>
             <Link 
               to={`/${slug}/nuevo-ingreso`} 
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname === `/${slug}/nuevo-ingreso` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <PlusCircle size={18} />
-              <span className="hidden sm:inline">Nuevo Ingreso</span>
+              <span className="hidden sm:inline">{t('navbar.nuevo_ingreso')}</span>
             </Link>
             <Link 
               to={`/${slug}/historial`} 
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/historial') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <History size={18} />
-              <span className="hidden sm:inline">Historial</span>
+              <span className="hidden sm:inline">{t('navbar.historial')}</span>
             </Link>
             
+            {/* Language Toggle Button */}
+            <button 
+              onClick={toggleLanguage}
+              className="ml-2 flex items-center gap-2 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border border-slate-700 font-bold text-xs"
+              title="Cambiar idioma / Change language"
+            >
+              <Globe size={16} />
+              <span className="hidden md:inline">{i18n.language.toUpperCase()}</span>
+            </button>
+
             {/* Logout Button */}
             <button 
               onClick={logout}
               className="ml-2 flex items-center gap-2 px-3 py-2 border border-slate-700 rounded-md text-slate-300 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50 transition-colors"
-              title="Cerrar sesión o Cambiar sucursal"
+              title={t('navbar.cerrar_sesion')}
             >
               <LogOut size={18} />
-              <span className="hidden md:inline font-medium text-sm">Cambiar Sucursal</span>
+              <span className="hidden md:inline font-medium text-sm">{t('navbar.cerrar_sesion')}</span>
             </button>
           </div>
         </div>
