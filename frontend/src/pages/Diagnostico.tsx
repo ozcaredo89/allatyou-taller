@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon, Settings, Eye, EyeOff, Plus, X } from 'lucide-react';
+import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon, Settings, Eye, EyeOff, Plus, X, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -507,7 +507,7 @@ const Diagnostico: React.FC = () => {
                       <div>
                         {item.fotos.length > 0 && (
                           <div className="flex gap-2 overflow-x-auto pb-2 mb-2 snap-x">
-                            {item.fotos.map((foto, idx) => (
+                            {item.fotos.map((foto: string, idx: number) => (
                               <div key={idx} className="relative group shrink-0 snap-start">
                                 <img src={foto} alt={`Foto ${sys.label}`} className="h-20 w-20 object-cover rounded-xl border border-slate-200" />
                                 <button onClick={() => removePhoto(sys.key, idx)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600">
