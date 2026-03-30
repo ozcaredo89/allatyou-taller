@@ -17,6 +17,22 @@ export const getIngresosActivos = async (req: Request, res: Response): Promise<v
   }
 };
 
+export const getHistorial = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data, error } = await supabase
+      .from('taller_ingresos')
+      .select('*, taller_vehiculos(*, taller_clientes(*))')
+      .eq('empresa_id', req.empresa_id)
+      .in('estado', ['entregado', 'cancelado'])
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const createIngreso = async (req: Request, res: Response): Promise<void> => {
   try {
     const { 

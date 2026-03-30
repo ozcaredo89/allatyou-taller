@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 import Dashboard from './pages/Dashboard';
@@ -8,6 +8,8 @@ import Diagnostico from './pages/Diagnostico';
 import Checkout from './pages/Checkout';
 import Login from './pages/Login';
 import Registro from './pages/Registro';
+import Historial from './pages/Historial';
+import HistorialDetalle from './pages/HistorialDetalle';
 
 const Navbar = () => {
   const location = useLocation();
@@ -38,6 +40,13 @@ const Navbar = () => {
             >
               <PlusCircle size={18} />
               <span className="hidden sm:inline">Nuevo Ingreso</span>
+            </Link>
+            <Link 
+              to={`/${slug}/historial`} 
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/historial') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+            >
+              <History size={18} />
+              <span className="hidden sm:inline">Historial</span>
             </Link>
             
             {/* Logout Button */}
@@ -96,6 +105,8 @@ function App() {
             <Route path="nuevo-ingreso" element={<NuevoIngreso />} />
             <Route path="diagnostico/:id" element={<Diagnostico />} />
             <Route path="checkout/:id" element={<Checkout />} />
+            <Route path="historial" element={<Historial />} />
+            <Route path="historial/:id" element={<HistorialDetalle />} />
           </Route>
         </Routes>
       </BrowserRouter>

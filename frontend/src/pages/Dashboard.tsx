@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt } from 'lucide-react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../services/api';
 
@@ -22,6 +22,7 @@ interface Ingreso {
   fecha_ingreso: string;
   estado: string;
   motivo_visita: string;
+  tecnico_asignado?: string;
   taller_vehiculos: Vehiculo;
 }
 
@@ -45,9 +46,12 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
 
-  useEffect(() => {
-    fetchIngresos();
-  }, []);
+  // Cancellation modal state
+  const [cancelTarget, setCancelTarget] = useState<Ingreso | null>(null);
+  const [motivoCancelacion, setMotivoCancelacion] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => { fetchIngresos(); }, []);
 
   const fetchIngresos = async () => {
     try {
@@ -61,6 +65,24 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const confirmarCancelacion = async () => {
+    if (!cancelTarget || !motivoCancelacion.trim()) return;
+    try {
+      setCancelling(true);
+      await api.put(`/ingresos/${cancelTarget.id}`, {
+        estado: 'cancelado',
+        motivo_cancelacion: motivoCancelacion.trim(),
+      });
+      setCancelTarget(null);
+      setMotivoCancelacion('');
+      fetchIngresos();
+    } catch (err) {
+      console.error('Error cancelando:', err);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -71,11 +93,54 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Cancellation Modal */}
+      {cancelTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-full"><AlertTriangle size={22} className="text-red-600" /></div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Cancelar Proceso</h3>
+                <p className="text-slate-500 text-sm">Vehículo: <strong>{cancelTarget.taller_vehiculos?.placa}</strong></p>
+              </div>
+            </div>
+            <p className="text-slate-600 text-sm">Esta acción moverá el ingreso al historial como cancelado. Por favor indica el motivo.</p>
+            <textarea
+              rows={3}
+              className="w-full border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none resize-none"
+              placeholder="Ej: Cliente desistió, vehículo retirado sin reparación..."
+              value={motivoCancelacion}
+              onChange={e => setMotivoCancelacion(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => { setCancelTarget(null); setMotivoCancelacion(''); }} className="px-5 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition">
+                Volver
+              </button>
+              <button
+                onClick={confirmarCancelacion}
+                disabled={cancelling || !motivoCancelacion.trim()}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+              >
+                {cancelling ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                Confirmar Cancelación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Vehículos en Taller</h1>
           <p className="text-slate-500 mt-1">Monitorea el estado de los vehículos ingresados actualmente.</p>
         </div>
+        <button
+          onClick={() => navigate(`/${slug}/historial`)}
+          className="flex items-center gap-2 border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-xl font-medium text-sm transition shadow-sm"
+        >
+          <History size={16} /> Historial
+        </button>
       </div>
 
       {ingresos.length === 0 ? (
@@ -110,47 +175,52 @@ const Dashboard: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="space-y-3 mt-6">
+                <div className="space-y-2.5 mt-4">
                   <div className="flex items-center gap-3 text-slate-600 text-sm">
-                    <FileText size={16} className="text-slate-400" />
+                    <FileText size={15} className="text-slate-400 shrink-0" />
                     <span className="truncate" title={ingreso.motivo_visita}>
-                      <span className="font-medium text-slate-900 mr-1">Motivo:</span> 
+                      <span className="font-medium text-slate-900 mr-1">Motivo:</span>
                       {ingreso.motivo_visita}
                     </span>
                   </div>
-                  
                   <div className="flex items-center gap-3 text-slate-600 text-sm">
-                    <Key size={16} className="text-slate-400" />
-                    <span>
-                      <span className="font-medium text-slate-900 mr-1">Cliente:</span>
-                      {ingreso.taller_vehiculos?.taller_clientes?.nombre_completo}
-                    </span>
+                    <Key size={15} className="text-slate-400 shrink-0" />
+                    <span>{ingreso.taller_vehiculos?.taller_clientes?.nombre_completo}</span>
                   </div>
-
                   <div className="flex items-center gap-3 text-slate-600 text-sm">
-                    <CalendarDays size={16} className="text-slate-400" />
-                    <span>
-                      <span className="font-medium text-slate-900 mr-1">Ingreso:</span>
-                      {new Date(ingreso.fecha_ingreso).toLocaleDateString()}
-                    </span>
+                    <CalendarDays size={15} className="text-slate-400 shrink-0" />
+                    <span>{new Date(ingreso.fecha_ingreso).toLocaleDateString('es-CO')}</span>
                   </div>
+                  {ingreso.tecnico_asignado && (
+                    <div className="flex items-center gap-3 text-slate-600 text-sm">
+                      <Wrench size={15} className="text-slate-400 shrink-0" />
+                      <span>Técnico: <strong>{ingreso.tecnico_asignado}</strong></span>
+                    </div>
+                  )}
                 </div>
               </div>
-              
-              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex gap-2">
+
+              <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex gap-2">
+                <button
+                  onClick={() => setCancelTarget(ingreso)}
+                  className="flex items-center justify-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 font-medium py-2 px-3 rounded-lg transition text-sm"
+                  title="Cancelar proceso"
+                >
+                  <XCircle size={15} />
+                </button>
                 {['recepcion', 'diagnostico'].includes(ingreso.estado) ? (
-                  <button 
+                  <button
                     onClick={() => navigate(`/${slug}/diagnostico/${ingreso.id}`)}
-                    className="flex-1 flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    className="flex-1 flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
                   >
-                    <Wrench size={16} /> Diagnóstico
+                    <Wrench size={15} /> Diagnóstico
                   </button>
                 ) : (
-                  <button 
+                  <button
                     onClick={() => navigate(`/${slug}/checkout/${ingreso.id}`)}
-                    className="flex-1 flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    className="flex-1 flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
                   >
-                    <Receipt size={16} /> Terminar / Checkout
+                    <Receipt size={15} /> Terminar / Checkout
                   </button>
                 )}
               </div>

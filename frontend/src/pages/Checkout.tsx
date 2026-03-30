@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, CheckSquare, Loader2, ArrowLeft } from 'lucide-react';
+import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+
+interface ItemFactura {
+  id: string;
+  tipo: 'repuesto' | 'mano_obra';
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number;
+  total: number;
+}
+
+const tipoLabel = { repuesto: 'Repuesto', mano_obra: 'Mano de Obra' };
 
 const Checkout: React.FC = () => {
   const { id, slug } = useParams<{ id: string, slug: string }>();
@@ -14,40 +25,73 @@ const Checkout: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Estados locales para items facturados si queremos agregar (MVP simple)
-  const [total, setTotal] = useState(0);
+  // Facturación
+  const [items, setItems] = useState<ItemFactura[]>([]);
+  const [notasFactura, setNotasFactura] = useState('');
+  const [tecnicoAsignado, setTecnicoAsignado] = useState('');
 
-  useEffect(() => {
-    cargarIngreso();
-  }, [id]);
+  // Nuevo ítem (form inline)
+  const [showForm, setShowForm] = useState(false);
+  const [nuevoTipo, setNuevoTipo] = useState<'repuesto' | 'mano_obra'>('repuesto');
+  const [nuevoDesc, setNuevoDesc] = useState('');
+  const [nuevoCant, setNuevoCant] = useState(1);
+  const [nuevoPrecio, setNuevoPrecio] = useState(0);
+
+  useEffect(() => { cargarIngreso(); }, [id]);
 
   const cargarIngreso = async () => {
     try {
       const { data } = await api.get(`/ingresos/${id}`);
       setIngreso(data);
-    } catch (err: any) {
+      setItems(data.items_factura || []);
+      setNotasFactura(data.notas_factura || '');
+      setTecnicoAsignado(data.tecnico_asignado || '');
+    } catch {
       setError('No se pudo cargar la información del ingreso.');
     } finally {
       setLoading(false);
     }
   };
 
+  const agregarItem = () => {
+    if (!nuevoDesc.trim() || nuevoPrecio <= 0) return;
+    const newItem: ItemFactura = {
+      id: crypto.randomUUID(),
+      tipo: nuevoTipo,
+      descripcion: nuevoDesc.trim(),
+      cantidad: nuevoCant,
+      precio_unitario: nuevoPrecio,
+      total: nuevoCant * nuevoPrecio,
+    };
+    setItems(prev => [...prev, newItem]);
+    setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(0); setShowForm(false);
+  };
+
+  const eliminarItem = (itemId: string) => setItems(prev => prev.filter(i => i.id !== itemId));
+
+  const subtotal = items.reduce((acc, i) => acc + i.total, 0);
+  const iva = Math.round(subtotal * 0.19);
+  const total = subtotal + iva;
+
+  const persistir = async (nuevoEstado?: string) => {
+    await api.put(`/ingresos/${id}`, {
+      items_factura: items,
+      notas_factura: notasFactura,
+      tecnico_asignado: tecnicoAsignado,
+      ...(nuevoEstado ? { estado: nuevoEstado } : {}),
+    });
+  };
+
   const handleEntregar = async () => {
     try {
       setSaving(true);
-      await api.put(`/ingresos/${id}`, {
-        estado: 'entregado'
-      });
+      await persistir('entregado');
       navigate(`/${slug}`);
-    } catch (err: any) {
+    } catch {
       setError('Error al entregar el vehículo.');
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleImprimir = () => {
-    window.print();
   };
 
   if (loading) return <div className="p-8 flex items-center justify-center"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>;
@@ -59,151 +103,202 @@ const Checkout: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
-      {/* Botones Header - Non-printable */}
+      {/* Botones Header */}
       <div className="flex justify-between items-center print:hidden">
         <button onClick={() => navigate(`/${slug}`)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
           <ArrowLeft size={20} className="text-slate-700" />
         </button>
         <div className="flex gap-3">
-          <button 
-            onClick={handleImprimir}
-            className="bg-white border text-slate-700 px-6 py-2 rounded-lg font-medium shadow-sm hover:bg-slate-50 transition flex items-center gap-2"
-          >
-            <Printer size={18} /> Imprimir Factura
+          <button onClick={() => window.print()} className="bg-white border text-slate-700 px-5 py-2 rounded-lg font-medium shadow-sm hover:bg-slate-50 transition flex items-center gap-2">
+            <Printer size={18} /> Imprimir
           </button>
-          <button 
+          <button
             onClick={handleEntregar}
             disabled={saving || ingreso.estado === 'entregado'}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2"
           >
             {saving ? <Loader2 className="animate-spin" size={18} /> : <CheckSquare size={18} />}
-            Completar y Entregar Vehículo
+            Completar y Entregar
           </button>
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-3 border border-red-200 print:hidden">
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 print:hidden">{error}</div>}
 
-      {/* FACTURA PRINT UI */}
-      <div className="bg-white p-8 md:p-12 border border-slate-200 rounded-lg shadow-sm print:shadow-none print:border-none print:p-0">
-        
-        {/* Header Factura */}
+      <div className="bg-white p-8 md:p-12 border border-slate-200 rounded-2xl shadow-sm print:shadow-none print:border-none print:p-0">
+        {/* Factura Header */}
         <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
           <div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Factura</h1>
-            <p className="text-slate-500 font-medium">Orden de Servicio #{ingreso.id.substring(0, 8)}</p>
+            <p className="text-slate-500 font-medium">Orden #{ingreso.id.substring(0, 8).toUpperCase()}</p>
           </div>
           <div className="text-right">
             <h2 className="text-xl font-bold text-slate-800">{empresaNombre || 'TallerPro'}</h2>
             <p className="text-slate-500 text-sm">NIT: 900.000.000-1</p>
-            <p className="text-slate-500 text-sm">Calle Falsa 123, Ciudad</p>
-            <p className="text-slate-500 text-sm">Tel: +57 300 000 0000</p>
           </div>
         </div>
 
-        {/* Info Ciente y Entorno */}
-        <div className="grid grid-cols-2 gap-8 mb-10">
+        {/* Cliente y Vehículo */}
+        <div className="grid grid-cols-2 gap-8 mb-8">
           <div>
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Facturado a</h3>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Facturado a</h3>
             <p className="font-bold text-slate-800 text-lg">{cliente?.nombre_completo}</p>
-            <p className="text-slate-600">Doc: {cliente?.documento}</p>
-            <p className="text-slate-600">Tel: {cliente?.telefono}</p>
-            <p className="text-slate-600">{cliente?.email}</p>
+            <p className="text-slate-600 text-sm">Doc: {cliente?.documento}</p>
+            <p className="text-slate-600 text-sm">Tel: {cliente?.telefono}</p>
           </div>
           <div className="text-right">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Detalles del Vehículo</h3>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Vehículo</h3>
             <p className="font-bold text-slate-800 text-2xl tracking-widest">{vehiculo?.placa}</p>
-            <p className="text-slate-600">{vehiculo?.marca} {vehiculo?.linea} {vehiculo?.modelo_anio ? `(${vehiculo.modelo_anio})` : ''}</p>
-            <p className="text-slate-600">Color: {vehiculo?.color || 'N/A'}</p>
-            <p className="text-slate-600">Kilometraje: {ingreso.kilometraje} km</p>
+            <p className="text-slate-600 text-sm">{vehiculo?.marca} {vehiculo?.linea}</p>
           </div>
         </div>
 
-        {/* Trabajos Realizados */}
-        <div className="mb-10">
-           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Servicios y Diagnóstico Realizado</h3>
-           
-           <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 space-y-4">
-             {Object.entries(diagnostico).map(([key, val]: any) => {
-               if (!val) return null;
-               
-               // Soporte para formato antiguo (string) y nuevo (objeto)
-               const isObject = typeof val === 'object' && val !== null;
-               const estado = isObject ? val.estado : null;
-               const notas = isObject ? val.notas : val;
-               const fallas = isObject && Array.isArray(val.fallas_comunes) ? val.fallas_comunes : [];
-               
-               if (!estado && !notas && fallas.length === 0) return null;
+        {/* Técnico Asignado */}
+        <div className="mb-8 print:hidden">
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Técnico Asignado</label>
+          <input
+            type="text"
+            className="w-full sm:w-72 border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            placeholder="Nombre del técnico..."
+            value={tecnicoAsignado}
+            onChange={e => setTecnicoAsignado(e.target.value)}
+          />
+        </div>
+        {tecnicoAsignado && <p className="hidden print:block text-sm text-slate-600 mb-6">Técnico: <strong>{tecnicoAsignado}</strong></p>}
 
-               const labelEstado = estado === 'buen_estado' ? 'Buen Estado' : estado === 'revisar' ? 'Requiere Revisión' : estado === 'danado' ? 'Dañado' : '';
-               const colorEstado = estado === 'buen_estado' ? 'text-emerald-600' : estado === 'revisar' ? 'text-amber-600' : estado === 'danado' ? 'text-red-600' : 'text-slate-600';
+        {/* Diagnóstico (read-only summary) */}
+        {Object.keys(diagnostico).length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Diagnóstico Realizado</h3>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 text-sm">
+              {Object.entries(diagnostico).map(([key, val]: any) => {
+                if (!val || (val.estado === 'buen_estado' && !val.notas && !val.fallas_comunes?.length)) return null;
+                return (
+                  <div key={key} className="flex gap-3 pb-2 border-b border-slate-100 last:border-0">
+                    <span className="font-semibold text-slate-700 capitalize w-36 shrink-0">{key.replace(/_/g, ' ')}</span>
+                    <div>
+                      <span className={`text-xs font-bold uppercase ${val.estado === 'danado' ? 'text-red-600' : val.estado === 'revisar' ? 'text-amber-600' : 'text-emerald-600'}`}>{val.estado?.replace('_', ' ')}</span>
+                      {val.fallas_comunes?.length > 0 && <p className="text-slate-500 text-xs mt-0.5">{val.fallas_comunes.join(' · ')}</p>}
+                      {val.notas && <p className="text-slate-600 mt-0.5 italic text-xs">"{val.notas}"</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-               return (
-                 <div key={key} className="pb-3 mb-3 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
-                   <div className="flex justify-between items-center mb-1">
-                     <strong className="capitalize text-slate-800 text-lg">{key.replace('_', ' ')}</strong>
-                     {labelEstado && <span className={`font-bold ${colorEstado} uppercase text-xs tracking-wider`}>{labelEstado}</span>}
-                   </div>
-                   
-                   {fallas.length > 0 && (
-                     <div className="flex flex-wrap gap-1 mt-2">
-                       {fallas.map((f: string, i: number) => (
-                         <span key={i} className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs border border-slate-200">{f}</span>
-                       ))}
-                     </div>
-                   )}
-                   
-                   {notas && (typeof notas === 'string') && (
-                     <p className="text-slate-600 mt-2 pl-4 border-l-2 border-indigo-200 indent-0 text-sm">{notas}</p>
-                   )}
-                 </div>
-               )
-             })}
-             {Object.keys(diagnostico).length === 0 && (
-               <p className="text-slate-500 italic">No se registraron notas de diagnóstico en el sistema.</p>
-             )}
-           </div>
+        {/* Items de Factura */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Servicios y Repuestos</h3>
+            <button onClick={() => setShowForm(v => !v)} className="print:hidden flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
+              <Plus size={14} /> Agregar Ítem
+            </button>
+          </div>
+
+          {/* Form de nuevo ítem */}
+          {showForm && (
+            <div className="mb-4 p-4 bg-indigo-50 border border-dashed border-indigo-200 rounded-xl space-y-3 print:hidden">
+              <div className="flex gap-2">
+                <button onClick={() => setNuevoTipo('repuesto')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border transition ${nuevoTipo === 'repuesto' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                  <Package size={14} /> Repuesto
+                </button>
+                <button onClick={() => setNuevoTipo('mano_obra')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border transition ${nuevoTipo === 'mano_obra' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                  <Wrench size={14} /> Mano de Obra
+                </button>
+              </div>
+              <input type="text" placeholder="Descripción..." value={nuevoDesc} onChange={e => setNuevoDesc(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-slate-500 mb-0.5 block">Cantidad</label>
+                  <input type="number" min={1} value={nuevoCant} onChange={e => setNuevoCant(Number(e.target.value))} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="flex-[2]">
+                  <label className="text-xs text-slate-500 mb-0.5 block">Precio Unitario ($)</label>
+                  <input type="number" min={0} value={nuevoPrecio} onChange={e => setNuevoPrecio(Number(e.target.value))} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="flex items-end pb-0.5">
+                  <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-2 rounded-lg whitespace-nowrap">= ${(nuevoCant * nuevoPrecio).toLocaleString('es-CO')}</span>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+                <button onClick={agregarItem} className="px-4 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">Agregar</button>
+              </div>
+            </div>
+          )}
+
+          {items.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs font-bold text-slate-400 uppercase border-b border-slate-200">
+                  <th className="pb-2 text-left">Descripción</th>
+                  <th className="pb-2 text-center">Tipo</th>
+                  <th className="pb-2 text-right">Cant.</th>
+                  <th className="pb-2 text-right">P. Unit.</th>
+                  <th className="pb-2 text-right">Total</th>
+                  <th className="pb-2 print:hidden"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.map(item => (
+                  <tr key={item.id}>
+                    <td className="py-2.5 text-slate-800 font-medium">{item.descripcion}</td>
+                    <td className="py-2.5 text-center">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{tipoLabel[item.tipo]}</span>
+                    </td>
+                    <td className="py-2.5 text-right text-slate-600">{item.cantidad}</td>
+                    <td className="py-2.5 text-right text-slate-600">${item.precio_unitario.toLocaleString('es-CO')}</td>
+                    <td className="py-2.5 text-right font-bold text-slate-800">${item.total.toLocaleString('es-CO')}</td>
+                    <td className="py-2.5 text-right print:hidden">
+                      <button onClick={() => eliminarItem(item.id)} className="text-red-400 hover:text-red-600 transition p-1"><Trash2 size={14} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-slate-400 italic text-sm text-center py-4 border border-dashed border-slate-200 rounded-xl">No se han agregado ítems aún.</p>
+          )}
         </div>
 
-        {/* Totales MVP (Simple Input) */}
+        {/* Notas de Factura */}
+        <div className="mb-8 print:hidden">
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Notas de Factura</label>
+          <textarea
+            className="w-full border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+            rows={3}
+            placeholder="Observaciones internas o para el cliente..."
+            value={notasFactura}
+            onChange={e => setNotasFactura(e.target.value)}
+          />
+        </div>
+        {notasFactura && <p className="hidden print:block text-sm text-slate-500 italic mb-6 border-t border-slate-100 pt-3">Notas: {notasFactura}</p>}
+
+        {/* Totales */}
         <div className="flex justify-end border-t-2 border-slate-100 pt-6">
-          <div className="w-1/2 md:w-1/3">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-slate-500 font-medium">Subtotal</span>
-              <span className="text-slate-800">$ 0.00</span>
+          <div className="w-64 space-y-1.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Subtotal</span>
+              <span className="text-slate-800 font-medium">${subtotal.toLocaleString('es-CO')}</span>
             </div>
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-500 font-medium">I.V.A (19%)</span>
-              <span className="text-slate-800">$ 0.00</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">I.V.A (19%)</span>
+              <span className="text-slate-800 font-medium">${iva.toLocaleString('es-CO')}</span>
             </div>
-            <div className="flex justify-between items-center border-t border-slate-200 pt-4">
+            <div className="flex justify-between items-center border-t border-slate-200 pt-3 mt-2">
               <span className="text-xl font-bold text-slate-800">Total</span>
-              <div className="print:hidden">
-                <input 
-                  type="number" 
-                  value={total}
-                  onChange={e => setTotal(Number(e.target.value))}
-                  className="w-32 text-right bg-slate-50 border border-slate-300 rounded px-2 py-1 font-bold text-xl" 
-                  placeholder="0.00"
-                />
-              </div>
-              <span className="text-xl font-bold text-indigo-700 hidden print:block">
-                ${total.toLocaleString('es-CO')}
-              </span>
+              <span className="text-2xl font-black text-indigo-700">${total.toLocaleString('es-CO')}</span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="mt-16 text-center text-slate-400 text-sm">
-          <p>Esta factura de venta se asimila en todos sus efectos a una letra de cambio.</p>
+        <div className="mt-12 text-center text-slate-400 text-sm">
+          <p>Esta factura se asimila en todos sus efectos a una letra de cambio.</p>
           <p>Gracias por confiar en {empresaNombre || 'TallerPro'}.</p>
         </div>
-
       </div>
     </div>
   );
