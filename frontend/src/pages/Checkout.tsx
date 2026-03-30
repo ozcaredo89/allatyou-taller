@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench } from 'lucide-react';
+import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { generarLinkWhatsApp } from '../utils/whatsapp';
 
 interface ItemFactura {
   id: string;
@@ -109,6 +110,12 @@ const Checkout: React.FC = () => {
           <ArrowLeft size={20} className="text-slate-700" />
         </button>
         <div className="flex gap-3">
+          <button
+            onClick={() => window.open(generarLinkWhatsApp(cliente?.telefono || '', t('whatsapp.msg_listo', { nombre: cliente?.nombre_completo, taller: empresaNombre || 'TallerPro', placa: vehiculo?.placa })), '_blank')}
+            className="hidden sm:flex bg-[#25D366] hover:bg-[#1ebd5a] text-white px-5 py-2 rounded-lg font-bold transition shadow-md items-center gap-2"
+          >
+            <MessageCircle size={18} /> {t('whatsapp.btn_avisar_listo')}
+          </button>
           <button onClick={() => window.print()} className="bg-white border text-slate-700 px-5 py-2 rounded-lg font-medium shadow-sm hover:bg-slate-50 transition flex items-center gap-2">
             <Printer size={18} /> {t('checkout.btn_print')}
           </button>

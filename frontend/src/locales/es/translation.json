@@ -149,5 +149,11 @@
     "motivo_cancelacion": "Motivo de Cancelación",
     "diagnostico_registrado": "Diagnóstico Registrado",
     "servicios_facturados": "Servicios Facturados"
+  },
+  "whatsapp": {
+    "btn_contactar": "Contactar Cliente",
+    "btn_avisar_listo": "Avisar que está listo",
+    "msg_proceso": "Hola {{nombre}}, te escribimos de {{taller}} para informarte sobre tu vehículo {{placa}}: ",
+    "msg_listo": "Hola {{nombre}}, te informamos que tu vehículo {{placa}} ya está listo. Puedes pasar a recogerlo en {{taller}}."
   }
 }

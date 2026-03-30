@@ -149,5 +149,11 @@
     "motivo_cancelacion": "Reason for Cancellation",
     "diagnostico_registrado": "Registered Diagnostic",
     "servicios_facturados": "Billed Services"
+  },
+  "whatsapp": {
+    "btn_contactar": "Contact Client",
+    "btn_avisar_listo": "Notify Ready",
+    "msg_proceso": "Hello {{nombre}}, we are contacting you from {{taller}} regarding your vehicle {{placa}}: ",
+    "msg_listo": "Hello {{nombre}}, your vehicle {{placa}} is ready for pickup at {{taller}}."
   }
 }

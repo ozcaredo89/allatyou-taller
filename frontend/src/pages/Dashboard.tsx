@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History } from 'lucide-react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { generarLinkWhatsApp } from '../utils/whatsapp';
 
 interface Cliente {
   id: string;
@@ -40,6 +42,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const { t } = useTranslation();
+  const { empresaNombre } = useAuth();
 
   // Cancellation modal state
   const [cancelTarget, setCancelTarget] = useState<Ingreso | null>(null);
@@ -204,10 +207,17 @@ const Dashboard: React.FC = () => {
               <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex gap-2">
                 <button
                   onClick={() => setCancelTarget(ingreso)}
-                  className="flex items-center justify-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 font-medium py-2 px-3 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 font-medium py-2 px-3 rounded-lg transition text-sm flex-none"
                   title={t('cancel_modal.title')}
                 >
                   <XCircle size={15} />
+                </button>
+                <button
+                  onClick={() => window.open(generarLinkWhatsApp(ingreso.taller_vehiculos?.taller_clientes?.telefono || '', t('whatsapp.msg_proceso', { nombre: ingreso.taller_vehiculos?.taller_clientes?.nombre_completo, taller: empresaNombre || 'TallerPro', placa: ingreso.taller_vehiculos?.placa })), '_blank')}
+                  className="flex items-center justify-center gap-1.5 border border-green-200 text-green-600 hover:bg-green-50 font-medium py-2 px-3 rounded-lg transition text-sm flex-none"
+                  title={t('whatsapp.btn_contactar')}
+                >
+                  <MessageCircle size={15} />
                 </button>
                 {['recepcion', 'diagnostico'].includes(ingreso.estado) ? (
                   <button
