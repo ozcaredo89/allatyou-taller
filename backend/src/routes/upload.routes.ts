@@ -1,8 +1,12 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { uploadFileToR2 } from '../services/s3Service';
+import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
+
+router.use(requireAuth);
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/', upload.single('archivo'), async (req: Request, res: Response): Promise<void> => {
