@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
@@ -20,6 +20,8 @@ const Checkout: React.FC = () => {
   const navigate = useNavigate();
   const { empresaNombre } = useAuth();
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const isEditMode = searchParams.get('edit') === 'true';
   
   const [ingreso, setIngreso] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -86,8 +88,26 @@ const Checkout: React.FC = () => {
   const handleEntregar = async () => {
     try {
       setSaving(true);
-      await persistir('entregado');
-      navigate(`/${slug}`);
+      if (isEditMode) {
+        const snapshot = {
+          fecha: new Date().toISOString(),
+          items_anteriores: ingreso.items_factura || [],
+          notas_anteriores: ingreso.notas_factura || ''
+        };
+        const historialEnmiendas = ingreso.historial_enmiendas || [];
+        historialEnmiendas.push(snapshot);
+
+        await api.put(`/ingresos/${id}`, {
+          items_factura: items,
+          notas_factura: notasFactura,
+          tecnico_asignado: tecnicoAsignado,
+          historial_enmiendas: historialEnmiendas
+        });
+        navigate(`/${slug}/historial/${id}`);
+      } else {
+        await persistir('entregado');
+        navigate(`/${slug}`);
+      }
     } catch {
       setError('Error');
     } finally {
@@ -121,11 +141,11 @@ const Checkout: React.FC = () => {
           </button>
           <button
             onClick={handleEntregar}
-            disabled={saving || ingreso.estado === 'entregado'}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2"
+            disabled={saving || (!isEditMode && ingreso.estado === 'entregado')}
+            className={`${isEditMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white px-5 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2`}
           >
             {saving ? <Loader2 className="animate-spin" size={18} /> : <CheckSquare size={18} />}
-            {t('checkout.btn_complete')}
+            {isEditMode ? 'Actualizar Orden' : t('checkout.btn_complete')}
           </button>
         </div>
       </div>
@@ -169,6 +189,7 @@ const Checkout: React.FC = () => {
             placeholder={t('checkout.tecnico_placeholder')}
             value={tecnicoAsignado}
             onChange={e => setTecnicoAsignado(e.target.value)}
+            disabled={isEditMode}
           />
         </div>
         {tecnicoAsignado && <p className="hidden print:block text-sm text-slate-600 mb-6">{t('card.tecnico').replace(':', '')}: <strong>{tecnicoAsignado}</strong></p>}

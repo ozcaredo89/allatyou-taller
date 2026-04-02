@@ -110,7 +110,7 @@
   "checkout": {
     "btn_print": "Print",
     "btn_complete": "Complete & Deliver",
-    "title": "Invoice",
+    "title": "Service Order",
     "orden": "Order #",
     "facturado_a": "Billed to",
     "vehiculo": "Vehicle",
@@ -131,7 +131,7 @@
     "col_precio": "U. Price",
     "col_total": "Total",
     "no_items": "No items added yet.",
-    "notas_factura": "Invoice Notes",
+    "notas_factura": "Order Notes",
     "notas_placeholder": "Internal observations or client notes...",
     "notas": "Notes:",
     "subtotal": "Subtotal",
@@ -148,7 +148,7 @@
     "detalle_title": "Service Details",
     "motivo_cancelacion": "Reason for Cancellation",
     "diagnostico_registrado": "Registered Diagnostic",
-    "servicios_facturados": "Billed Services"
+    "servicios_facturados": "Registered Services"
   },
   "whatsapp": {
     "btn_contactar": "Contact Client",

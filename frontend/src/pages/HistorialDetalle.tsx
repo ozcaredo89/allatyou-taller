@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, XCircle, Receipt, Wrench } from 'lucide-react';
+import { ArrowLeft, Loader2, XCircle, Receipt, Wrench, Edit } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -49,6 +49,14 @@ const HistorialDetalle: React.FC = () => {
         <span className={`text-xs font-bold px-3 py-1 rounded-full border ${isCancelado ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
           {isCancelado ? `✗ ${t('estado.cancelado')}` : `✓ ${t('estado.entregado')}`}
         </span>
+        {!isCancelado && (
+          <button
+            onClick={() => navigate(`/${slug}/checkout/${ingreso.id}?edit=true`)}
+            className="ml-auto flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition"
+          >
+            <Edit size={16} /> Editar Orden
+          </button>
+        )}
       </div>
 
       {isCancelado && ingreso.motivo_cancelacion && (
