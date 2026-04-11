@@ -110,3 +110,96 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getReportesFinanzas = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { start, end } = req.query;
+    
+    // Obtener todos los ingresos entregados para histórico
+    const { data: todos, error } = await supabase
+      .from('taller_ingresos')
+      .select('updated_at, items_factura')
+      .eq('empresa_id', req.empresa_id)
+      .eq('estado', 'entregado');
+      
+    if (error) throw error;
+    
+    const ingresos = todos || [];
+    
+    // Total historico y dias con ingresos
+    let totalHistorico = 0;
+    const diasUnicos = new Set<string>();
+    
+    // Para agrupar
+    ingresos.forEach(ing => {
+      const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
+      if (total > 0) {
+        totalHistorico += total;
+        const dia = new Date(ing.updated_at).toISOString().split('T')[0];
+        diasUnicos.add(dia);
+      }
+    });
+    
+    const promedioDiarioHistorico = diasUnicos.size > 0 ? totalHistorico / diasUnicos.size : 0;
+    
+    // Hoy
+    const hoyStr = new Date().toISOString().split('T')[0];
+    let facturadoHoy = 0;
+    
+    // Filtrar por rango
+    let filtered = ingresos;
+    if (start && end) {
+      filtered = ingresos.filter(ing => {
+        const d = new Date(ing.updated_at).toISOString().split('T')[0];
+        return d >= (start as string) && d <= (end as string);
+      });
+    } else {
+      // By default last 30 days if not provided
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const startStr = thirtyDaysAgo.toISOString().split('T')[0];
+      filtered = ingresos.filter(ing => {
+        const d = new Date(ing.updated_at).toISOString().split('T')[0];
+        return d >= startStr;
+      });
+    }
+    
+    const chartDataMap: Record<string, number> = {};
+    let totalPeriodo = 0;
+    
+    filtered.forEach(ing => {
+      const d = new Date(ing.updated_at).toISOString().split('T')[0];
+      const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
+      
+      if (!chartDataMap[d]) chartDataMap[d] = 0;
+      chartDataMap[d] += total;
+      totalPeriodo += total;
+    });
+    
+    // Extraer facturado hoy
+    ingresos.forEach(ing => {
+      const d = new Date(ing.updated_at).toISOString().split('T')[0];
+      if (d === hoyStr) {
+        const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
+        facturadoHoy += total;
+      }
+    });
+
+    const chartData = Object.keys(chartDataMap).sort().map(fecha => ({
+      fecha,
+      total: chartDataMap[fecha]
+    }));
+
+    res.json({
+      chartData,
+      kpis: {
+        facturadoHoy,
+        promedioDiarioHistorico,
+        totalPeriodo
+      }
+    });
+    
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

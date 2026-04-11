@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import Registro from './pages/Registro';
 import Historial from './pages/Historial';
 import HistorialDetalle from './pages/HistorialDetalle';
+import Reportes from './pages/Reportes';
 
 const Navbar = () => {
   const location = useLocation();
@@ -53,6 +54,13 @@ const Navbar = () => {
             >
               <History size={18} />
               <span className="hidden sm:inline">{t('navbar.historial')}</span>
+            </Link>
+            <Link 
+              to={`/${slug}/reportes`} 
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/reportes') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+            >
+              <BarChart3 size={18} />
+              <span className="hidden sm:inline">{t('navbar.reportes')}</span>
             </Link>
             
             {/* Language Toggle Button */}
@@ -123,6 +131,7 @@ function App() {
             <Route path="checkout/:id" element={<Checkout />} />
             <Route path="historial" element={<Historial />} />
             <Route path="historial/:id" element={<HistorialDetalle />} />
+            <Route path="reportes" element={<Reportes />} />
           </Route>
         </Routes>
       </BrowserRouter>

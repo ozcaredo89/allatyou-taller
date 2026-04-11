@@ -4,7 +4,8 @@
     "nuevo_ingreso": "Nuevo Ingreso",
     "historial": "Historial",
     "cerrar_sesion": "Cerrar Sesión",
-    "cambiar_sucursal": "Cambiar Sucursal"
+    "cambiar_sucursal": "Cambiar Sucursal",
+    "reportes": "Reportes"
   },
   "dashboard": {
     "title": "Vehículos en Taller",
@@ -155,5 +156,19 @@
     "btn_avisar_listo": "Avisar que está listo",
     "msg_proceso": "Hola {{nombre}}, te escribimos de {{taller}} para informarte sobre tu vehículo {{placa}}: ",
     "msg_listo": "Hola {{nombre}}, te informamos que tu vehículo {{placa}} ya está listo. Puedes pasar a recogerlo en {{taller}}."
+  },
+  "reportes": {
+    "title": "Reporte de Ingresos",
+    "subtitle": "Visualiza el rendimiento financiero de tu taller",
+    "filtro_hoy": "Hoy",
+    "filtro_semana": "Esta Semana",
+    "filtro_mes": "Este Mes",
+    "filtro_rango": "Rango Personalizado",
+    "ingresos_totales": "Ingresos del Período",
+    "promedio_diario": "Promedio Diario Histórico",
+    "hoy": "Facturado Hoy",
+    "grafico_tooltip": "Ingresos",
+    "sin_datos": "No hay datos en este rango de fechas.",
+    "alerta_termometro": "⚠️ Atención: Son más de las 3:00 PM y tus ingresos de hoy (${{hoy}}) están muy por debajo de tu promedio diario (${{promedio}}). ¿Ya registraste todas las órdenes entregadas?"
   }
 }

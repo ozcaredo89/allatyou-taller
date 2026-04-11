@@ -4,7 +4,8 @@
     "nuevo_ingreso": "New Intake",
     "historial": "History",
     "cerrar_sesion": "Sign Out",
-    "cambiar_sucursal": "Change Branch"
+    "cambiar_sucursal": "Change Branch",
+    "reportes": "Reports"
   },
   "dashboard": {
     "title": "Vehicles in Workshop",
@@ -155,5 +156,19 @@
     "btn_avisar_listo": "Notify Ready",
     "msg_proceso": "Hello {{nombre}}, we are contacting you from {{taller}} regarding your vehicle {{placa}}: ",
     "msg_listo": "Hello {{nombre}}, your vehicle {{placa}} is ready for pickup at {{taller}}."
+  },
+  "reportes": {
+    "title": "Revenue Report",
+    "subtitle": "Visualize your shop's financial performance",
+    "filtro_hoy": "Today",
+    "filtro_semana": "This Week",
+    "filtro_mes": "This Month",
+    "filtro_rango": "Custom Range",
+    "ingresos_totales": "Period Revenue",
+    "promedio_diario": "Historical Daily Avg",
+    "hoy": "Billed Today",
+    "grafico_tooltip": "Revenue",
+    "sin_datos": "No data for this date range.",
+    "alerta_termometro": "⚠️ Attention: It's past 3:00 PM and today's revenue (${{hoy}}) is well below your daily average (${{promedio}}). Have you registered all delivered orders?"
   }
 }
