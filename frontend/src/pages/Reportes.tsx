@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Calendar, DollarSign, TrendingUp, AlertTriangle, Loader2, BarChart3 } from 'lucide-react';
 import api from '../services/api';
