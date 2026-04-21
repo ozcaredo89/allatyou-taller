@@ -45,14 +45,23 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleSelectEmpresa = (empresa: EmpresaItem) => {
+  const handleSelectEmpresa = async (empresa: EmpresaItem) => {
     setSelectedEmpresa(empresa);
     setStep(2);
-    setLoginMode('password');
+    setLoginMode('otp');
     setError('');
     setEmail('');
     setPassword('');
     setOtp('');
+    // Disparar OTP automáticamente al seleccionar empresa
+    setLoading(true);
+    try {
+      await api.post('/auth/request-otp', { empresa_id: empresa.id });
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Error solicitando código.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSwitchToOtp = async () => {
@@ -60,10 +69,8 @@ const Login: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const { data } = await api.post('/auth/request-otp', { empresa_id: selectedEmpresa.id });
-      if (data.success) {
-        setLoginMode('otp');
-      }
+      await api.post('/auth/request-otp', { empresa_id: selectedEmpresa.id });
+      setLoginMode('otp');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Error solicitando código.');
     } finally {
@@ -116,7 +123,7 @@ const Login: React.FC = () => {
     setEmail('');
     setPassword('');
     setStep(1);
-    setLoginMode('password');
+    setLoginMode('otp');
     setError('');
   };
 
@@ -190,7 +197,48 @@ const Login: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-800 tracking-tight">{selectedEmpresa.nombre}</h2>
               </div>
 
-              {/* === PASSWORD MODE === */}
+              {/* === OTP MODE (Primary) === */}
+              {loginMode === 'otp' && (
+                <form onSubmit={submitOtp} className="space-y-5">
+                  <p className="text-sm text-slate-500 text-center px-4 leading-relaxed mb-4">{t('login.leyenda_otp')}</p>
+
+                  <div>
+                    <input
+                      type="text"
+                      required
+                      maxLength={4}
+                      placeholder="0000"
+                      className="block w-full px-4 py-4 text-center tracking-[1em] text-3xl bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 font-bold transition-shadow"
+                      value={otp}
+                      onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
+                      disabled={loading}
+                    />
+                  </div>
+                  <button 
+                    type="submit" 
+                    disabled={loading || otp.length < 4}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="animate-spin" size={20} /> : 'Autorizar Ingreso'}
+                  </button>
+
+                  <div className="relative my-2">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
+                    <div className="relative flex justify-center text-xs"><span className="px-2 bg-white text-slate-400">o</span></div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMode('password'); setError(''); }}
+                    className="w-full border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition text-sm"
+                  >
+                    <Lock size={16} />
+                    {t('login.btn_usar_password')}
+                  </button>
+                </form>
+              )}
+
+              {/* === PASSWORD MODE (Secondary) === */}
               {loginMode === 'password' && (
                 <form onSubmit={submitPassword} className="space-y-4">
                   <div>
@@ -243,47 +291,6 @@ const Login: React.FC = () => {
                   >
                     <KeyRound size={16} />
                     {t('login.btn_usar_codigo')}
-                  </button>
-                </form>
-              )}
-
-              {/* === OTP MODE === */}
-              {loginMode === 'otp' && (
-                <form onSubmit={submitOtp} className="space-y-5">
-                  <p className="text-sm text-slate-500 text-center px-4 leading-relaxed">Verifica el correo administrativo del taller e introduce el código de 4 dígitos</p>
-
-                  <div>
-                    <input
-                      type="text"
-                      required
-                      maxLength={4}
-                      placeholder="0000"
-                      className="block w-full px-4 py-4 text-center tracking-[1em] text-3xl bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 font-bold transition-shadow"
-                      value={otp}
-                      onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                      disabled={loading}
-                    />
-                  </div>
-                  <button 
-                    type="submit" 
-                    disabled={loading || otp.length < 4}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
-                  >
-                    {loading ? <Loader2 className="animate-spin" size={20} /> : 'Autorizar Ingreso'}
-                  </button>
-
-                  <div className="relative my-2">
-                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-                    <div className="relative flex justify-center text-xs"><span className="px-2 bg-white text-slate-400">o</span></div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => { setLoginMode('password'); setError(''); }}
-                    className="w-full border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition text-sm"
-                  >
-                    <Lock size={16} />
-                    {t('login.btn_usar_password')}
                   </button>
                 </form>
               )}

@@ -176,8 +176,9 @@
     "email": "Correo Electrónico",
     "password": "Contraseña",
     "btn_ingresar": "Ingresar con Contraseña",
-    "btn_usar_codigo": "O envíame un código de un solo uso",
-    "btn_usar_password": "Volver a ingresar con contraseña"
+    "btn_usar_codigo": "Volver a código de un solo uso",
+    "btn_usar_password": "O ingresar con contraseña",
+    "leyenda_otp": "Para mayor seguridad, te hemos enviado un código de acceso a tu correo administrativo. También puedes usar tu contraseña si ya la configuraste."
   },
   "equipo": {
     "title": "Gestión de Equipo",
