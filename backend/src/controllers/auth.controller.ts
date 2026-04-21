@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import { supabase } from '../config/supabase';
 import { sendEmail } from '../services/emailService';
 import crypto from 'crypto';
@@ -132,11 +133,12 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // 2. Obtener los correos de la empresa
+    // 2. Obtener SOLO los correos verificados de la empresa (no los pendientes de aprobación)
     const { data: correosRecords } = await supabase
       .from('taller_empresas_correos')
       .select('email')
-      .eq('empresa_id', empresa_id);
+      .eq('empresa_id', empresa_id)
+      .eq('is_verified', true);
 
     if (!correosRecords || correosRecords.length === 0) {
       res.status(404).json({ error: 'Esta empresa no tiene correos configurados.' });
@@ -148,13 +150,14 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
     // 3. Generar OTP de 4 dígitos compartido
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // 4. Actualizar masivamente el OTP para todos los correos de la empresa
+    // 4. Actualizar el OTP SOLO para los correos verificados
     await supabase
       .from('taller_empresas_correos')
       .update({ otp_code: otp })
-      .eq('empresa_id', empresa_id);
+      .eq('empresa_id', empresa_id)
+      .eq('is_verified', true);
 
-    // 5. Enviar el OTP en bloque
+    // 5. Enviar el OTP solo a correos verificados
     await sendEmail({
       to: emailsToNotify,
       subject: `Acceso TallerPro - ${empresa.nombre}`,
@@ -183,12 +186,13 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // 2. Validar OTP en BD (cualquier registro con ese OTP para esa empresa)
+    // 2. Validar OTP en BD (solo entre correos verificados para evitar bypass de aprobación)
     const { data: validRecords, error } = await supabase
       .from('taller_empresas_correos')
       .select('id, email')
       .eq('empresa_id', empresa_id)
       .eq('otp_code', otp)
+      .eq('is_verified', true)
       .limit(1);
 
     if (error || !validRecords || validRecords.length === 0) {
@@ -199,14 +203,8 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     const validRecord = validRecords[0];
 
     // CRÍTICO: NO se actualiza ni se limpia el otp_code para permitir múltiples sesiones simultáneas.
-    
-    // Marcar como verificado solo para tener rastro si es la primera vez
-    await supabase
-      .from('taller_empresas_correos')
-      .update({ is_verified: true })
-      .eq('id', validRecord.id);
 
-    // 4. Crear JWT (Inyectando un email representativo del que validó el código)
+    // 3. Crear JWT (Inyectando un email representativo del que validó el código)
     const token = jwt.sign({ empresa_id: empresa.id, email: validRecord.email }, JWT_SECRET, { expiresIn: '24h' });
     
     res.json({ 
@@ -243,7 +241,7 @@ export const loginWithPassword = async (req: Request, res: Response): Promise<vo
     // 2. Buscar el correo asociado a la empresa
     const { data: correoRecord, error: correoError } = await supabase
       .from('taller_empresas_correos')
-      .select('id, email, password_hash')
+      .select('id, email, password_hash, is_verified')
       .eq('empresa_id', empresa_id)
       .eq('email', email.toLowerCase().trim())
       .single();
@@ -253,17 +251,23 @@ export const loginWithPassword = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // 3. Validar contraseña (comparación directa por ahora, migrar a bcrypt en Etapa 2)
-    if (!correoRecord.password_hash || correoRecord.password_hash !== password) {
+    // 3. Validar contraseña con bcrypt
+    if (!correoRecord.password_hash) {
       res.status(401).json({ error: 'Credenciales inválidas.' });
       return;
     }
 
-    // 4. Marcar como verificado
-    await supabase
-      .from('taller_empresas_correos')
-      .update({ is_verified: true })
-      .eq('id', correoRecord.id);
+    const passwordValid = await bcrypt.compare(password, correoRecord.password_hash);
+    if (!passwordValid) {
+      res.status(401).json({ error: 'Credenciales inválidas.' });
+      return;
+    }
+
+    // 4. Verificar si el usuario está aprobado
+    if (!correoRecord.is_verified) {
+      res.status(403).json({ error: 'Tu usuario aún está pendiente de aprobación por el administrador.' });
+      return;
+    }
 
     // 5. Crear JWT (misma estructura que verify-otp)
     const token = jwt.sign({ empresa_id: empresa.id, email: correoRecord.email }, JWT_SECRET, { expiresIn: '24h' });
@@ -273,6 +277,102 @@ export const loginWithPassword = async (req: Request, res: Response): Promise<vo
       token,
       empresa: { id: empresa.id, nombre: empresa.nombre, slug: empresa.slug }
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ──────── EQUIPO ────────
+
+export const getEquipo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data, error } = await supabase
+      .from('taller_empresas_correos')
+      .select('id, email, is_verified')
+      .eq('empresa_id', req.empresa_id)
+      .order('is_verified', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const crearMiembroEquipo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      res.status(400).json({ error: 'Correo y contraseña son requeridos.' });
+      return;
+    }
+
+    const emailNorm = email.toLowerCase().trim();
+
+    // Verificar duplicado
+    const { data: existing } = await supabase
+      .from('taller_empresas_correos')
+      .select('id')
+      .eq('empresa_id', req.empresa_id)
+      .eq('email', emailNorm)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      res.status(409).json({ error: 'Este correo ya está registrado en tu equipo.' });
+      return;
+    }
+
+    // Encriptar contraseña
+    const password_hash = await bcrypt.hash(password, 10);
+
+    // Insertar con is_verified: false (pendiente de aprobación)
+    const { error: insertError } = await supabase
+      .from('taller_empresas_correos')
+      .insert({
+        empresa_id: req.empresa_id,
+        email: emailNorm,
+        password_hash,
+        is_verified: false
+      });
+
+    if (insertError) throw insertError;
+
+    // Notificar a los administradores verificados
+    const { data: admins } = await supabase
+      .from('taller_empresas_correos')
+      .select('email')
+      .eq('empresa_id', req.empresa_id)
+      .eq('is_verified', true);
+
+    if (admins && admins.length > 0) {
+      const adminEmails = admins.map(a => a.email);
+      await sendEmail({
+        to: adminEmails,
+        subject: 'Nuevo usuario pendiente de aprobación',
+        text: `Se ha creado un nuevo usuario (${emailNorm}) en el taller.\n\nPor seguridad, está inactivo. Ingresa al sistema, ve a la sección "Equipo" y apruébalo para que pueda acceder.`
+      });
+    }
+
+    res.status(201).json({ success: true, message: 'Usuario creado. Pendiente de aprobación.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const aprobarMiembro = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Scoped por empresa_id para seguridad
+    const { error } = await supabase
+      .from('taller_empresas_correos')
+      .update({ is_verified: true })
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id);
+
+    if (error) throw error;
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

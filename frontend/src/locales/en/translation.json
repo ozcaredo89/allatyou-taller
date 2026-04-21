@@ -5,7 +5,8 @@
     "historial": "History",
     "cerrar_sesion": "Sign Out",
     "cambiar_sucursal": "Change Branch",
-    "reportes": "Reports"
+    "reportes": "Reports",
+    "equipo": "Team"
   },
   "dashboard": {
     "title": "Vehicles in Workshop",
@@ -177,6 +178,19 @@
     "btn_ingresar": "Login with Password",
     "btn_usar_codigo": "Or send me a one-time code",
     "btn_usar_password": "Back to password login"
+  },
+  "equipo": {
+    "title": "Team Management",
+    "subtitle": "Manage users who have access to the system.",
+    "btn_nuevo": "Add User",
+    "email": "Email",
+    "estado": "Status",
+    "pendiente": "Pending",
+    "aprobado": "Approved",
+    "btn_aprobar": "Approve Access",
+    "modal_title": "New User",
+    "password": "Password",
+    "btn_guardar": "Create User",
+    "error_pendiente": "Your user is still pending approval by the administrator."
   }
 }
-

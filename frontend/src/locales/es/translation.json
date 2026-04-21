@@ -5,7 +5,8 @@
     "historial": "Historial",
     "cerrar_sesion": "Cerrar Sesión",
     "cambiar_sucursal": "Cambiar Sucursal",
-    "reportes": "Reportes"
+    "reportes": "Reportes",
+    "equipo": "Equipo"
   },
   "dashboard": {
     "title": "Vehículos en Taller",
@@ -177,6 +178,19 @@
     "btn_ingresar": "Ingresar con Contraseña",
     "btn_usar_codigo": "O envíame un código de un solo uso",
     "btn_usar_password": "Volver a ingresar con contraseña"
+  },
+  "equipo": {
+    "title": "Gestión de Equipo",
+    "subtitle": "Administra los usuarios que tienen acceso al sistema.",
+    "btn_nuevo": "Agregar Usuario",
+    "email": "Correo",
+    "estado": "Estado",
+    "pendiente": "Pendiente",
+    "aprobado": "Aprobado",
+    "btn_aprobar": "Aprobar Acceso",
+    "modal_title": "Nuevo Usuario",
+    "password": "Contraseña",
+    "btn_guardar": "Crear Usuario",
+    "error_pendiente": "Tu usuario aún está pendiente de aprobación por el administrador."
   }
 }
-
