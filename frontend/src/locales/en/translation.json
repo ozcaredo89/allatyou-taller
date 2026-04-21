@@ -170,5 +170,13 @@
     "grafico_tooltip": "Revenue",
     "sin_datos": "No data for this date range.",
     "alerta_termometro": "⚠️ Attention: It's past 3:00 PM and today's revenue (${{hoy}}) is well below your daily average (${{promedio}}). Have you registered all delivered orders?"
+  },
+  "login": {
+    "email": "Email",
+    "password": "Password",
+    "btn_ingresar": "Login with Password",
+    "btn_usar_codigo": "Or send me a one-time code",
+    "btn_usar_password": "Back to password login"
   }
 }
+

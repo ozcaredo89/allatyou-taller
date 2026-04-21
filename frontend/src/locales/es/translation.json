@@ -170,5 +170,13 @@
     "grafico_tooltip": "Ingresos",
     "sin_datos": "No hay datos en este rango de fechas.",
     "alerta_termometro": "⚠️ Atención: Son más de las 3:00 PM y tus ingresos de hoy (${{hoy}}) están muy por debajo de tu promedio diario (${{promedio}}). ¿Ya registraste todas las órdenes entregadas?"
+  },
+  "login": {
+    "email": "Correo Electrónico",
+    "password": "Contraseña",
+    "btn_ingresar": "Ingresar con Contraseña",
+    "btn_usar_codigo": "O envíame un código de un solo uso",
+    "btn_usar_password": "Volver a ingresar con contraseña"
   }
 }
+

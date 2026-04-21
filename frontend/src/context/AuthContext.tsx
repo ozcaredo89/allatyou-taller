@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import api from '../services/api';
 
 interface AuthState {
   token: string | null;
@@ -10,6 +11,7 @@ interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (token: string, empresaId: string, slug: string, nombre: string, email: string) => void;
+  loginWithPassword: (empresaId: string, email: string, password: string) => Promise<{ slug: string }>;
   logout: () => void;
   setEmpresaInfo: (nombre: string, slug: string) => void;
 }
@@ -43,8 +45,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuth(prev => ({ ...prev, empresaNombre: nombre, empresaSlug: slug }));
   };
 
+  const loginWithPassword = async (empresaId: string, email: string, password: string): Promise<{ slug: string }> => {
+    const { data } = await api.post('/auth/login-password', { empresa_id: empresaId, email, password });
+    if (data.token) {
+      login(data.token, data.empresa.id, data.empresa.slug, data.empresa.nombre, email);
+    }
+    return { slug: data.empresa.slug };
+  };
+
   return (
-    <AuthContext.Provider value={{ ...auth, login, logout, setEmpresaInfo }}>
+    <AuthContext.Provider value={{ ...auth, login, loginWithPassword, logout, setEmpresaInfo }}>
       {children}
     </AuthContext.Provider>
   );

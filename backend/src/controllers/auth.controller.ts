@@ -218,3 +218,62 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const loginWithPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { empresa_id, email, password } = req.body;
+
+    if (!empresa_id || !email || !password) {
+      res.status(400).json({ error: 'Faltan campos requeridos (empresa_id, email, password).' });
+      return;
+    }
+
+    // 1. Obtener la empresa
+    const { data: empresa, error: empresaError } = await supabase
+      .from('taller_empresas')
+      .select('id, nombre, slug')
+      .eq('id', empresa_id)
+      .single();
+
+    if (empresaError || !empresa) {
+      res.status(404).json({ error: 'Empresa no encontrada.' });
+      return;
+    }
+
+    // 2. Buscar el correo asociado a la empresa
+    const { data: correoRecord, error: correoError } = await supabase
+      .from('taller_empresas_correos')
+      .select('id, email, password_hash')
+      .eq('empresa_id', empresa_id)
+      .eq('email', email.toLowerCase().trim())
+      .single();
+
+    if (correoError || !correoRecord) {
+      res.status(401).json({ error: 'Credenciales inválidas.' });
+      return;
+    }
+
+    // 3. Validar contraseña (comparación directa por ahora, migrar a bcrypt en Etapa 2)
+    if (!correoRecord.password_hash || correoRecord.password_hash !== password) {
+      res.status(401).json({ error: 'Credenciales inválidas.' });
+      return;
+    }
+
+    // 4. Marcar como verificado
+    await supabase
+      .from('taller_empresas_correos')
+      .update({ is_verified: true })
+      .eq('id', correoRecord.id);
+
+    // 5. Crear JWT (misma estructura que verify-otp)
+    const token = jwt.sign({ empresa_id: empresa.id, email: correoRecord.email }, JWT_SECRET, { expiresIn: '24h' });
+
+    res.json({
+      success: true,
+      token,
+      empresa: { id: empresa.id, nombre: empresa.nombre, slug: empresa.slug }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
