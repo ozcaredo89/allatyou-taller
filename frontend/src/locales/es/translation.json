@@ -170,7 +170,17 @@
     "hoy": "Facturado Hoy",
     "grafico_tooltip": "Ingresos",
     "sin_datos": "No hay datos en este rango de fechas.",
-    "alerta_termometro": "⚠️ Atención: Son más de las 3:00 PM y tus ingresos de hoy (${{hoy}}) están muy por debajo de tu promedio diario (${{promedio}}). ¿Ya registraste todas las órdenes entregadas?"
+    "alerta_termometro": "⚠️ Atención: Son más de las 3:00 PM y tus ingresos de hoy (${{hoy}}) están muy por debajo de tu promedio diario (${{promedio}}). ¿Ya registraste todas las órdenes entregadas?",
+    "tab_financiero": "Finanzas",
+    "tab_operativo": "Rendimiento Operativo",
+    "op_title": "Rendimiento Operativo",
+    "op_subtitle": "Tiempos promedio de cada etapa del servicio",
+    "op_total": "Total del Taller",
+    "op_detalle": "Detalle por Vehículo",
+    "op_tiempo_promedio": "Tiempo Promedio",
+    "op_estado": "Estado",
+    "op_duracion": "Duración",
+    "op_placa": "Placa"
   },
   "login": {
     "email": "Correo Electrónico",

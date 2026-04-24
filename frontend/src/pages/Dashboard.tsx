@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
+import CronometroInteligente from '../components/CronometroInteligente';
 
 interface Cliente {
   id: string;
@@ -24,6 +25,7 @@ interface Ingreso {
   id: string;
   fecha_ingreso: string;
   estado: string;
+  estado_desde?: string;
   motivo_visita: string;
   tecnico_asignado?: string;
   taller_vehiculos: Vehiculo;
@@ -38,6 +40,7 @@ const estadoColors: Record<string, string> = {
 
 const Dashboard: React.FC = () => {
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
+  const [promediosSLA, setPromediosSLA] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
@@ -55,7 +58,8 @@ const Dashboard: React.FC = () => {
     try {
       setLoading(true);
       const { data } = await api.get('/ingresos/activos');
-      setIngresos(data || []);
+      setIngresos(data?.ingresos || []);
+      setPromediosSLA(data?.promediosSLA || {});
     } catch (error) {
       console.error('Error fetching ingresos:', error);
     } finally {
@@ -172,6 +176,14 @@ const Dashboard: React.FC = () => {
                     {t(`estado.${ingreso.estado}`)}
                   </span>
                 </div>
+                {ingreso.estado_desde && (
+                  <div className="mt-2 flex justify-end">
+                    <CronometroInteligente
+                      estadoDesde={ingreso.estado_desde}
+                      promedioHistorico={promediosSLA[ingreso.estado] || 0}
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2.5 mt-4">
                   <div className="flex items-center gap-3 text-slate-600 text-sm">
