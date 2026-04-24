@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import axios from 'axios';
 import { supabase } from '../config/supabase';
 import { sendEmail } from '../services/emailService';
 import crypto from 'crypto';
@@ -9,9 +10,29 @@ const JWT_SECRET = process.env.JWT_SECRET || 'allatyou-super-secret-key';
 
 export const registro = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nombre, email } = req.body;
+    const { nombre, email, turnstileToken } = req.body;
     if (!nombre || !email) {
       res.status(400).json({ error: 'Faltan campos requeridos (nombre, email).' });
+      return;
+    }
+
+    // Validación Cloudflare Turnstile
+    if (!turnstileToken) {
+      res.status(400).json({ error: 'Validación de seguridad requerida.' });
+      return;
+    }
+
+    const turnstileResponse = await axios.post(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      new URLSearchParams({
+        secret: process.env.TURNSTILE_SECRET_KEY || '',
+        response: turnstileToken
+      }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+
+    if (!turnstileResponse.data.success) {
+      res.status(403).json({ error: 'Error de verificación de seguridad. Por favor, intenta de nuevo.' });
       return;
     }
 

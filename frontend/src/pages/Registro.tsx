@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, ArrowRight, AlertCircle, Wrench, Building2, CheckCircle2 } from 'lucide-react';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 const Registro: React.FC = () => {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ const Registro: React.FC = () => {
   // Paso 1
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   
   // Paso 2
   const [empresaId, setEmpresaId] = useState<string | null>(null);
@@ -28,7 +30,7 @@ const Registro: React.FC = () => {
     setError('');
     
     try {
-      const { data } = await api.post('/auth/registro', { nombre, email });
+      const { data } = await api.post('/auth/registro', { nombre, email, turnstileToken });
       if (data.success) {
         setEmpresaId(data.empresa_id);
         setStep(2);
@@ -118,10 +120,19 @@ const Registro: React.FC = () => {
                  />
                </div>
 
+               <div className="flex justify-center">
+                 <Turnstile
+                   siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ''}
+                   onSuccess={(token) => setTurnstileToken(token)}
+                   onError={() => setTurnstileToken(null)}
+                   onExpire={() => setTurnstileToken(null)}
+                 />
+               </div>
+
                <div className="pt-2">
                  <button 
                    type="submit" 
-                   disabled={loading}
+                   disabled={loading || !turnstileToken}
                    className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
                  >
                    {loading ? <Loader2 className="animate-spin" size={20} /> : <ArrowRight size={20} />}
