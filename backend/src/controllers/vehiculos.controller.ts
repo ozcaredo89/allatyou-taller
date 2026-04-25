@@ -3,7 +3,11 @@ import { supabase } from '../config/supabase';
 
 export const getVehiculos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { data, error } = await supabase.from('taller_vehiculos').select('*, taller_clientes(*)');
+    const { data, error } = await supabase
+      .from('taller_vehiculos')
+      .select('*, taller_clientes(*)')
+      .eq('empresa_id', req.empresa_id);
+
     if (error) throw error;
     res.json(data);
   } catch (error: any) {
@@ -17,6 +21,7 @@ export const getVehiculoByPlaca = async (req: Request, res: Response): Promise<v
     const { data, error } = await supabase
       .from('taller_vehiculos')
       .select('*, taller_clientes(*)')
+      .eq('empresa_id', req.empresa_id)
       .eq('placa', String(placa).toUpperCase())
       .single();
     
@@ -38,6 +43,7 @@ export const createVehiculo = async (req: Request, res: Response): Promise<void>
     const { data: existing } = await supabase
       .from('taller_vehiculos')
       .select('*')
+      .eq('empresa_id', req.empresa_id)
       .eq('placa', String(placa).toUpperCase())
       .single();
 
@@ -54,7 +60,8 @@ export const createVehiculo = async (req: Request, res: Response): Promise<void>
         marca, 
         linea, 
         modelo_anio, 
-        color 
+        color,
+        empresa_id: req.empresa_id
       }])
       .select()
       .single();

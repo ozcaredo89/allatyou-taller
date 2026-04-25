@@ -3,7 +3,11 @@ import { supabase } from '../config/supabase';
 
 export const getClientes = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { data, error } = await supabase.from('taller_clientes').select('*');
+    const { data, error } = await supabase
+      .from('taller_clientes')
+      .select('*')
+      .eq('empresa_id', req.empresa_id);
+
     if (error) throw error;
     res.json(data);
   } catch (error: any) {
@@ -17,6 +21,7 @@ export const getClienteByDocumento = async (req: Request, res: Response): Promis
     const { data, error } = await supabase
       .from('taller_clientes')
       .select('*')
+      .eq('empresa_id', req.empresa_id)
       .eq('documento', documento)
       .single();
     
@@ -40,6 +45,7 @@ export const createCliente = async (req: Request, res: Response): Promise<void> 
     const { data: existing } = await supabase
       .from('taller_clientes')
       .select('*')
+      .eq('empresa_id', req.empresa_id)
       .eq('documento', documento)
       .single();
       
@@ -50,7 +56,7 @@ export const createCliente = async (req: Request, res: Response): Promise<void> 
 
     const { data, error } = await supabase
       .from('taller_clientes')
-      .insert([{ documento, nombre_completo, telefono, email }])
+      .insert([{ documento, nombre_completo, telefono, email, empresa_id: req.empresa_id }])
       .select()
       .single();
 
