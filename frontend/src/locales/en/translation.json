@@ -9,11 +9,14 @@
     "equipo": "Team"
   },
   "dashboard": {
-    "title": "Vehicles in Workshop",
-    "subtitle": "Monitor the status of currently admitted vehicles.",
-    "no_vehicles": "No vehicles in the workshop",
-    "no_vehicles_desc": "You have no vehicles registered in reception, diagnostic, or repair states.",
-    "btn_historial": "History"
+    "title": "Control Dashboard",
+    "subtitle": "Here you can see all vehicles currently in process.",
+    "btn_historial": "View Dispatch History",
+    "no_vehicles": "All Caught Up",
+    "no_vehicles_desc": "There are no vehicles currently in process. New entries will appear here.",
+    "asignar_tecnicos": "Assign Technicians",
+    "selecciona_tecnicos": "Select the technicians in charge",
+    "guardar_asignacion": "Save Assignment"
   },
   "estado": {
     "recepcion": "Reception",

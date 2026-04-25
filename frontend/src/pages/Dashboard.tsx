@@ -6,6 +6,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
 import CronometroInteligente from '../components/CronometroInteligente';
+import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 
 interface Cliente {
   id: string;
@@ -27,8 +28,8 @@ interface Ingreso {
   estado: string;
   estado_desde?: string;
   motivo_visita: string;
-  tecnico_asignado?: string;
   taller_vehiculos: Vehiculo;
+  taller_ingresos_tecnicos?: { taller_tecnicos: { id: string; nombre: string } }[];
 }
 
 const estadoColors: Record<string, string> = {
@@ -51,6 +52,9 @@ const Dashboard: React.FC = () => {
   const [cancelTarget, setCancelTarget] = useState<Ingreso | null>(null);
   const [motivoCancelacion, setMotivoCancelacion] = useState('');
   const [cancelling, setCancelling] = useState(false);
+
+  // Assign technicians modal state
+  const [ingresoParaAsignar, setIngresoParaAsignar] = useState<Ingreso | null>(null);
 
   useEffect(() => { fetchIngresos(); }, []);
 
@@ -132,6 +136,19 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Assign Technicians Modal */}
+      {ingresoParaAsignar && (
+        <ModalAsignarTecnicos
+          ingresoId={ingresoParaAsignar.id}
+          tecnicosAsignadosIds={(ingresoParaAsignar.taller_ingresos_tecnicos || []).map(t => t.taller_tecnicos.id)}
+          onClose={() => setIngresoParaAsignar(null)}
+          onSuccess={() => {
+            setIngresoParaAsignar(null);
+            fetchIngresos();
+          }}
+        />
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t('dashboard.title')}</h1>
@@ -207,16 +224,25 @@ const Dashboard: React.FC = () => {
                       {new Date(ingreso.fecha_ingreso).toLocaleDateString()}
                     </span>
                   </div>
-                  {ingreso.tecnico_asignado && (
-                    <div className="flex items-center gap-3 text-slate-600 text-sm">
-                      <Wrench size={15} className="text-slate-400 shrink-0" />
-                      <span>{t('card.tecnico')} <strong>{ingreso.tecnico_asignado}</strong></span>
+                  {ingreso.taller_ingresos_tecnicos && ingreso.taller_ingresos_tecnicos.length > 0 && (
+                    <div className="flex items-start gap-3 text-slate-600 text-sm">
+                      <Wrench size={15} className="text-slate-400 shrink-0 mt-0.5" />
+                      <span>
+                        <span className="font-medium text-slate-900 mr-1">{t('dashboard.tab_tecnicos') || 'Técnicos'}:</span>
+                        {ingreso.taller_ingresos_tecnicos.map(t => t.taller_tecnicos.nombre).join(', ')}
+                      </span>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex gap-2">
+              <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setIngresoParaAsignar(ingreso)}
+                  className="w-full flex items-center justify-center gap-2 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-medium py-2 px-3 rounded-lg transition text-sm mb-1"
+                >
+                  <Wrench size={15} /> {t('dashboard.asignar_tecnicos')}
+                </button>
                 <button
                   onClick={() => setCancelTarget(ingreso)}
                   className="flex items-center justify-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 font-medium py-2 px-3 rounded-lg transition text-sm flex-none"

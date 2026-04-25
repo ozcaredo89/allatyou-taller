@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getIngresosActivos, getHistorial, createIngreso, getIngresoById, updateIngreso, getReportesFinanzas, getReportesOperaciones } from '../controllers/ingresos.controller';
+import { getIngresosActivos, getHistorial, createIngreso, getIngresoById, updateIngreso, getReportesFinanzas, getReportesOperaciones, asignarTecnicos } from '../controllers/ingresos.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -13,5 +13,6 @@ router.get('/reportes/finanzas', getReportesFinanzas);
 router.get('/reportes/operaciones', getReportesOperaciones);
 router.get('/:id', getIngresoById);
 router.put('/:id', updateIngreso);
+router.post('/:id/tecnicos', asignarTecnicos);
 
 export default router;

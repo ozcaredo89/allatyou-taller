@@ -7,7 +7,7 @@ export const getIngresosActivos = async (req: Request, res: Response): Promise<v
   try {
     const { data, error } = await supabase
       .from('taller_ingresos')
-      .select('*, taller_vehiculos(*, taller_clientes(*))')
+      .select('*, taller_vehiculos(*, taller_clientes(*)), taller_ingresos_tecnicos(taller_tecnicos(id, nombre))')
       .eq('empresa_id', req.empresa_id)
       .in('estado', ['recepcion', 'diagnostico', 'en_reparacion', 'cotizacion']);
       
@@ -314,6 +314,44 @@ export const getReportesOperaciones = async (req: Request, res: Response): Promi
     }
 
     res.json({ promediosGlobales, detalleVehiculos });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const asignarTecnicos = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { tecnicos_ids } = req.body;
+
+    if (!Array.isArray(tecnicos_ids)) {
+      res.status(400).json({ error: 'tecnicos_ids debe ser un arreglo de IDs.' });
+      return;
+    }
+
+    // Borrar asignaciones previas
+    const { error: deleteError } = await supabase
+      .from('taller_ingresos_tecnicos')
+      .delete()
+      .eq('ingreso_id', id);
+
+    if (deleteError) throw deleteError;
+
+    // Insertar nuevas asignaciones si hay
+    if (tecnicos_ids.length > 0) {
+      const inserts = tecnicos_ids.map(tecnicoId => ({
+        ingreso_id: id,
+        tecnico_id: tecnicoId
+      }));
+
+      const { error: insertError } = await supabase
+        .from('taller_ingresos_tecnicos')
+        .insert(inserts);
+
+      if (insertError) throw insertError;
+    }
+
+    res.json({ success: true, message: 'Técnicos asignados correctamente.' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

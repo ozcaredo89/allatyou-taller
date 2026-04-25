@@ -31,7 +31,6 @@ const Checkout: React.FC = () => {
   // Facturación
   const [items, setItems] = useState<ItemFactura[]>([]);
   const [notasFactura, setNotasFactura] = useState('');
-  const [tecnicoAsignado, setTecnicoAsignado] = useState('');
 
   // Nuevo ítem (form inline)
   const [showForm, setShowForm] = useState(false);
@@ -48,7 +47,6 @@ const Checkout: React.FC = () => {
       setIngreso(data);
       setItems(data.items_factura || []);
       setNotasFactura(data.notas_factura || '');
-      setTecnicoAsignado(data.tecnico_asignado || '');
     } catch {
       setError(t('diagnostico.error_load'));
     } finally {
@@ -80,7 +78,6 @@ const Checkout: React.FC = () => {
     await api.put(`/ingresos/${id}`, {
       items_factura: items,
       notas_factura: notasFactura,
-      tecnico_asignado: tecnicoAsignado,
       ...(nuevoEstado ? { estado: nuevoEstado } : {}),
     });
   };
@@ -100,7 +97,6 @@ const Checkout: React.FC = () => {
         await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
-          tecnico_asignado: tecnicoAsignado,
           historial_enmiendas: historialEnmiendas
         });
         navigate(`/${slug}/historial/${id}`);
@@ -179,20 +175,6 @@ const Checkout: React.FC = () => {
             <p className="text-slate-600 text-sm">{vehiculo?.marca} {vehiculo?.linea}</p>
           </div>
         </div>
-
-        {/* Técnico Asignado */}
-        <div className="mb-8 print:hidden">
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{t('checkout.tecnico_asignado')}</label>
-          <input
-            type="text"
-            className="w-full sm:w-72 border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-            placeholder={t('checkout.tecnico_placeholder')}
-            value={tecnicoAsignado}
-            onChange={e => setTecnicoAsignado(e.target.value)}
-            disabled={isEditMode}
-          />
-        </div>
-        {tecnicoAsignado && <p className="hidden print:block text-sm text-slate-600 mb-6">{t('card.tecnico').replace(':', '')}: <strong>{tecnicoAsignado}</strong></p>}
 
         {/* Diagnóstico (read-only summary) */}
         {Object.keys(diagnostico).length > 0 && (

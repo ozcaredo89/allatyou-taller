@@ -9,11 +9,14 @@
     "equipo": "Equipo"
   },
   "dashboard": {
-    "title": "Vehículos en Taller",
-    "subtitle": "Monitorea el estado de los vehículos ingresados actualmente.",
-    "no_vehicles": "No hay vehículos en el taller",
-    "no_vehicles_desc": "No tienes vehículos registrados en los estados de recepción, diagnóstico o reparación.",
-    "btn_historial": "Historial"
+    "title": "Tablero de Control",
+    "subtitle": "Aquí puedes ver todos los vehículos que están en proceso actualmente.",
+    "no_vehicles": "Todo al día",
+    "no_vehicles_desc": "No hay vehículos en proceso actualmente. Los nuevos ingresos aparecerán aquí.",
+    "btn_historial": "Ver Historial de Salidas",
+    "asignar_tecnicos": "Asignar Técnicos",
+    "selecciona_tecnicos": "Selecciona los técnicos a cargo",
+    "guardar_asignacion": "Guardar Asignación"
   },
   "estado": {
     "recepcion": "Recepción",
