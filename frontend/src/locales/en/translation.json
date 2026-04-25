@@ -203,6 +203,12 @@
     "modal_title": "New User",
     "password": "Password",
     "btn_guardar": "Create User",
-    "error_pendiente": "Your user is still pending approval by the administrator."
+    "error_pendiente": "Your user is still pending approval by the administrator.",
+    "tab_usuarios": "System Users",
+    "tab_tecnicos": "Technicians",
+    "btn_nuevo_tecnico": "Add Technician",
+    "nombre_tecnico": "Technician Name",
+    "tecnico_creado": "Technician added successfully",
+    "sin_tecnicos": "No technicians registered."
   }
 }

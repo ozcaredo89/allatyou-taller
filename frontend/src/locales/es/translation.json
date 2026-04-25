@@ -203,6 +203,12 @@
     "modal_title": "Nuevo Usuario",
     "password": "Contraseña",
     "btn_guardar": "Crear Usuario",
-    "error_pendiente": "Tu usuario aún está pendiente de aprobación por el administrador."
+    "error_pendiente": "Tu usuario aún está pendiente de aprobación por el administrador.",
+    "tab_usuarios": "Usuarios del Sistema",
+    "tab_tecnicos": "Técnicos",
+    "btn_nuevo_tecnico": "Agregar Técnico",
+    "nombre_tecnico": "Nombre del Técnico",
+    "tecnico_creado": "Técnico agregado exitosamente",
+    "sin_tecnicos": "No hay técnicos registrados."
   }
 }
