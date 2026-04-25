@@ -188,7 +188,8 @@
     "btn_ingresar": "Ingresar con Contraseña",
     "btn_usar_codigo": "Volver a código de un solo uso",
     "btn_usar_password": "O ingresar con contraseña",
-    "leyenda_otp": "Para mayor seguridad, te hemos enviado un código de acceso a tu correo administrativo. También puedes usar tu contraseña si ya la configuraste."
+    "leyenda_otp": "Para mayor seguridad, te hemos enviado un código de acceso a tu correo administrativo. También puedes usar tu contraseña si ya la configuraste.",
+    "session_expired": "Tu sesión ha expirado por seguridad. Por favor, ingresa de nuevo."
   },
   "equipo": {
     "title": "Gestión de Equipo",

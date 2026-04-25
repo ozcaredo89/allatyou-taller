@@ -13,7 +13,7 @@ interface EmpresaItem {
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { login, loginWithPassword } = useAuth();
+  const { login, loginWithPassword, sessionExpired, clearSessionExpired } = useAuth();
   const { t } = useTranslation();
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -86,6 +86,7 @@ const Login: React.FC = () => {
     setError('');
     try {
       const result = await loginWithPassword(selectedEmpresa.id, email, password);
+      if (sessionExpired) clearSessionExpired();
       navigate(`/${result.slug}`);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Credenciales inválidas.');
@@ -107,6 +108,7 @@ const Login: React.FC = () => {
       });
       
       if (data.token) {
+        if (sessionExpired) clearSessionExpired();
         login(data.token, data.empresa.id, data.empresa.slug, data.empresa.nombre, 'kiosco@taller');
         navigate(`/${data.empresa.slug}`);
       }
@@ -141,6 +143,13 @@ const Login: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border border-slate-100">
+          {sessionExpired && (
+            <div className="mb-6 bg-amber-50 text-amber-800 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium border border-amber-200 shadow-sm">
+              <AlertCircle size={18} className="shrink-0 text-amber-600" />
+              <span>{t('login.session_expired')}</span>
+            </div>
+          )}
+
           {error && (
             <div className="mb-6 bg-red-50 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium border border-red-100">
               <AlertCircle size={18} />

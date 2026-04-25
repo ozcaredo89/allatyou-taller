@@ -14,11 +14,14 @@ interface AuthContextType extends AuthState {
   loginWithPassword: (empresaId: string, email: string, password: string) => Promise<{ slug: string }>;
   logout: () => void;
   setEmpresaInfo: (nombre: string, slug: string) => void;
+  sessionExpired: boolean;
+  clearSessionExpired: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [auth, setAuth] = useState<AuthState>(() => {
     const saved = localStorage.getItem('taller_auth');
     if (saved) return JSON.parse(saved);
@@ -33,6 +36,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [auth]);
 
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      logout();
+      setSessionExpired(true);
+    };
+
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
+  }, []);
+
   const login = (token: string, empresaId: string, slug: string, nombre: string, email: string) => {
     setAuth({ token, empresaId, empresaNombre: nombre, empresaSlug: slug, email });
   };
@@ -45,6 +58,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuth(prev => ({ ...prev, empresaNombre: nombre, empresaSlug: slug }));
   };
 
+  const clearSessionExpired = () => setSessionExpired(false);
+
   const loginWithPassword = async (empresaId: string, email: string, password: string): Promise<{ slug: string }> => {
     const { data } = await api.post('/auth/login-password', { empresa_id: empresaId, email, password });
     if (data.token) {
@@ -54,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ ...auth, login, loginWithPassword, logout, setEmpresaInfo }}>
+    <AuthContext.Provider value={{ ...auth, login, loginWithPassword, logout, setEmpresaInfo, sessionExpired, clearSessionExpired }}>
       {children}
     </AuthContext.Provider>
   );

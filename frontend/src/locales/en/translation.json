@@ -188,7 +188,8 @@
     "btn_ingresar": "Login with Password",
     "btn_usar_codigo": "Back to one-time code",
     "btn_usar_password": "Or login with password",
-    "leyenda_otp": "For added security, we have sent an access code to your administrative email. You can also use your password if you have set one up."
+    "leyenda_otp": "For added security, we have sent an access code to your administrative email. You can also use your password if you have set one up.",
+    "session_expired": "Your session has expired for security reasons. Please log in again."
   },
   "equipo": {
     "title": "Team Management",
