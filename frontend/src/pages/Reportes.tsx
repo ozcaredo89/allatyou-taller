@@ -26,7 +26,7 @@ const Reportes: React.FC = () => {
   const [opData, setOpData] = useState<{ promediosGlobales: any[]; detalleVehiculos: any[] }>({ promediosGlobales: [], detalleVehiculos: [] });
 
   useEffect(() => { cargarFinanciero(); }, [filtro]);
-  useEffect(() => { if (activeTab === 'operativo') cargarOperativo(); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'operativo') cargarOperativo(); }, [activeTab, filtro]);
 
   const cargarFinanciero = async () => {
     try {
@@ -54,7 +54,21 @@ const Reportes: React.FC = () => {
   const cargarOperativo = async () => {
     try {
       setOpLoading(true);
-      const res = await api.get('/ingresos/reportes/operaciones');
+      let start = '';
+      let end = new Date().toISOString().split('T')[0];
+      const hoy = new Date();
+      
+      if (filtro === 'hoy') { start = end; }
+      else if (filtro === 'semana') {
+        const d = new Date(); d.setDate(hoy.getDate() - 6);
+        start = d.toISOString().split('T')[0];
+      } else if (filtro === 'mes') {
+        const d = new Date(); d.setDate(hoy.getDate() - 29);
+        start = d.toISOString().split('T')[0];
+      }
+      
+      const endpoint = start ? `/ingresos/reportes/operaciones?start=${start}&end=${end}` : '/ingresos/reportes/operaciones';
+      const res = await api.get(endpoint);
       setOpData(res.data);
     } catch (err) { console.error(err); }
     finally { setOpLoading(false); }
@@ -180,15 +194,25 @@ const Reportes: React.FC = () => {
               <h1 className="text-2xl font-bold text-slate-900">{t('reportes.op_title')}</h1>
               <p className="text-slate-500">{t('reportes.op_subtitle')}</p>
             </div>
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-              <button
-                onClick={() => setOpSubView('total')}
-                className={`px-4 py-2 rounded-md text-xs font-bold transition ${opSubView === 'total' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
-              >{t('reportes.op_total')}</button>
-              <button
-                onClick={() => setOpSubView('detalle')}
-                className={`px-4 py-2 rounded-md text-xs font-bold transition ${opSubView === 'detalle' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
-              >{t('reportes.op_detalle')}</button>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg w-full sm:w-auto">
+                <button
+                  onClick={() => setOpSubView('total')}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-xs font-bold transition ${opSubView === 'total' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
+                >{t('reportes.op_total')}</button>
+                <button
+                  onClick={() => setOpSubView('detalle')}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-xs font-bold transition ${opSubView === 'detalle' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
+                >{t('reportes.op_detalle')}</button>
+              </div>
+              <select 
+                value={filtro} onChange={(e) => setFiltro(e.target.value)}
+                className="border border-slate-200 bg-white rounded-lg px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-48"
+              >
+                <option value="hoy">{t('reportes.filtro_hoy')}</option>
+                <option value="semana">{t('reportes.filtro_semana')}</option>
+                <option value="mes">{t('reportes.filtro_mes')}</option>
+              </select>
             </div>
           </div>
 

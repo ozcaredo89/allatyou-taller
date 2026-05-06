@@ -129,7 +129,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         const duracionMinutos = Math.round((Date.now() - estadoDesde) / 60000);
 
         // Registrar el tiempo en la tabla de historial
-        await supabase
+        const { error: insertTiemposError } = await supabase
           .from('taller_ingresos_tiempos')
           .insert({
             ingreso_id: id,
@@ -137,6 +137,11 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
             estado: current.estado,
             duracion_minutos: duracionMinutos
           });
+
+        if (insertTiemposError) {
+          console.error('[updateIngreso] Error insertando en taller_ingresos_tiempos:', insertTiemposError);
+          // throw insertTiemposError; // Descomentar si queremos ser estrictos
+        }
 
         // Resetear estado_desde para el nuevo estado
         body.estado_desde = new Date().toISOString();
@@ -257,11 +262,18 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
 
 export const getReportesOperaciones = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { start, end } = req.query;
+
     // Promedios globales por estado
-    const { data: tiempos, error: tError } = await supabase
+    let queryTiempos = supabase
       .from('taller_ingresos_tiempos')
       .select('estado, duracion_minutos')
       .eq('empresa_id', req.empresa_id);
+
+    if (start) queryTiempos = queryTiempos.gte('created_at', `${start}T00:00:00.000Z`);
+    if (end) queryTiempos = queryTiempos.lte('created_at', `${end}T23:59:59.999Z`);
+
+    const { data: tiempos, error: tError } = await queryTiempos;
 
     if (tError) throw tError;
 
@@ -278,10 +290,15 @@ export const getReportesOperaciones = async (req: Request, res: Response): Promi
     }));
 
     // Detalle por vehículo: JOINs manuales
-    const { data: detalleRaw, error: dError } = await supabase
+    let queryDetalle = supabase
       .from('taller_ingresos_tiempos')
       .select('ingreso_id, estado, duracion_minutos')
       .eq('empresa_id', req.empresa_id);
+
+    if (start) queryDetalle = queryDetalle.gte('created_at', `${start}T00:00:00.000Z`);
+    if (end) queryDetalle = queryDetalle.lte('created_at', `${end}T23:59:59.999Z`);
+
+    const { data: detalleRaw, error: dError } = await queryDetalle;
 
     if (dError) throw dError;
 
