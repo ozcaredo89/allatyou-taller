@@ -214,6 +214,9 @@
     "btn_nuevo_tecnico": "Add Technician",
     "nombre_tecnico": "Technician Name",
     "tecnico_creado": "Technician added successfully",
-    "sin_tecnicos": "No technicians registered."
+    "sin_tecnicos": "No technicians registered.",
+    "btn_editar_tecnico": "Edit Technician",
+    "btn_actualizar": "Update",
+    "confirmar_borrar": "Are you sure you want to delete this technician?"
   }
 }

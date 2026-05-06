@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { UserPlus, ShieldCheck, Clock, Loader2, X, Mail, Lock, Wrench, Users } from 'lucide-react';
+import { UserPlus, ShieldCheck, Clock, Loader2, X, Mail, Lock, Wrench, Users, Pencil, Trash2 } from 'lucide-react';
 import api from '../services/api';
 
 interface Miembro {
@@ -35,6 +35,7 @@ const Equipo: React.FC = () => {
   const [savingTecnico, setSavingTecnico] = useState(false);
   const [errorTecnico, setErrorTecnico] = useState('');
   const [nuevoTecnicoNombre, setNuevoTecnicoNombre] = useState('');
+  const [tecnicoEditando, setTecnicoEditando] = useState<Tecnico | null>(null);
 
   useEffect(() => {
     if (activeTab === 'usuarios') cargarEquipo();
@@ -94,20 +95,35 @@ const Equipo: React.FC = () => {
     }
   };
 
-  const crearTecnico = async (e: React.FormEvent) => {
+  const guardarTecnico = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoTecnicoNombre.trim()) return;
     setSavingTecnico(true);
     setErrorTecnico('');
     try {
-      await api.post('/tecnicos', { nombre: nuevoTecnicoNombre });
+      if (tecnicoEditando) {
+        await api.put('/tecnicos/' + tecnicoEditando.id, { nombre: nuevoTecnicoNombre });
+      } else {
+        await api.post('/tecnicos', { nombre: nuevoTecnicoNombre });
+      }
       setShowModalTecnico(false);
       setNuevoTecnicoNombre('');
+      setTecnicoEditando(null);
       await cargarTecnicos();
     } catch (err: any) {
-      setErrorTecnico(err.response?.data?.error || 'Error creando técnico.');
+      setErrorTecnico(err.response?.data?.error || 'Error guardando técnico.');
     } finally {
       setSavingTecnico(false);
+    }
+  };
+
+  const eliminarTecnico = async (id: string) => {
+    if (!window.confirm(t('equipo.confirmar_borrar'))) return;
+    try {
+      await api.delete('/tecnicos/' + id);
+      await cargarTecnicos();
+    } catch {
+      setErrorTecnico('Error eliminando técnico.');
     }
   };
 
@@ -260,7 +276,7 @@ const Equipo: React.FC = () => {
         <div className="space-y-4">
           <div className="flex justify-end">
             <button
-              onClick={() => setShowModalTecnico(true)}
+              onClick={() => { setTecnicoEditando(null); setNuevoTecnicoNombre(''); setShowModalTecnico(true); }}
               className="flex items-center gap-2 bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-semibold transition shadow-md text-sm"
             >
               <UserPlus size={18} /> {t('equipo.btn_nuevo_tecnico')}
@@ -282,6 +298,7 @@ const Equipo: React.FC = () => {
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="text-left px-6 py-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">{t('equipo.nombre_tecnico')}</th>
                     <th className="text-left px-6 py-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">{t('equipo.estado')}</th>
+                    <th className="px-6 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -293,11 +310,28 @@ const Equipo: React.FC = () => {
                           {t.estado}
                         </span>
                       </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => { setTecnicoEditando(t); setNuevoTecnicoNombre(t.nombre); setShowModalTecnico(true); }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                            title={t.nombre}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => eliminarTecnico(t.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {tecnicos.length === 0 && (
                     <tr>
-                      <td colSpan={2} className="px-6 py-8 text-center text-slate-400">{t('equipo.sin_tecnicos')}</td>
+                      <td colSpan={3} className="px-6 py-8 text-center text-slate-400">{t('equipo.sin_tecnicos')}</td>
                     </tr>
                   )}
                 </tbody>
@@ -312,9 +346,11 @@ const Equipo: React.FC = () => {
                 <button onClick={() => setShowModalTecnico(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                   <X size={20} />
                 </button>
-                <h2 className="text-xl font-bold text-slate-900">{t('equipo.btn_nuevo_tecnico')}</h2>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {tecnicoEditando ? t('equipo.btn_editar_tecnico') : t('equipo.btn_nuevo_tecnico')}
+                </h2>
                 
-                <form onSubmit={crearTecnico} className="space-y-4">
+                <form onSubmit={guardarTecnico} className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">
                       <Wrench size={14} className="inline mr-1.5 -mt-0.5" />{t('equipo.nombre_tecnico')}
@@ -333,8 +369,8 @@ const Equipo: React.FC = () => {
                     disabled={savingTecnico}
                     className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
                   >
-                    {savingTecnico ? <Loader2 className="animate-spin" size={18} /> : <UserPlus size={18} />}
-                    {t('equipo.btn_nuevo_tecnico')}
+                    {savingTecnico ? <Loader2 className="animate-spin" size={18} /> : tecnicoEditando ? <Pencil size={18} /> : <UserPlus size={18} />}
+                    {tecnicoEditando ? t('equipo.btn_actualizar') : t('equipo.btn_nuevo_tecnico')}
                   </button>
                 </form>
               </div>
