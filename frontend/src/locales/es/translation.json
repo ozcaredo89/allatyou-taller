@@ -16,7 +16,8 @@
     "btn_historial": "Ver Historial de Salidas",
     "asignar_tecnicos": "Asignar Técnicos",
     "selecciona_tecnicos": "Selecciona los técnicos a cargo",
-    "guardar_asignacion": "Guardar Asignación"
+    "guardar_asignacion": "Guardar Asignación",
+    "tecnicos": "Técnicos"
   },
   "estado": {
     "recepcion": "Recepción",

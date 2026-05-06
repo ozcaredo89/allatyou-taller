@@ -16,7 +16,8 @@
     "no_vehicles_desc": "There are no vehicles currently in process. New entries will appear here.",
     "asignar_tecnicos": "Assign Technicians",
     "selecciona_tecnicos": "Select the technicians in charge",
-    "guardar_asignacion": "Save Assignment"
+    "guardar_asignacion": "Save Assignment",
+    "tecnicos": "Technicians"
   },
   "estado": {
     "recepcion": "Reception",

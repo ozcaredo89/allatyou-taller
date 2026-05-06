@@ -228,7 +228,7 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-start gap-3 text-slate-600 text-sm">
                       <Wrench size={15} className="text-slate-400 shrink-0 mt-0.5" />
                       <span>
-                        <span className="font-medium text-slate-900 mr-1">{t('dashboard.tab_tecnicos') || 'Técnicos'}:</span>
+                        <span className="font-medium text-slate-900 mr-1">{t('dashboard.tecnicos')}:</span>
                         {ingreso.taller_ingresos_tecnicos.map(t => t.taller_tecnicos.nombre).join(', ')}
                       </span>
                     </div>
