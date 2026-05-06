@@ -31,6 +31,7 @@ const Checkout: React.FC = () => {
   // Facturación
   const [items, setItems] = useState<ItemFactura[]>([]);
   const [notasFactura, setNotasFactura] = useState('');
+  const [ivaIncluido, setIvaIncluido] = useState(false);
 
   // Nuevo ítem (form inline)
   const [showForm, setShowForm] = useState(false);
@@ -47,6 +48,7 @@ const Checkout: React.FC = () => {
       setIngreso(data);
       setItems(data.items_factura || []);
       setNotasFactura(data.notas_factura || '');
+      setIvaIncluido(data.iva_incluido || false);
     } catch {
       setError(t('diagnostico.error_load'));
     } finally {
@@ -70,14 +72,16 @@ const Checkout: React.FC = () => {
 
   const eliminarItem = (itemId: string) => setItems(prev => prev.filter(i => i.id !== itemId));
 
-  const subtotal = items.reduce((acc, i) => acc + i.total, 0);
-  const iva = Math.round(subtotal * 0.19);
-  const total = subtotal + iva;
+  const sumaItems = items.reduce((acc, i) => acc + i.total, 0);
+  const subtotal = ivaIncluido ? Math.round(sumaItems / 1.19) : sumaItems;
+  const iva = ivaIncluido ? (sumaItems - subtotal) : Math.round(subtotal * 0.19);
+  const total = ivaIncluido ? sumaItems : (subtotal + iva);
 
   const persistir = async (nuevoEstado?: string) => {
     await api.put(`/ingresos/${id}`, {
       items_factura: items,
       notas_factura: notasFactura,
+      iva_incluido: ivaIncluido,
       ...(nuevoEstado ? { estado: nuevoEstado } : {}),
     });
   };
@@ -89,7 +93,8 @@ const Checkout: React.FC = () => {
         const snapshot = {
           fecha: new Date().toISOString(),
           items_anteriores: ingreso.items_factura || [],
-          notas_anteriores: ingreso.notas_factura || ''
+          notas_anteriores: ingreso.notas_factura || '',
+          iva_incluido_anterior: ingreso.iva_incluido || false
         };
         const historialEnmiendas = ingreso.historial_enmiendas || [];
         historialEnmiendas.push(snapshot);
@@ -97,6 +102,7 @@ const Checkout: React.FC = () => {
         await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
+          iva_incluido: ivaIncluido,
           historial_enmiendas: historialEnmiendas
         });
         navigate(`/${slug}/historial/${id}`);
@@ -287,7 +293,13 @@ const Checkout: React.FC = () => {
         {notasFactura && <p className="hidden print:block text-sm text-slate-500 italic mb-6 border-t border-slate-100 pt-3">{t('checkout.notas')} {notasFactura}</p>}
 
         {/* Totales */}
-        <div className="flex justify-end border-t-2 border-slate-100 pt-6">
+        <div className="flex flex-col items-end border-t-2 border-slate-100 pt-6">
+          <div className="flex justify-end items-center mb-4 pb-4 border-b border-slate-100 print:hidden w-64">
+            <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-600 hover:text-slate-900 transition select-none">
+              <input type="checkbox" checked={ivaIncluido} onChange={e => setIvaIncluido(e.target.checked)} className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+              {t('checkout.iva_incluido', 'Precios incluyen IVA')}
+            </label>
+          </div>
           <div className="w-64 space-y-1.5">
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">{t('checkout.subtotal')}</span>

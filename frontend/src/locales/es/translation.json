@@ -142,6 +142,7 @@
     "subtotal": "Subtotal",
     "iva": "I.V.A (19%)",
     "total": "Total",
+    "iva_incluido": "Precios ya incluyen IVA",
     "footer_1": "Esta factura se asimila en todos sus efectos a una letra de cambio.",
     "footer_2": "Gracias por confiar en "
   },

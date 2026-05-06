@@ -142,6 +142,7 @@
     "subtotal": "Subtotal",
     "iva": "Tax (19%)",
     "total": "Total",
+    "iva_incluido": "Prices include tax",
     "footer_1": "This invoice serves as a binding payment agreement.",
     "footer_2": "Thank you for trusting "
   },
