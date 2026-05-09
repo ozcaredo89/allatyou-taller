@@ -218,5 +218,18 @@
     "btn_editar_tecnico": "Edit Technician",
     "btn_actualizar": "Update",
     "confirmar_borrar": "Are you sure you want to delete this technician?"
+  },
+  "kiosco": {
+    "bienvenida": "Welcome to {{nombre}}",
+    "ingresa_placa": "Enter your vehicle plate",
+    "datos_cliente": "Looks like it's your first time. Please register:",
+    "motivo_visita": "What's wrong with your vehicle today?",
+    "exito_titulo": "All set!",
+    "exito_desc": "Show this screen to the attendant to continue.",
+    "hola_cliente": "Hi, {{nombre}}!",
+    "selecciona_servicio": "What service do you need today? Plate:",
+    "chip_otro": "Other note / Detail",
+    "btn_completar": "Complete Registration",
+    "btn_omitir": "Skip and let the attendant review"
   }
 }

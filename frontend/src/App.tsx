@@ -13,6 +13,7 @@ import Historial from './pages/Historial';
 import HistorialDetalle from './pages/HistorialDetalle';
 import Reportes from './pages/Reportes';
 import Equipo from './pages/Equipo';
+import Kiosco from './pages/Kiosco';
 
 const Navbar = () => {
   const location = useLocation();
@@ -131,6 +132,7 @@ function App() {
           
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Registro />} />
+          <Route path="/kiosco/:slug" element={<Kiosco />} />
           
           <Route path="/:slug" element={<ProtectedLayout />}>
             <Route index element={<Dashboard />} />

@@ -218,5 +218,18 @@
     "btn_editar_tecnico": "Editar Técnico",
     "btn_actualizar": "Actualizar",
     "confirmar_borrar": "¿Estás seguro de borrar este técnico?"
+  },
+  "kiosco": {
+    "bienvenida": "Bienvenido a {{nombre}}",
+    "ingresa_placa": "Ingresa la placa de tu vehículo",
+    "datos_cliente": "Parece que es tu primera vez. Por favor, regístrate:",
+    "motivo_visita": "¿Qué le sucede a tu vehículo hoy?",
+    "exito_titulo": "¡Todo listo!",
+    "exito_desc": "Muestra esta pantalla al encargado para continuar.",
+    "hola_cliente": "¡Hola, {{nombre}}!",
+    "selecciona_servicio": "¿Qué servicio necesitas hoy? Placa:",
+    "chip_otro": "Otra nota / Detalle",
+    "btn_completar": "Completar Registro",
+    "btn_omitir": "Omitir y dejar que el encargado revise"
   }
 }
