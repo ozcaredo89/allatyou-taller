@@ -27,7 +27,7 @@ export const getVehiculoByPlaca = async (req: Request, res: Response): Promise<v
     
     if (error && error.code !== 'PGRST116') throw error;
     if (!data) {
-      res.status(404).json({ error: 'Vehiculo no encontrado' });
+      res.status(200).json(null);
       return;
     }
     res.json(data);

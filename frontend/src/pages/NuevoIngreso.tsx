@@ -91,7 +91,6 @@ const NuevoIngreso: React.FC = () => {
     setNewVehiculo(prev => ({ ...prev, linea: newValue?.label || '' }));
   };
 
-  // 1. Buscar Vehículo
   const buscarVehiculo = async () => {
     if (!placa) return;
     try {
@@ -99,7 +98,18 @@ const NuevoIngreso: React.FC = () => {
       setError('');
       setHasSearchedPlaca(true);
       const { data } = await api.get(`/vehiculos/${placa}`);
-      
+
+      if (!data) {
+        // Vehículo nuevo — comportamiento esperado, no es un error
+        setVehiculo(null);
+        setCliente(null);
+        setDocumento('');
+        setHasSearchedDocumento(false);
+        setIsCreatingCliente(false);
+        setIsCreatingVehiculo(true);
+        return;
+      }
+
       // Si existe, seteamos el vehiculo y auto-completamos el cliente
       setVehiculo(data);
       if (data.taller_clientes) {
@@ -110,16 +120,7 @@ const NuevoIngreso: React.FC = () => {
       }
       setIsCreatingVehiculo(false);
     } catch (err: any) {
-      if (err.response?.status === 404) {
-        setVehiculo(null);
-        setCliente(null);
-        setDocumento('');
-        setHasSearchedDocumento(false);
-        setIsCreatingCliente(false);
-        setIsCreatingVehiculo(true);
-      } else {
-        setError(t('nuevo_ingreso.error_search_vehicle'));
-      }
+      setError(t('nuevo_ingreso.error_search_vehicle'));
     } finally {
       setLoading(false);
     }
