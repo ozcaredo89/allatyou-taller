@@ -22,16 +22,34 @@ export const registro = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const turnstileResponse = await axios.post(
-      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-      new URLSearchParams({
-        secret: process.env.TURNSTILE_SECRET_KEY || '',
-        response: turnstileToken
-      }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
+    const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
+    if (!turnstileSecret) {
+      console.error('[registro] TURNSTILE_SECRET_KEY no está definida en las variables de entorno.');
+      res.status(500).json({ error: 'Error de configuración del servidor.' });
+      return;
+    }
 
-    if (!turnstileResponse.data.success) {
+    let turnstileOk = false;
+    try {
+      const turnstileResponse = await axios.post(
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        new URLSearchParams({
+          secret: turnstileSecret,
+          response: turnstileToken
+        }),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      console.log('[registro] Turnstile response:', JSON.stringify(turnstileResponse.data));
+      turnstileOk = turnstileResponse.data.success === true;
+    } catch (turnstileErr: any) {
+      console.error('[registro] Error llamando a Cloudflare siteverify:',
+        turnstileErr.response?.data ?? turnstileErr.message
+      );
+      res.status(500).json({ error: 'No se pudo verificar el captcha. Intenta de nuevo.' });
+      return;
+    }
+
+    if (!turnstileOk) {
       res.status(403).json({ error: 'Error de verificación de seguridad. Por favor, intenta de nuevo.' });
       return;
     }
