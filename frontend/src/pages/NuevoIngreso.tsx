@@ -134,15 +134,18 @@ const NuevoIngreso: React.FC = () => {
       setError('');
       setHasSearchedDocumento(true);
       const { data } = await api.get(`/clientes/${documento}`);
+
+      if (!data) {
+        // Cliente nuevo — comportamiento esperado, no es un error
+        setCliente(null);
+        setIsCreatingCliente(true);
+        return;
+      }
+
       setCliente(data);
       setIsCreatingCliente(false);
     } catch (err: any) {
-      if (err.response?.status === 404) {
-        setCliente(null);
-        setIsCreatingCliente(true);
-      } else {
-        setError(t('nuevo_ingreso.error_search_client'));
-      }
+      setError(t('nuevo_ingreso.error_search_client'));
     } finally {
       setLoading(false);
     }

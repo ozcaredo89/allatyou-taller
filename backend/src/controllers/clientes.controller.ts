@@ -27,7 +27,7 @@ export const getClienteByDocumento = async (req: Request, res: Response): Promis
     
     if (error && error.code !== 'PGRST116') throw error; // PGRST116 is not found
     if (!data) {
-      res.status(404).json({ error: 'Cliente no encontrado' });
+      res.status(200).json(null);
       return;
     }
     
