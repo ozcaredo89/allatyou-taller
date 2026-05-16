@@ -99,7 +99,9 @@ const NuevoIngreso: React.FC = () => {
       setHasSearchedPlaca(true);
       const { data } = await api.get(`/vehiculos/${placa}`);
 
-      if (!data) {
+      const isEmpty = !data || (Array.isArray(data) && data.length === 0) || (typeof data === 'object' && Object.keys(data).length === 0);
+
+      if (isEmpty) {
         // Vehículo nuevo — comportamiento esperado, no es un error
         setVehiculo(null);
         setCliente(null);
@@ -135,7 +137,9 @@ const NuevoIngreso: React.FC = () => {
       setHasSearchedDocumento(true);
       const { data } = await api.get(`/clientes/${documento}`);
 
-      if (!data) {
+      const isEmpty = !data || (Array.isArray(data) && data.length === 0) || (typeof data === 'object' && Object.keys(data).length === 0);
+
+      if (isEmpty) {
         // Cliente nuevo — comportamiento esperado, no es un error
         setCliente(null);
         setIsCreatingCliente(true);
