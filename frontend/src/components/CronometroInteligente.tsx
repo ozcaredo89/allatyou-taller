@@ -4,21 +4,23 @@ import { Timer } from 'lucide-react';
 interface Props {
   estadoDesde: string;
   promedioHistorico: number; // en minutos
+  tiempoAcumuladoSeg?: number; // segundos de ciclos anteriores (rediagnóstico)
 }
 
-const CronometroInteligente: React.FC<Props> = ({ estadoDesde, promedioHistorico }) => {
+const CronometroInteligente: React.FC<Props> = ({ estadoDesde, promedioHistorico, tiempoAcumuladoSeg = 0 }) => {
   const [segundosTotales, setSegundosTotales] = useState(0);
 
   useEffect(() => {
     const calcular = () => {
       const ahora = Date.now();
       const desde = new Date(estadoDesde).getTime();
-      setSegundosTotales(Math.floor((ahora - desde) / 1000));
+      const cicloActual = Math.floor((ahora - desde) / 1000);
+      setSegundosTotales(tiempoAcumuladoSeg + cicloActual);
     };
     calcular();
     const interval = setInterval(calcular, 1000);
     return () => clearInterval(interval);
-  }, [estadoDesde]);
+  }, [estadoDesde, tiempoAcumuladoSeg]);
 
   const formatearTiempo = (totalSeg: number): string => {
     if (totalSeg < 1) return '0s';

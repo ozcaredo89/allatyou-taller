@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle } from 'lucide-react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
@@ -28,6 +28,7 @@ interface Ingreso {
   estado: string;
   estado_desde?: string;
   motivo_visita: string;
+  diagnostico_mecanico?: any;
   taller_vehiculos: Vehiculo;
   taller_ingresos_tecnicos?: { taller_tecnicos: { id: string; nombre: string } }[];
 }
@@ -55,6 +56,13 @@ const Dashboard: React.FC = () => {
 
   // Assign technicians modal state
   const [ingresoParaAsignar, setIngresoParaAsignar] = useState<Ingreso | null>(null);
+
+  // Ver Diagnóstico modal state
+  const [ingresoVerDiag, setIngresoVerDiag] = useState<Ingreso | null>(null);
+
+  // Rediagnosticar confirm state
+  const [rediagTarget, setRediagTarget] = useState<Ingreso | null>(null);
+  const [rediagnosticando, setRediagnosticando] = useState(false);
 
   useEffect(() => { fetchIngresos(); }, []);
 
@@ -86,6 +94,22 @@ const Dashboard: React.FC = () => {
       console.error('Error cancelando:', err);
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const confirmarRediagnosticar = async () => {
+    if (!rediagTarget) return;
+    try {
+      setRediagnosticando(true);
+      await api.post(`/ingresos/${rediagTarget.id}/rediagnosticar`);
+      const targetId = rediagTarget.id;
+      setRediagTarget(null);
+      fetchIngresos();
+      navigate(`/${slug}/diagnostico/${targetId}`);
+    } catch (err) {
+      console.error('Error rediagnosticando:', err);
+    } finally {
+      setRediagnosticando(false);
     }
   };
 
@@ -147,6 +171,93 @@ const Dashboard: React.FC = () => {
             fetchIngresos();
           }}
         />
+      )}
+
+      {/* Ver Diagnóstico Modal (solo lectura) */}
+      {ingresoVerDiag && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-full"><FileSearch size={20} className="text-indigo-600" /></div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-lg">Diagnóstico</h3>
+                  <p className="text-slate-500 text-sm">Placa: <strong>{ingresoVerDiag.taller_vehiculos?.placa}</strong></p>
+                </div>
+              </div>
+              <button onClick={() => setIngresoVerDiag(null)} className="text-slate-400 hover:text-slate-700 transition">
+                <XCircle size={22} />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Motivo de visita</p>
+                <p className="text-slate-800 text-sm leading-relaxed">{ingresoVerDiag.motivo_visita || '—'}</p>
+              </div>
+
+              {ingresoVerDiag.diagnostico_mecanico && Object.keys(ingresoVerDiag.diagnostico_mecanico).length > 0 ? (
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Diagnóstico mecánico</p>
+                  <div className="space-y-2">
+                    {Object.entries(ingresoVerDiag.diagnostico_mecanico).map(([sistema, detalle]: [string, any]) => (
+                      detalle?.estado && detalle.estado !== 'buen_estado' ? (
+                        <div key={sistema} className="bg-white border border-slate-200 rounded-lg p-3">
+                          <p className="font-semibold text-slate-800 capitalize text-sm">{sistema.replace(/_/g, ' ')}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Estado: <span className="font-medium text-amber-600">{detalle.estado?.replace(/_/g, ' ')}</span></p>
+                          {detalle.notas && <p className="text-xs text-slate-600 mt-1">"{detalle.notas}"</p>}
+                        </div>
+                      ) : null
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 italic">Sin diagnóstico mecánico registrado.</p>
+              )}
+            </div>
+
+            <button
+              onClick={() => setIngresoVerDiag(null)}
+              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition text-sm"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rediagnosticar Confirm Modal */}
+      {rediagTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 rounded-full"><RotateCcw size={20} className="text-amber-600" /></div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">¿Rediagnosticar?</h3>
+                <p className="text-slate-500 text-sm">Placa: <strong>{rediagTarget.taller_vehiculos?.placa}</strong></p>
+              </div>
+            </div>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              El vehículo volverá al estado de <strong>Diagnóstico</strong>. El tiempo de reparación actual se guardará y el cronómetro de diagnóstico se reanudará.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setRediagTarget(null)}
+                className="px-5 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarRediagnosticar}
+                disabled={rediagnosticando}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+              >
+                {rediagnosticando ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+                Sí, rediagnosticar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="flex justify-between items-center">
@@ -243,6 +354,27 @@ const Dashboard: React.FC = () => {
                 >
                   <Wrench size={15} /> {t('dashboard.asignar_tecnicos')}
                 </button>
+
+                {/* Botones extra solo para en_reparacion */}
+                {ingreso.estado === 'en_reparacion' && (
+                  <>
+                    <button
+                      onClick={() => setIngresoVerDiag(ingreso)}
+                      className="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium py-2 px-3 rounded-lg transition text-sm"
+                      title="Ver diagnóstico"
+                    >
+                      <FileSearch size={15} /> Ver diagnóstico
+                    </button>
+                    <button
+                      onClick={() => setRediagTarget(ingreso)}
+                      className="flex-1 flex items-center justify-center gap-1.5 border border-amber-200 text-amber-700 hover:bg-amber-50 font-medium py-2 px-3 rounded-lg transition text-sm"
+                      title="Rediagnosticar"
+                    >
+                      <RotateCcw size={15} /> Rediagnosticar
+                    </button>
+                  </>
+                )}
+
                 <button
                   onClick={() => setCancelTarget(ingreso)}
                   className="flex items-center justify-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 font-medium py-2 px-3 rounded-lg transition text-sm flex-none"

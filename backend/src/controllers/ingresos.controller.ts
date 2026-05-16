@@ -373,3 +373,63 @@ export const asignarTecnicos = async (req: Request, res: Response): Promise<void
     res.status(500).json({ error: error.message });
   }
 };
+// POST /api/ingresos/:id/rediagnosticar
+// Devuelve el vehículo de en_reparacion a diagnostico,
+// guardando el tiempo acumulado en reparación antes de cambiar.
+export const rediagnosticarIngreso = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // 1. Obtener estado actual
+    const { data: current, error: fetchError } = await supabase
+      .from('taller_ingresos')
+      .select('estado, estado_desde')
+      .eq('empresa_id', req.empresa_id)
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !current) {
+      res.status(404).json({ error: 'Ingreso no encontrado.' });
+      return;
+    }
+
+    if (current.estado !== 'en_reparacion') {
+      res.status(400).json({ error: 'El ingreso no está en estado de reparación.' });
+      return;
+    }
+
+    // 2. Calcular tiempo de reparación transcurrido y guardarlo en taller_ingresos_tiempos
+    const estadoDesde = current.estado_desde ? new Date(current.estado_desde).getTime() : Date.now();
+    const duracionMinutos = Math.round((Date.now() - estadoDesde) / 60000);
+
+    const { error: tiempoError } = await supabase
+      .from('taller_ingresos_tiempos')
+      .insert({
+        ingreso_id: id,
+        empresa_id: req.empresa_id,
+        estado: 'en_reparacion',
+        duracion_minutos: duracionMinutos,
+      });
+
+    if (tiempoError) {
+      console.error('[rediagnosticar] Error guardando tiempo de reparación:', tiempoError);
+    }
+
+    // 3. Volver a diagnóstico con nuevo estado_desde
+    const ahora = new Date().toISOString();
+    const { data, error: updateError } = await supabase
+      .from('taller_ingresos')
+      .update({ estado: 'diagnostico', estado_desde: ahora })
+      .eq('empresa_id', req.empresa_id)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true, ingreso: data });
+  } catch (error: any) {
+    console.error('[rediagnosticar] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
