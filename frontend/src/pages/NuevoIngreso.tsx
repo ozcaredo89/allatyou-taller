@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserSearch, CarFront, FileEdit, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { UserSearch, CarFront, FileEdit, Check, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 import CreatableSelect from 'react-select/creatable';
@@ -52,6 +52,8 @@ const NuevoIngreso: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isSearchingVehiculo, setIsSearchingVehiculo] = useState(false);
+  const [isSearchingCliente, setIsSearchingCliente] = useState(false);
 
   // Efectos Autocomplete
   useEffect(() => {
@@ -94,7 +96,7 @@ const NuevoIngreso: React.FC = () => {
   const buscarVehiculo = async () => {
     if (!placa) return;
     try {
-      setLoading(true);
+      setIsSearchingVehiculo(true);
       setError('');
       setHasSearchedPlaca(true);
       const { data } = await api.get(`/vehiculos/${placa}`);
@@ -124,7 +126,7 @@ const NuevoIngreso: React.FC = () => {
     } catch (err: any) {
       setError(t('nuevo_ingreso.error_search_vehicle'));
     } finally {
-      setLoading(false);
+      setIsSearchingVehiculo(false);
     }
   };
 
@@ -132,7 +134,7 @@ const NuevoIngreso: React.FC = () => {
   const buscarCliente = async () => {
     if (!documento) return;
     try {
-      setLoading(true);
+      setIsSearchingCliente(true);
       setError('');
       setHasSearchedDocumento(true);
       const { data } = await api.get(`/clientes/${documento}`);
@@ -151,7 +153,7 @@ const NuevoIngreso: React.FC = () => {
     } catch (err: any) {
       setError(t('nuevo_ingreso.error_search_client'));
     } finally {
-      setLoading(false);
+      setIsSearchingCliente(false);
     }
   };
 
@@ -276,10 +278,13 @@ const NuevoIngreso: React.FC = () => {
                 />
                 <button 
                   onClick={buscarVehiculo}
-                  disabled={loading || !placa}
-                  className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
+                  disabled={isSearchingVehiculo || !placa}
+                  className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[120px] justify-center"
                 >
-                  {t('nuevo_ingreso.btn_search')}
+                  {isSearchingVehiculo
+                    ? <><Loader2 size={16} className="animate-spin" /> Buscando...</>
+                    : t('nuevo_ingreso.btn_search')
+                  }
                 </button>
               </div>
             </div>
@@ -380,10 +385,13 @@ const NuevoIngreso: React.FC = () => {
                       />
                       <button 
                         onClick={buscarCliente}
-                        disabled={loading || !documento}
-                        className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                        disabled={isSearchingCliente || !documento}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[110px] justify-center"
                       >
-                        {t('nuevo_ingreso.btn_search')}
+                        {isSearchingCliente
+                          ? <><Loader2 size={14} className="animate-spin" /> Validando...</>
+                          : t('nuevo_ingreso.btn_search')
+                        }
                       </button>
                     </div>
                   </div>
