@@ -50,7 +50,7 @@ export const createCliente = async (req: Request, res: Response): Promise<void> 
       .single();
       
     if (existing) {
-       res.status(400).json({ error: 'Cliente con documento ya existe' });
+       res.status(400).json({ error: 'Ya existe un cliente registrado con este documento en tu taller.' });
        return;
     }
 
@@ -63,6 +63,13 @@ export const createCliente = async (req: Request, res: Response): Promise<void> 
     if (error) throw error;
     res.status(201).json(data);
   } catch (error: any) {
+    if (error.code === '23505') {
+      const mensaje = error.message.includes('documento')
+        ? 'Ya existe un cliente registrado con este documento en tu taller.'
+        : 'Este cliente ya se encuentra registrado.';
+      res.status(400).json({ error: mensaje });
+      return;
+    }
     res.status(500).json({ error: error.message });
   }
 };

@@ -69,6 +69,10 @@ export const createVehiculo = async (req: Request, res: Response): Promise<void>
     if (error) throw error;
     res.status(201).json(data);
   } catch (error: any) {
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Este vehículo ya se encuentra registrado en tu taller.' });
+      return;
+    }
     res.status(500).json({ error: error.message });
   }
 };

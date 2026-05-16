@@ -20,12 +20,12 @@ export const getMarcas = async (req: Request, res: Response): Promise<void> => {
 export const createMarca = async (req: Request, res: Response): Promise<void> => {
   try {
     const { nombre } = req.body;
-    
+    const marcaNormalizada = nombre.trim().toUpperCase();
+
     const { data: existing } = await supabase
       .from('taller_marcas')
       .select('*')
-      .eq('empresa_id', req.empresa_id)
-      .ilike('nombre', nombre)
+      .ilike('nombre', marcaNormalizada)
       .single();
 
     if (existing) {
@@ -35,13 +35,17 @@ export const createMarca = async (req: Request, res: Response): Promise<void> =>
 
     const { data, error } = await supabase
       .from('taller_marcas')
-      .insert([{ nombre, empresa_id: req.empresa_id }])
+      .insert([{ nombre: marcaNormalizada, empresa_id: req.empresa_id }])
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json(data);
   } catch (error: any) {
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Esta marca ya existe.' });
+      return;
+    }
     res.status(500).json({ error: error.message });
   }
 };
@@ -68,13 +72,13 @@ export const createLinea = async (req: Request, res: Response): Promise<void> =>
   try {
     const { id } = req.params; // marca_id
     const { nombre } = req.body;
+    const lineaNormalizada = nombre.trim().toUpperCase();
 
     const { data: existing } = await supabase
       .from('taller_lineas')
       .select('*')
-      .eq('empresa_id', req.empresa_id)
       .eq('marca_id', id)
-      .ilike('nombre', nombre)
+      .ilike('nombre', lineaNormalizada)
       .single();
 
     if (existing) {
@@ -84,13 +88,17 @@ export const createLinea = async (req: Request, res: Response): Promise<void> =>
 
     const { data, error } = await supabase
       .from('taller_lineas')
-      .insert([{ marca_id: id, nombre, empresa_id: req.empresa_id }])
+      .insert([{ marca_id: id, nombre: lineaNormalizada, empresa_id: req.empresa_id }])
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json(data);
   } catch (error: any) {
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Esta línea ya existe para esta marca.' });
+      return;
+    }
     res.status(500).json({ error: error.message });
   }
 };
