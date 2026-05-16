@@ -95,7 +95,8 @@ export const registro = async (req: Request, res: Response): Promise<void> => {
       .insert({
         empresa_id: nuevaEmpresa.id,
         email,
-        otp_code: initialOtp
+        otp_code: initialOtp,
+        is_verified: true   // El fundador queda verificado al confirmar su OTP
       });
 
     if (correoError) {

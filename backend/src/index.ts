@@ -37,4 +37,4 @@ app.get('/health', (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`);
 });
-// Forzar despliegue en Railway - fix turnstile logging 2026-05-16
+// Forzar despliegue en Railway - fix is_verified founding admin 2026-05-16
