@@ -103,7 +103,7 @@ const Checkout: React.FC = () => {
           historial_enmiendas: historialEnmiendas,
           estado: 'esperando_aprobacion'
         });
-        setIngreso(prev => ({ ...prev, ...data }));
+        setIngreso((prev: any) => ({ ...prev, ...data }));
       } else {
         // Primera vez: guarda y avanza a cotizacion
         const { data } = await api.put(`/ingresos/${id}`, {
@@ -112,7 +112,7 @@ const Checkout: React.FC = () => {
           iva_incluido: ivaIncluido,
           estado: 'cotizacion',
         });
-        setIngreso(prev => ({ ...prev, ...data }));
+        setIngreso((prev: any) => ({ ...prev, ...data }));
       }
     } catch {
       setError('Error al guardar la orden.');
@@ -162,7 +162,7 @@ const Checkout: React.FC = () => {
         iva_incluido: ivaIncluido,
         ...(nuevoEstado ? { estado: nuevoEstado } : {}),
       });
-      setIngreso(prev => ({ ...prev, ...data }));
+      setIngreso((prev: any) => ({ ...prev, ...data }));
     } catch {
       setError('Error al notificar al cliente.');
     } finally {
