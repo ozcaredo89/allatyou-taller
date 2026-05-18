@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle } from 'lucide-react';
+import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +26,9 @@ const Checkout: React.FC = () => {
   const [ingreso, setIngreso] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [notificando, setNotificando] = useState(false);
+  const [aprobando, setAprobando] = useState(false);
+  const [entregando, setEntregando] = useState(false);
   const [error, setError] = useState('');
 
   // Facturación
@@ -57,7 +60,7 @@ const Checkout: React.FC = () => {
   };
 
   const agregarItem = () => {
-    if (!nuevoDesc.trim() || nuevoPrecio <= 0) return;
+    if (!nuevoDesc.trim() || nuevoPrecio < 0) return;
     const newItem: ItemFactura = {
       id: crypto.randomUUID(),
       tipo: nuevoTipo,
@@ -77,19 +80,14 @@ const Checkout: React.FC = () => {
   const iva = ivaIncluido ? (sumaItems - subtotal) : Math.round(subtotal * 0.19);
   const total = ivaIncluido ? sumaItems : (subtotal + iva);
 
-  const persistir = async (nuevoEstado?: string) => {
-    await api.put(`/ingresos/${id}`, {
-      items_factura: items,
-      notas_factura: notasFactura,
-      iva_incluido: ivaIncluido,
-      ...(nuevoEstado ? { estado: nuevoEstado } : {}),
-    });
-  };
-
-  const handleEntregar = async () => {
+  // Guarda la orden y pone estado = cotizacion
+  const handleGuardarOrden = async () => {
     try {
       setSaving(true);
+      setError('');
+
       if (isEditMode) {
+        // Modo edición: guarda historial de enmiendas
         const snapshot = {
           fecha: new Date().toISOString(),
           items_anteriores: ingreso.items_factura || [],
@@ -98,22 +96,114 @@ const Checkout: React.FC = () => {
         };
         const historialEnmiendas = ingreso.historial_enmiendas || [];
         historialEnmiendas.push(snapshot);
+        const { data } = await api.put(`/ingresos/${id}`, {
+          items_factura: items,
+          notas_factura: notasFactura,
+          iva_incluido: ivaIncluido,
+          historial_enmiendas: historialEnmiendas,
+          estado: 'esperando_aprobacion'
+        });
+        setIngreso(prev => ({ ...prev, ...data }));
+      } else {
+        // Primera vez: guarda y avanza a cotizacion
+        const { data } = await api.put(`/ingresos/${id}`, {
+          items_factura: items,
+          notas_factura: notasFactura,
+          iva_incluido: ivaIncluido,
+          estado: 'cotizacion',
+        });
+        setIngreso(prev => ({ ...prev, ...data }));
+      }
+    } catch {
+      setError('Error al guardar la orden.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
+  // Notifica al cliente: popup seguro (abre primero, asigna URL después)
+  const handleNotificarCliente = async () => {
+    // 1. Abrir pestaña inmediatamente (garantiza evitar el bloqueador de popups)
+    const newWindow = window.open('about:blank', '_blank');
+
+    try {
+      setNotificando(true);
+      setError('');
+
+      const vehiculo = ingreso.taller_vehiculos;
+      const cliente = vehiculo?.taller_clientes;
+      const telefono = cliente?.telefono || '';
+
+      if (!telefono) {
+        if (newWindow) newWindow.close();
+        setError('El cliente no tiene un número de teléfono registrado.');
+        return;
+      }
+
+      const waUrl = generarLinkWhatsApp(
+        telefono,
+        t('whatsapp.msg_cotizacion', {
+          nombre: cliente?.nombre_completo,
+          taller: empresaNombre || 'TallerPro',
+          placa: vehiculo?.placa
+        })
+      );
+
+      // 2. Asignar la URL a la pestaña que ya abrimos
+      if (newWindow) newWindow.location.href = waUrl;
+
+      // Luego guardar y avanzar estado si corresponde
+      const nuevoEstado = ['esperando_aprobacion', 'en_reparacion', 'entregado'].includes(ingreso.estado)
+        ? undefined
+        : 'esperando_aprobacion';
+      const { data } = await api.put(`/ingresos/${id}`, {
+        items_factura: items,
+        notas_factura: notasFactura,
+        iva_incluido: ivaIncluido,
+        ...(nuevoEstado ? { estado: nuevoEstado } : {}),
+      });
+      setIngreso(prev => ({ ...prev, ...data }));
+    } catch {
+      setError('Error al notificar al cliente.');
+    } finally {
+      setNotificando(false);
+    }
+  };
+
+  // Aprueba la orden y cambia estado a en_reparacion
+  const handleAprobarOrden = async () => {
+    try {
+      setAprobando(true);
+      setError('');
+      await api.put(`/ingresos/${id}`, { estado: 'en_reparacion' });
+      navigate(`/${slug}`);
+    } catch {
+      setError('Error al aprobar la orden.');
+    } finally {
+      setAprobando(false);
+    }
+  };
+
+  // Entrega el vehículo (flujo final desde en_reparacion)
+  const handleEntregar = async () => {
+    try {
+      setEntregando(true);
+      setError('');
+      if (isEditMode) {
+        navigate(`/${slug}/historial/${id}`);
+      } else {
         await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
           iva_incluido: ivaIncluido,
-          historial_enmiendas: historialEnmiendas
+          estado: 'entregado',
         });
-        navigate(`/${slug}/historial/${id}`);
-      } else {
-        await persistir('entregado');
         navigate(`/${slug}`);
       }
     } catch {
-      setError('Error');
+      setError('Error al entregar.');
     } finally {
-      setSaving(false);
+      setEntregando(false);
     }
   };
 
@@ -123,6 +213,16 @@ const Checkout: React.FC = () => {
   const vehiculo = ingreso.taller_vehiculos;
   const cliente = vehiculo?.taller_clientes;
   const diagnostico = ingreso.diagnostico_mecanico || {};
+  const estadoActual = ingreso.estado;
+
+  const tieneItems = items.length > 0;
+
+  // Puede notificar siempre que haya ítems (puede reenviar cuantas veces quiera)
+  const puedeNotificar = tieneItems;
+  // Puede aprobar cuando la orden fue guardada (cotización) o enviada (esperando_aprobacion)
+  const puedeAprobar = ['cotizacion', 'esperando_aprobacion'].includes(estadoActual);
+  // Puede entregar solo cuando la orden fue aprobada Y tiene ítems
+  const puedeEntregar = estadoActual === 'en_reparacion' && tieneItems;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
@@ -131,26 +231,79 @@ const Checkout: React.FC = () => {
         <button onClick={() => navigate(`/${slug}`)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
           <ArrowLeft size={20} className="text-slate-700" />
         </button>
-        <div className="flex gap-3">
+        <div className="flex gap-2 flex-wrap justify-end">
+
+          {/* Entregar vehículo — solo cuando en_reparacion CON ítems (orden aprobada) */}
+          {puedeEntregar && (
+            <button
+              onClick={handleEntregar}
+              disabled={entregando}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2"
+            >
+              {entregando ? <Loader2 className="animate-spin" size={16} /> : <CheckSquare size={16} />}
+              {t('checkout.btn_entregar')}
+            </button>
+          )}
+
+          {/* Aprobar Orden — visible solo cuando hay ítems guardados */}
+          {tieneItems && (
+            <button
+              onClick={handleAprobarOrden}
+              disabled={!puedeAprobar || aprobando}
+              title={!puedeAprobar ? 'Guarda la orden primero' : ''}
+              className={`px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center gap-2 ${
+                puedeAprobar
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {aprobando ? <Loader2 className="animate-spin" size={16} /> : <ThumbsUp size={16} />}
+              {t('checkout.btn_aprobar')}
+            </button>
+          )}
+
+          {/* Notificar al cliente — solo cuando cotizacion está guardada */}
           <button
-            onClick={() => window.open(generarLinkWhatsApp(cliente?.telefono || '', t('whatsapp.msg_listo', { nombre: cliente?.nombre_completo, taller: empresaNombre || 'TallerPro', placa: vehiculo?.placa })), '_blank')}
-            className="hidden sm:flex bg-[#25D366] hover:bg-[#1ebd5a] text-white px-5 py-2 rounded-lg font-bold transition shadow-md items-center gap-2"
+            onClick={handleNotificarCliente}
+            disabled={!puedeNotificar || notificando}
+            title={!puedeNotificar ? 'Agrega ítems a la orden primero' : ''}
+            className={`px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center gap-2 ${
+              puedeNotificar
+                ? 'bg-[#25D366] hover:bg-[#1ebd5a] text-white'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            }`}
           >
-            <MessageCircle size={18} /> {t('whatsapp.btn_avisar_listo')}
+            {notificando ? <Loader2 className="animate-spin" size={16} /> : <MessageCircle size={16} />}
+            {t('whatsapp.btn_notificar_cotizacion')}
           </button>
-          <button onClick={() => window.print()} className="bg-white border text-slate-700 px-5 py-2 rounded-lg font-medium shadow-sm hover:bg-slate-50 transition flex items-center gap-2">
-            <Printer size={18} /> {t('checkout.btn_print')}
+
+          {/* Imprimir */}
+          <button onClick={() => window.print()} className="bg-white border text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm hover:bg-slate-50 transition flex items-center gap-2">
+            <Printer size={16} /> {t('checkout.btn_print')}
           </button>
+
+          {/* Guardar Orden — visible siempre (permite reabrir órdenes entregadas) */}
           <button
-            onClick={handleEntregar}
-            disabled={saving || (!isEditMode && ingreso.estado === 'entregado')}
-            className={`${isEditMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white px-5 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2`}
+            onClick={handleGuardarOrden}
+            disabled={saving}
+            className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2"
           >
-            {saving ? <Loader2 className="animate-spin" size={18} /> : <CheckSquare size={18} />}
-            {isEditMode ? 'Actualizar Orden' : t('checkout.btn_complete')}
+            {saving ? <Loader2 className="animate-spin" size={16} /> : <CheckSquare size={16} />}
+            {isEditMode ? 'Actualizar Orden' : t('checkout.btn_guardar_orden')}
           </button>
+
         </div>
       </div>
+
+      {/* Banner de estado */}
+      {estadoActual === 'esperando_aprobacion' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3 print:hidden">
+          <MessageCircle size={18} className="text-amber-600 shrink-0" />
+          <p className="text-sm text-amber-800 font-medium">
+            La cotización fue enviada al cliente. En cuanto apruebe, presiona <strong>"Aprobar Orden"</strong> para iniciar la reparación.
+          </p>
+        </div>
+      )}
 
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 print:hidden">{error}</div>}
 
@@ -240,7 +393,17 @@ const Checkout: React.FC = () => {
               </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">{t('diagnostico.btn_cancelar')}</button>
-                <button onClick={agregarItem} className="px-4 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">{t('checkout.btn_add')}</button>
+                <button 
+                  onClick={agregarItem} 
+                  disabled={!nuevoDesc.trim() || nuevoPrecio < 0}
+                  className={`px-4 py-2 text-sm font-bold rounded-lg transition ${
+                    !nuevoDesc.trim() || nuevoPrecio < 0
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
+                >
+                  {t('checkout.btn_add')}
+                </button>
               </div>
             </div>
           )}

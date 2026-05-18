@@ -23,7 +23,8 @@
     "recepcion": "Reception",
     "diagnostico": "Diagnostic",
     "en_reparacion": "In Repair",
-    "cotizacion": "Quotation",
+    "cotizacion": "Quoting",
+    "esperando_aprobacion": "Awaiting Approval",
     "entregado": "Delivered",
     "cancelado": "Canceled",
     "buen_estado": "Good Condition",
@@ -36,7 +37,7 @@
     "ingreso": "Date:",
     "tecnico": "Technician:",
     "btn_diagnostico": "Diagnostic",
-    "btn_checkout": "Checkout"
+    "btn_checkout": "Generate Service Order"
   },
   "cancel_modal": {
     "title": "Cancel Process",
@@ -98,7 +99,7 @@
     "notas_adicionales": "Additional technician notes...",
     "adjuntar_fotos": "Attach photos",
     "subiendo": "Uploading...",
-    "btn_finalizar": "Finish Diagnostic / Start Repair",
+    "btn_finalizar": "Start Quoting",
     "error_load": "Could not load the intake information.",
     "sistemas": {
       "rodamientos": "Bearings",
@@ -116,6 +117,10 @@
   "checkout": {
     "btn_print": "Print",
     "btn_complete": "Complete & Deliver",
+    "btn_guardar_orden": "Save Service Order",
+    "btn_notificar": "Notify Client",
+    "btn_aprobar": "Approve Order → In Repair",
+    "btn_entregar": "Deliver Vehicle",
     "title": "Service Order",
     "orden": "Order #",
     "facturado_a": "Billed to",
@@ -160,7 +165,9 @@
   "whatsapp": {
     "btn_contactar": "Contact Client",
     "btn_avisar_listo": "Notify Ready",
+    "btn_notificar_cotizacion": "Send Quote",
     "msg_proceso": "Hello {{nombre}}, we are contacting you from {{taller}} regarding your vehicle {{placa}}: ",
+    "msg_cotizacion": "Hello {{nombre}}, the diagnostic for your vehicle {{placa}} at {{taller}} is ready. Please confirm if you approve the service order.",
     "msg_listo": "Hello {{nombre}}, your vehicle {{placa}} is ready for pickup at {{taller}}."
   },
   "reportes": {

@@ -224,7 +224,7 @@ const Diagnostico: React.FC = () => {
       setSaving(true);
       await api.put(`/ingresos/${id}`, {
         diagnostico_mecanico: diagnostico,
-        estado: 'en_reparacion'
+        estado: 'cotizacion'
       });
       navigate(`/${slug}`);
     } catch (err: any) {

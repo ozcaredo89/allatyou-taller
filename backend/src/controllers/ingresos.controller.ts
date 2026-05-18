@@ -9,7 +9,7 @@ export const getIngresosActivos = async (req: Request, res: Response): Promise<v
       .from('taller_ingresos')
       .select('*, taller_vehiculos(*, taller_clientes(*)), taller_ingresos_tecnicos(taller_tecnicos(id, nombre))')
       .eq('empresa_id', req.empresa_id)
-      .in('estado', ['recepcion', 'diagnostico', 'en_reparacion', 'cotizacion']);
+      .in('estado', ['recepcion', 'diagnostico', 'cotizacion', 'esperando_aprobacion', 'en_reparacion']);
       
     if (error) throw error;
 

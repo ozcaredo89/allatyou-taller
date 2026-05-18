@@ -23,7 +23,8 @@
     "recepcion": "Recepción",
     "diagnostico": "Diagnóstico",
     "en_reparacion": "En Reparación",
-    "cotizacion": "Cotización",
+    "cotizacion": "Cotizando",
+    "esperando_aprobacion": "Esperando Aprobación",
     "entregado": "Entregado",
     "cancelado": "Cancelado",
     "buen_estado": "Buen Estado",
@@ -36,7 +37,7 @@
     "ingreso": "Ingreso:",
     "tecnico": "Técnico:",
     "btn_diagnostico": "Diagnóstico",
-    "btn_checkout": "Terminar / Checkout"
+    "btn_checkout": "Generar Orden de Servicio"
   },
   "cancel_modal": {
     "title": "Cancelar Proceso",
@@ -98,7 +99,7 @@
     "notas_adicionales": "Notas adicionales del técnico...",
     "adjuntar_fotos": "Adjuntar fotos",
     "subiendo": "Subiendo...",
-    "btn_finalizar": "Finalizar Diagnóstico / Iniciar Reparación",
+    "btn_finalizar": "Iniciar Cotización",
     "error_load": "No se pudo cargar la información del ingreso.",
     "sistemas": {
       "rodamientos": "Rodamientos",
@@ -116,6 +117,10 @@
   "checkout": {
     "btn_print": "Imprimir",
     "btn_complete": "Completar y Entregar",
+    "btn_guardar_orden": "Guardar Orden de Servicio",
+    "btn_notificar": "Notificar al Cliente",
+    "btn_aprobar": "Aprobar Orden → En Reparación",
+    "btn_entregar": "Entregar Vehículo",
     "title": "Orden de Servicio",
     "orden": "Orden #",
     "facturado_a": "Facturado a",
@@ -160,7 +165,9 @@
   "whatsapp": {
     "btn_contactar": "Contactar Cliente",
     "btn_avisar_listo": "Avisar que está listo",
+    "btn_notificar_cotizacion": "Enviar Cotización",
     "msg_proceso": "Hola {{nombre}}, te escribimos de {{taller}} para informarte sobre tu vehículo {{placa}}: ",
+    "msg_cotizacion": "Hola {{nombre}}, te informamos que el diagnóstico de tu vehículo {{placa}} en {{taller}} está listo. Por favor confirma si apruebas la orden de servicio.",
     "msg_listo": "Hola {{nombre}}, te informamos que tu vehículo {{placa}} ya está listo. Puedes pasar a recogerlo en {{taller}}."
   },
   "reportes": {
