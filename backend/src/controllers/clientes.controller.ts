@@ -73,3 +73,41 @@ export const createCliente = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ error: error.message });
   }
 };
+
+export const updateCliente = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { documento, nombre_completo, telefono, email } = req.body;
+
+    // Validar unicidad de documento (asegurar que no existe en OTRO id)
+    const { data: existing } = await supabase
+      .from('taller_clientes')
+      .select('id')
+      .eq('empresa_id', req.empresa_id)
+      .eq('documento', documento)
+      .neq('id', id)
+      .single();
+
+    if (existing) {
+       res.status(400).json({ error: 'Este documento ya está registrado en otro cliente.' });
+       return;
+    }
+
+    const { data, error } = await supabase
+      .from('taller_clientes')
+      .update({ documento, nombre_completo, telefono, email })
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Este documento ya está registrado en otro cliente.' });
+      return;
+    }
+    res.status(500).json({ error: error.message });
+  }
+};

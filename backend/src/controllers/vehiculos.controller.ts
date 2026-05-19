@@ -76,3 +76,49 @@ export const createVehiculo = async (req: Request, res: Response): Promise<void>
     res.status(500).json({ error: error.message });
   }
 };
+
+export const updateVehiculo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { placa, marca, linea, modelo_anio, color } = req.body;
+    
+    const placaToSave = String(placa).toUpperCase();
+
+    // Validar unicidad de placa (asegurar que no existe en OTRO id)
+    const { data: existing } = await supabase
+      .from('taller_vehiculos')
+      .select('id')
+      .eq('empresa_id', req.empresa_id)
+      .eq('placa', placaToSave)
+      .neq('id', id)
+      .single();
+
+    if (existing) {
+       res.status(400).json({ error: 'Esta placa ya está registrada en otro vehículo.' });
+       return;
+    }
+
+    const { data, error } = await supabase
+      .from('taller_vehiculos')
+      .update({ 
+        placa: placaToSave, 
+        marca, 
+        linea, 
+        modelo_anio, 
+        color 
+      })
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id)
+      .select('*, taller_clientes(*)')
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Esta placa ya está registrada en otro vehículo.' });
+      return;
+    }
+    res.status(500).json({ error: error.message });
+  }
+};

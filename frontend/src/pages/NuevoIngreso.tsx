@@ -55,6 +55,13 @@ const NuevoIngreso: React.FC = () => {
   const [isSearchingVehiculo, setIsSearchingVehiculo] = useState(false);
   const [isSearchingCliente, setIsSearchingCliente] = useState(false);
 
+  // Inline Edit State
+  const [isEditingVehiculo, setIsEditingVehiculo] = useState(false);
+  const [isEditingCliente, setIsEditingCliente] = useState(false);
+  const [editingLoading, setEditingLoading] = useState(false);
+  const [editVehiculo, setEditVehiculo] = useState<any>(null);
+  const [editCliente, setEditCliente] = useState<any>(null);
+
   // Efectos Autocomplete
   useEffect(() => {
     if (isCreatingVehiculo && marcasOptions.length === 0) {
@@ -154,6 +161,55 @@ const NuevoIngreso: React.FC = () => {
       setError(t('nuevo_ingreso.error_search_client'));
     } finally {
       setIsSearchingCliente(false);
+    }
+  };
+
+  // 3. Handlers de Edición Inline
+  const iniciarEdicionVehiculo = () => {
+    setEditVehiculo({ ...vehiculo });
+    setIsEditingVehiculo(true);
+  };
+
+  const guardarEdicionVehiculo = async () => {
+    if (editVehiculo.placa !== vehiculo.placa) {
+      const confirm = window.confirm('Estás modificando el identificador principal (Placa). Verifica que estás corrigiendo un error de digitación y no reemplazando la identidad de otro vehículo. ¿Deseas continuar?');
+      if (!confirm) return;
+    }
+    try {
+      setEditingLoading(true);
+      setError('');
+      const { data } = await api.put(`/vehiculos/${vehiculo.id}`, editVehiculo);
+      setVehiculo(data);
+      setPlaca(data.placa);
+      setIsEditingVehiculo(false);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Error al actualizar el vehículo');
+    } finally {
+      setEditingLoading(false);
+    }
+  };
+
+  const iniciarEdicionCliente = () => {
+    setEditCliente({ ...cliente });
+    setIsEditingCliente(true);
+  };
+
+  const guardarEdicionCliente = async () => {
+    if (editCliente.documento !== cliente.documento) {
+      const confirm = window.confirm('Estás modificando el identificador principal (Documento). Verifica que estás corrigiendo un error de digitación y no reemplazando la identidad de otro cliente. ¿Deseas continuar?');
+      if (!confirm) return;
+    }
+    try {
+      setEditingLoading(true);
+      setError('');
+      const { data } = await api.put(`/clientes/${cliente.id}`, editCliente);
+      setCliente(data);
+      setDocumento(data.documento);
+      setIsEditingCliente(false);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Error al actualizar el cliente');
+    } finally {
+      setEditingLoading(false);
     }
   };
 
@@ -292,21 +348,104 @@ const NuevoIngreso: React.FC = () => {
         ) : vehiculo ? (
           // Vehículo encontrado
           <div className="space-y-4">
-            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold tracking-widest text-emerald-900 mb-1">{vehiculo.placa}</p>
-                <p className="text-sm font-medium text-emerald-700">{vehiculo.marca} {vehiculo.linea} - {vehiculo.color}</p>
-              </div>
-              <button onClick={resetAll} className="text-sm font-medium text-emerald-700 hover:text-emerald-900 underline">{t('nuevo_ingreso.btn_new_search')}</button>
-            </div>
-            {cliente && (
-              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-center gap-3">
-                <div className="p-2 bg-slate-200 rounded-full"><UserSearch size={18} className="text-slate-600" /></div>
+            {!isEditingVehiculo ? (
+              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between group">
                 <div>
-                  <p className="font-semibold text-slate-800">{cliente.nombre_completo}</p>
-                  <p className="text-xs text-slate-500">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
+                  <p className="text-2xl font-bold tracking-widest text-emerald-900 mb-1">{vehiculo.placa}</p>
+                  <p className="text-sm font-medium text-emerald-700">{vehiculo.marca} {vehiculo.linea} - {vehiculo.color}</p>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <button onClick={resetAll} className="text-sm font-medium text-emerald-700 hover:text-emerald-900 underline">{t('nuevo_ingreso.btn_new_search')}</button>
+                  <button onClick={iniciarEdicionVehiculo} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title="Editar vehículo">
+                    <FileEdit size={18} />
+                  </button>
                 </div>
               </div>
+            ) : (
+              <div className="bg-white border border-blue-200 p-4 rounded-xl space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-blue-900">Editar Información del Vehículo</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div className="lg:col-span-1">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Placa</label>
+                    <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.placa} onChange={e => setEditVehiculo({...editVehiculo, placa: e.target.value.toUpperCase()})} />
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Marca</label>
+                    <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.marca} onChange={e => setEditVehiculo({...editVehiculo, marca: e.target.value})} />
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Línea</label>
+                    <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.linea} onChange={e => setEditVehiculo({...editVehiculo, linea: e.target.value})} />
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Modelo</label>
+                    <input type="number" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.modelo_anio || ''} onChange={e => setEditVehiculo({...editVehiculo, modelo_anio: e.target.value ? Number(e.target.value) : null})} />
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Color</label>
+                    <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.color} onChange={e => setEditVehiculo({...editVehiculo, color: e.target.value})} />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end mt-4">
+                  <button onClick={() => setIsEditingVehiculo(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  <button onClick={guardarEdicionVehiculo} disabled={editingLoading} className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 flex gap-2 items-center">
+                    {editingLoading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    Guardar Cambios
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {cliente && (
+              !isEditingCliente ? (
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-center justify-between group">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-200 rounded-full"><UserSearch size={18} className="text-slate-600" /></div>
+                    <div>
+                      <p className="font-semibold text-slate-800">{cliente.nombre_completo}</p>
+                      <p className="text-xs text-slate-500">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <button onClick={iniciarEdicionCliente} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title="Editar cliente">
+                      <FileEdit size={18} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white border border-indigo-200 p-4 rounded-xl space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-bold text-indigo-900">Editar Información del Cliente</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Documento</label>
+                      <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.documento} onChange={e => setEditCliente({...editCliente, documento: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Nombre Completo</label>
+                      <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.nombre_completo} onChange={e => setEditCliente({...editCliente, nombre_completo: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Teléfono</label>
+                      <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.telefono} onChange={e => setEditCliente({...editCliente, telefono: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
+                      <input type="email" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.email} onChange={e => setEditCliente({...editCliente, email: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end mt-4">
+                    <button onClick={() => setIsEditingCliente(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+                    <button onClick={guardarEdicionCliente} disabled={editingLoading} className="px-4 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex gap-2 items-center">
+                      {editingLoading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                      Guardar Cambios
+                    </button>
+                  </div>
+                </div>
+              )
             )}
           </div>
         ) : (
@@ -397,13 +536,51 @@ const NuevoIngreso: React.FC = () => {
                   </div>
                 </div>
               ) : cliente ? (
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-emerald-900">{cliente.nombre_completo}</p>
-                    <p className="text-sm text-emerald-700">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
+                !isEditingCliente ? (
+                  <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between group">
+                    <div>
+                      <p className="font-semibold text-emerald-900">{cliente.nombre_completo}</p>
+                      <p className="text-sm text-emerald-700">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <button onClick={() => { setCliente(null); setHasSearchedDocumento(false); }} className="text-sm font-medium text-emerald-700 underline">{t('nuevo_ingreso.btn_change_doc')}</button>
+                      <button onClick={iniciarEdicionCliente} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title="Editar cliente">
+                        <FileEdit size={18} />
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={() => { setCliente(null); setHasSearchedDocumento(false); }} className="text-sm font-medium text-emerald-700 underline">{t('nuevo_ingreso.btn_change_doc')}</button>
-                </div>
+                ) : (
+                  <div className="bg-white border border-indigo-200 p-4 rounded-xl space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-bold text-indigo-900">Editar Información del Cliente</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Documento</label>
+                        <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.documento} onChange={e => setEditCliente({...editCliente, documento: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Nombre Completo</label>
+                        <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.nombre_completo} onChange={e => setEditCliente({...editCliente, nombre_completo: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Teléfono</label>
+                        <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.telefono} onChange={e => setEditCliente({...editCliente, telefono: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
+                        <input type="email" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.email} onChange={e => setEditCliente({...editCliente, email: e.target.value})} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end mt-4">
+                      <button onClick={() => setIsEditingCliente(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+                      <button onClick={guardarEdicionCliente} disabled={editingLoading} className="px-4 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex gap-2 items-center">
+                        {editingLoading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                        Guardar Cambios
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-4">
                   <div className="flex justify-between">
