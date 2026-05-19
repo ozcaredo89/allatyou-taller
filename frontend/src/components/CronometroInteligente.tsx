@@ -24,15 +24,19 @@ const CronometroInteligente: React.FC<Props> = ({ estadoDesde, promedioHistorico
 
   const formatearTiempo = (totalSeg: number): string => {
     if (totalSeg < 1) return '0s';
-    const h = Math.floor(totalSeg / 3600);
-    const m = Math.floor((totalSeg % 3600) / 60);
-    const s = totalSeg % 60;
+    
+    const dias = Math.floor(totalSeg / 86400);
+    const horas = Math.floor((totalSeg % 86400) / 3600);
+    const minutos = Math.floor((totalSeg % 3600) / 60);
+    const segundos = totalSeg % 60;
 
-    const pad = (n: number) => String(n).padStart(2, '0');
+    const partes = [];
+    if (dias > 0) partes.push(`${dias}d`);
+    if (horas > 0 || dias > 0) partes.push(`${horas}h`); // Mostrar horas si hay días, aunque sean 0
+    if (minutos > 0 || horas > 0 || dias > 0) partes.push(`${minutos}m`);
+    partes.push(`${segundos}s`);
 
-    if (h > 0) return `${h}h ${pad(m)}m ${pad(s)}s`;
-    if (m > 0) return `${m}m ${pad(s)}s`;
-    return `${s}s`;
+    return partes.join(' ');
   };
 
   const getColorClasses = (): string => {
