@@ -41,7 +41,7 @@ const Checkout: React.FC = () => {
   const [nuevoTipo, setNuevoTipo] = useState<'repuesto' | 'mano_obra'>('repuesto');
   const [nuevoDesc, setNuevoDesc] = useState('');
   const [nuevoCant, setNuevoCant] = useState(1);
-  const [nuevoPrecio, setNuevoPrecio] = useState(0);
+  const [nuevoPrecio, setNuevoPrecio] = useState<string>('');
 
   useEffect(() => { cargarIngreso(); }, [id]);
 
@@ -59,18 +59,31 @@ const Checkout: React.FC = () => {
     }
   };
 
+  // Formatea el valor visualmente con separadores de miles
+  const formatCurrencyInput = (value: string) => {
+    const digitsOnly = value.replace(/\D/g, '');
+    if (!digitsOnly) return '';
+    return parseInt(digitsOnly, 10).toLocaleString('es-CO');
+  };
+
+  const handlePrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNuevoPrecio(formatCurrencyInput(e.target.value));
+  };
+
   const agregarItem = () => {
-    if (!nuevoDesc.trim() || nuevoPrecio < 0) return;
+    const precioNumerico = parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10);
+    if (!nuevoDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
+    
     const newItem: ItemFactura = {
       id: crypto.randomUUID(),
       tipo: nuevoTipo,
       descripcion: nuevoDesc.trim(),
       cantidad: nuevoCant,
-      precio_unitario: nuevoPrecio,
-      total: nuevoCant * nuevoPrecio,
+      precio_unitario: precioNumerico,
+      total: nuevoCant * precioNumerico,
     };
     setItems(prev => [...prev, newItem]);
-    setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(0); setShowForm(false);
+    setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(''); setShowForm(false);
   };
 
   const eliminarItem = (itemId: string) => setItems(prev => prev.filter(i => i.id !== itemId));
@@ -385,19 +398,21 @@ const Checkout: React.FC = () => {
                 </div>
                 <div className="flex-[2]">
                   <label className="text-xs text-slate-500 mb-0.5 block">{t('checkout.precio_unitario')}</label>
-                  <input type="number" min={0} value={nuevoPrecio} onChange={e => setNuevoPrecio(Number(e.target.value))} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  <input type="text" placeholder="0" value={nuevoPrecio} onChange={handlePrecioChange} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                 </div>
                 <div className="flex items-end pb-0.5">
-                  <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-2 rounded-lg whitespace-nowrap">= ${(nuevoCant * nuevoPrecio).toLocaleString('es-CO')}</span>
+                  <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-2 rounded-lg whitespace-nowrap">
+                    = ${(nuevoCant * (parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10))).toLocaleString('es-CO')}
+                  </span>
                 </div>
               </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">{t('diagnostico.btn_cancelar')}</button>
                 <button 
                   onClick={agregarItem} 
-                  disabled={!nuevoDesc.trim() || nuevoPrecio < 0}
+                  disabled={!nuevoDesc.trim() || parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10) < 0}
                   className={`px-4 py-2 text-sm font-bold rounded-lg transition ${
-                    !nuevoDesc.trim() || nuevoPrecio < 0
+                    !nuevoDesc.trim() || parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10) < 0
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                       : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   }`}
