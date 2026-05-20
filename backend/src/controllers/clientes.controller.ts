@@ -82,14 +82,18 @@ export const updateCliente = async (req: Request, res: Response): Promise<void> 
     // Validar unicidad de documento (asegurar que no existe en OTRO id)
     const { data: existing } = await supabase
       .from('taller_clientes')
-      .select('id')
+      .select('id, nombre_completo')
       .eq('empresa_id', req.empresa_id)
       .eq('documento', documento)
       .neq('id', id)
       .single();
 
     if (existing) {
-       res.status(400).json({ error: 'Este documento ya está registrado en otro cliente.' });
+       res.status(409).json({ 
+         error: 'Documento duplicado', 
+         isDuplicate: true, 
+         existingClient: existing 
+       });
        return;
     }
 

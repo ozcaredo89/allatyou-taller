@@ -195,10 +195,16 @@ const NuevoIngreso: React.FC = () => {
   };
 
   const guardarEdicionCliente = async () => {
+    if (!editCliente.documento?.trim() || !editCliente.nombre_completo?.trim()) {
+      setError('El documento y el nombre completo no pueden quedar en blanco.');
+      return;
+    }
+
     if (editCliente.documento !== cliente.documento) {
       const confirm = window.confirm('Estás modificando el identificador principal (Documento). Verifica que estás corrigiendo un error de digitación y no reemplazando la identidad de otro cliente. ¿Deseas continuar?');
       if (!confirm) return;
     }
+    
     try {
       setEditingLoading(true);
       setError('');
@@ -207,7 +213,32 @@ const NuevoIngreso: React.FC = () => {
       setDocumento(data.documento);
       setIsEditingCliente(false);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Error al actualizar el cliente');
+      const errorData = err.response?.data;
+      
+      if (errorData?.isDuplicate && errorData.existingClient) {
+        const confirm = window.confirm(`El documento está registrado al cliente ${errorData.existingClient.nombre_completo}. ¿Deseas asignar este vehículo al cliente ${errorData.existingClient.nombre_completo}?`);
+        
+        if (confirm) {
+          try {
+            setEditingLoading(true);
+            // Reasignar el vehículo al cliente existente
+            const { data: updatedVehiculo } = await api.put(`/vehiculos/${vehiculo.id}`, {
+              ...vehiculo,
+              cliente_id: errorData.existingClient.id
+            });
+            setVehiculo(updatedVehiculo);
+            setCliente(updatedVehiculo.taller_clientes);
+            setDocumento(updatedVehiculo.taller_clientes.documento);
+            setIsEditingCliente(false);
+          } catch (reassignErr: any) {
+            setError('Error al reasignar el vehículo al cliente.');
+          } finally {
+            setEditingLoading(false);
+          }
+        }
+      } else {
+        setError(errorData?.error || 'Error al actualizar el cliente');
+      }
     } finally {
       setEditingLoading(false);
     }

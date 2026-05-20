@@ -80,7 +80,7 @@ export const createVehiculo = async (req: Request, res: Response): Promise<void>
 export const updateVehiculo = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { placa, marca, linea, modelo_anio, color } = req.body;
+    const { placa, marca, linea, modelo_anio, color, cliente_id } = req.body;
     
     const placaToSave = String(placa).toUpperCase();
 
@@ -98,15 +98,21 @@ export const updateVehiculo = async (req: Request, res: Response): Promise<void>
        return;
     }
 
+    const updatePayload: any = { 
+      placa: placaToSave, 
+      marca, 
+      linea, 
+      modelo_anio, 
+      color 
+    };
+
+    if (cliente_id) {
+      updatePayload.cliente_id = cliente_id;
+    }
+
     const { data, error } = await supabase
       .from('taller_vehiculos')
-      .update({ 
-        placa: placaToSave, 
-        marca, 
-        linea, 
-        modelo_anio, 
-        color 
-      })
+      .update(updatePayload)
       .eq('id', id)
       .eq('empresa_id', req.empresa_id)
       .select('*, taller_clientes(*)')
