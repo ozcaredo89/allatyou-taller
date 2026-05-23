@@ -3,6 +3,7 @@ import {
   DollarSign, Wrench, CalendarDays, ChevronDown, Loader2, AlertCircle,
   CheckCircle, RefreshCw, Users, Percent, Zap
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -54,6 +55,8 @@ function getRangoFechas(rango: RangoRapido, desde: string, hasta: string) {
 // ── Componente Principal ──────────────────────────────────────────────────────
 
 const ReporteLiquidaciones: React.FC = () => {
+  const { t } = useTranslation();
+
   // Filtros
   const [rangoRapido, setRangoRapido] = useState<RangoRapido>('mes');
   const [desde, setDesde] = useState('');
@@ -136,7 +139,7 @@ const ReporteLiquidaciones: React.FC = () => {
       setSavedId(fila.id);
       setTimeout(() => setSavedId(null), 2000);
     } catch {
-      setError('Error al guardar el porcentaje. Intenta de nuevo.');
+      setError(t('liquidaciones.error_guardar'));
     } finally {
       setSavingId(null);
     }
@@ -151,7 +154,7 @@ const ReporteLiquidaciones: React.FC = () => {
   const bulkApply = async () => {
     const pct = parseFloat(bulkPct);
     if (isNaN(pct) || pct < 0 || pct > 100) {
-      setError('Ingresa un porcentaje válido entre 0 y 100.');
+      setError(t('liquidaciones.error_invalido'));
       return;
     }
     if (filas.length === 0) return;
@@ -160,19 +163,19 @@ const ReporteLiquidaciones: React.FC = () => {
     const { desde: d, hasta: h } = getRangoFechas(rangoRapido, desde, hasta);
     const nombreTecnico = tecnicoId
       ? (tecnicos.find(t => t.id === tecnicoId)?.nombre ?? 'Técnico seleccionado')
-      : 'Todos los técnicos';
-    const periodoLabel = rangoRapido === 'hoy' ? 'Hoy'
-      : rangoRapido === 'semana' ? 'Esta Semana'
-      : rangoRapido === 'mes' ? 'Este Mes'
-      : `${d} al ${h}`;
+      : t('liquidaciones.todos_tecnicos');
+    const periodoLabel = rangoRapido === 'hoy' ? t('liquidaciones.hoy')
+      : rangoRapido === 'semana' ? t('liquidaciones.semana')
+      : rangoRapido === 'mes' ? t('liquidaciones.mes')
+      : `${d} a ${h}`;
 
     const ok = window.confirm(
-      `⚠️ Asignación Masiva de Comisión\n\n` +
-      `Porcentaje a aplicar: ${pct}%\n` +
-      `Técnico(s): ${nombreTecnico}\n` +
-      `Período: ${periodoLabel}\n` +
-      `Registros afectados: ${filas.length}\n\n` +
-      `¿Confirmas que deseas sobreescribir las comisiones de estos ${filas.length} registros?`
+      `${t('liquidaciones.confirm_title')}\n\n` +
+      `${t('liquidaciones.confirm_pct')} ${pct}%\n` +
+      `${t('liquidaciones.confirm_tecnico')} ${nombreTecnico}\n` +
+      `${t('liquidaciones.confirm_periodo')} ${periodoLabel}\n` +
+      `${t('liquidaciones.confirm_afectados')} ${filas.length}\n\n` +
+      `${t('liquidaciones.confirm_msg', { count: filas.length }).replace('{{count}}', filas.length.toString())}`
     );
     if (!ok) return;
 
@@ -199,7 +202,7 @@ const ReporteLiquidaciones: React.FC = () => {
       setBulkPct('');
       setTimeout(() => setBulkSuccess(false), 3000);
     } catch (e: any) {
-      setError(e.response?.data?.error || 'Error en la asignación masiva.');
+      setError(e.response?.data?.error || t('liquidaciones.error_masiva'));
     } finally {
       setBulkSaving(false);
     }
@@ -216,9 +219,9 @@ const ReporteLiquidaciones: React.FC = () => {
             <div className="p-2 bg-violet-100 rounded-xl">
               <DollarSign className="text-violet-600 w-7 h-7" />
             </div>
-            Liquidador de Técnicos
+            {t('liquidaciones.title')}
           </h1>
-          <p className="text-slate-500 mt-1 ml-1">Comisiones sobre mano de obra · Edita el % individual directamente en la tabla</p>
+          <p className="text-slate-500 mt-1 ml-1">{t('liquidaciones.subtitle')}</p>
         </div>
         <button
           onClick={cargar}
@@ -226,7 +229,7 @@ const ReporteLiquidaciones: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors disabled:opacity-50"
         >
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Actualizar
+          {t('liquidaciones.btn_actualizar')}
         </button>
       </div>
 
@@ -238,7 +241,7 @@ const ReporteLiquidaciones: React.FC = () => {
 
       {/* Filtros */}
       <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Filtros</h2>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('liquidaciones.filtros')}</h2>
         <div className="flex flex-wrap gap-3 items-end">
           {/* Rango rápido */}
           <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
@@ -250,7 +253,7 @@ const ReporteLiquidaciones: React.FC = () => {
                   rangoRapido === r ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                {r === 'semana' ? 'Esta Semana' : r === 'mes' ? 'Este Mes' : r === 'hoy' ? 'Hoy' : 'Personalizado'}
+                {r === 'semana' ? t('liquidaciones.semana') : r === 'mes' ? t('liquidaciones.mes') : r === 'hoy' ? t('liquidaciones.hoy') : t('liquidaciones.personalizado')}
               </button>
             ))}
           </div>
@@ -258,7 +261,7 @@ const ReporteLiquidaciones: React.FC = () => {
           {/* Fechas personalizadas */}
           {rangoRapido === 'personalizado' && (
             <div className="flex items-center gap-2">
-              {[['Desde', desde, setDesde], ['Hasta', hasta, setHasta]].map(([label, val, setter]: any) => (
+              {[[t('liquidaciones.desde'), desde, setDesde], [t('liquidaciones.hasta'), hasta, setHasta]].map(([label, val, setter]: any) => (
                 <div key={label} className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">{label}</label>
                   <input type="date" value={val} onChange={e => setter(e.target.value)}
@@ -270,11 +273,11 @@ const ReporteLiquidaciones: React.FC = () => {
 
           {/* Combobox técnico */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Técnico</label>
+            <label className="text-xs font-medium text-slate-500">{t('liquidaciones.tecnico')}</label>
             <div className="relative">
               <select value={tecnicoId} onChange={e => setTecnicoId(e.target.value)}
                 className="appearance-none border border-slate-300 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-violet-500 outline-none bg-white min-w-[180px]">
-                <option value="">Todos los técnicos</option>
+                <option value="">{t('liquidaciones.todos_tecnicos')}</option>
                 {tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -286,19 +289,19 @@ const ReporteLiquidaciones: React.FC = () => {
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-violet-600 text-white rounded-2xl p-6 shadow-lg shadow-violet-200">
-          <p className="text-sm font-medium text-violet-200">Total Comisiones a Pagar</p>
+          <p className="text-sm font-medium text-violet-200">{t('liquidaciones.kpi_total_pagar')}</p>
           <p className="text-3xl font-bold mt-2 tracking-tight">{formatCOP(totalComisiones)}</p>
-          <p className="text-xs text-violet-300 mt-1 flex items-center gap-1"><DollarSign size={12} /> Suma del período seleccionado</p>
+          <p className="text-xs text-violet-300 mt-1 flex items-center gap-1"><DollarSign size={12} /> {t('liquidaciones.kpi_total_pagar_desc')}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Total Mano de Obra Generada</p>
+          <p className="text-sm font-medium text-slate-500">{t('liquidaciones.kpi_total_mo')}</p>
           <p className="text-3xl font-bold mt-2 text-slate-900 tracking-tight">{formatCOP(totalManoObra)}</p>
-          <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><Wrench size={12} /> Base de cálculo de comisiones</p>
+          <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><Wrench size={12} /> {t('liquidaciones.kpi_total_mo_desc')}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Registros en el Período</p>
+          <p className="text-sm font-medium text-slate-500">{t('liquidaciones.kpi_registros')}</p>
           <p className="text-3xl font-bold mt-2 text-slate-900 tracking-tight">{filas.length}</p>
-          <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><Users size={12} /> Asignaciones técnico-servicio</p>
+          <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><Users size={12} /> {t('liquidaciones.kpi_registros_desc')}</p>
         </div>
       </div>
 
@@ -306,8 +309,8 @@ const ReporteLiquidaciones: React.FC = () => {
       <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
           <CalendarDays size={18} className="text-slate-400" />
-          <h2 className="font-semibold text-slate-800">Detalle de Comisiones</h2>
-          <span className="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{filas.length} registros</span>
+          <h2 className="font-semibold text-slate-800">{t('liquidaciones.detalle_title')}</h2>
+          <span className="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{filas.length} {t('liquidaciones.registros')}</span>
         </div>
 
         {/* Barra de Asignación Masiva */}
@@ -322,13 +325,13 @@ const ReporteLiquidaciones: React.FC = () => {
               <span className={`text-sm font-semibold ${
                 bulkSuccess ? 'text-emerald-800' : 'text-amber-800'
               }`}>
-                {bulkSuccess ? '✓ Aplicado correctamente' : 'Asignación Masiva'}
+                {bulkSuccess ? t('liquidaciones.aplicado_correctamente') : t('liquidaciones.asignacion_masiva')}
               </span>
             </div>
             {!bulkSuccess && (
               <>
                 <span className="text-xs text-amber-600">
-                  Aplicar a los {filas.length} registros visibles:
+                  {t('liquidaciones.aplicar_a_visibles', { count: filas.length }).replace('{{count}}', filas.length.toString())}
                 </span>
                 <div className="flex items-center gap-1">
                   <input
@@ -336,7 +339,7 @@ const ReporteLiquidaciones: React.FC = () => {
                     min="0"
                     max="100"
                     step="0.5"
-                    placeholder="Ej: 25"
+                    placeholder={t('liquidaciones.placeholder_pct')}
                     value={bulkPct}
                     onChange={e => setBulkPct(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && bulkApply()}
@@ -350,8 +353,8 @@ const ReporteLiquidaciones: React.FC = () => {
                   className="flex items-center gap-2 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
                 >
                   {bulkSaving
-                    ? <><Loader2 size={14} className="animate-spin" /> Aplicando...</>
-                    : <><Zap size={14} /> Aplicar a todos</>}
+                    ? <><Loader2 size={14} className="animate-spin" /> {t('liquidaciones.aplicando')}</>
+                    : <><Zap size={14} /> {t('liquidaciones.aplicar_todos')}</>}
                 </button>
               </>
             )}
@@ -365,21 +368,21 @@ const ReporteLiquidaciones: React.FC = () => {
         ) : filas.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
             <DollarSign size={48} className="mb-3 opacity-30" />
-            <p className="font-medium">No hay registros en este período</p>
-            <p className="text-sm mt-1">Ajusta los filtros o entrega un vehículo con técnicos asignados</p>
+            <p className="font-medium">{t('liquidaciones.sin_registros')}</p>
+            <p className="text-sm mt-1">{t('liquidaciones.sin_registros_desc')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha Entrega</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Técnico</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Vehículo</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total MO de la OS</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('liquidaciones.col_fecha')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('liquidaciones.col_tecnico')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('liquidaciones.col_vehiculo')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('liquidaciones.col_total_mo')}</th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Comisión Asignada
-                    <span className="ml-1 text-violet-400 normal-case font-normal">(% editable)</span>
+                    {t('liquidaciones.col_comision')}
+                    <span className="ml-1 text-violet-400 normal-case font-normal">{t('liquidaciones.col_comision_edit')}</span>
                   </th>
                 </tr>
               </thead>
@@ -406,7 +409,7 @@ const ReporteLiquidaciones: React.FC = () => {
                     <td className="px-6 py-4 text-right">
                       {savingId === fila.id ? (
                         <span className="flex items-center justify-end gap-2 text-slate-400">
-                          <Loader2 size={14} className="animate-spin" /> Guardando...
+                          <Loader2 size={14} className="animate-spin" /> {t('liquidaciones.guardando')}
                         </span>
                       ) : savedId === fila.id ? (
                         <span className="flex items-center justify-end gap-2 text-emerald-600 font-semibold">
