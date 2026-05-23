@@ -8,6 +8,7 @@ import marcasRoutes from './routes/marcas.routes';
 import uploadRoutes from './routes/upload.routes';
 import kioscoRoutes from './routes/kiosco.routes';
 import tecnicosRoutes from './routes/tecnicos.routes';
+import liquidacionesRoutes from './routes/liquidaciones.routes';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.use('/api/marcas', marcasRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/tecnicos', tecnicosRoutes);
 app.use('/api/kiosco', kioscoRoutes);
+app.use('/api/liquidaciones', liquidacionesRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Taller Mecánico API' });

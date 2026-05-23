@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
@@ -14,6 +14,7 @@ import HistorialDetalle from './pages/HistorialDetalle';
 import Reportes from './pages/Reportes';
 import Equipo from './pages/Equipo';
 import Kiosco from './pages/Kiosco';
+import ReporteLiquidaciones from './pages/ReporteLiquidaciones';
 
 const Navbar = () => {
   const location = useLocation();
@@ -70,6 +71,13 @@ const Navbar = () => {
             >
               <Users size={18} />
               <span className="hidden sm:inline">{t('navbar.equipo')}</span>
+            </Link>
+            <Link 
+              to={`/${slug}/liquidaciones`} 
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/liquidaciones') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+            >
+              <Coins size={18} />
+              <span className="hidden sm:inline">Liquidaciones</span>
             </Link>
             
             {/* Language Toggle Button */}
@@ -143,6 +151,7 @@ function App() {
             <Route path="historial/:id" element={<HistorialDetalle />} />
             <Route path="reportes" element={<Reportes />} />
             <Route path="equipo" element={<Equipo />} />
+            <Route path="liquidaciones" element={<ReporteLiquidaciones />} />
           </Route>
         </Routes>
       </BrowserRouter>
