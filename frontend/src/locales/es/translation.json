@@ -161,7 +161,10 @@
     "detalle_title": "Detalle del Servicio",
     "motivo_cancelacion": "Motivo de Cancelación",
     "diagnostico_registrado": "Diagnóstico Registrado",
-    "servicios_facturados": "Servicios Registrados"
+    "servicios_facturados": "Servicios Registrados",
+    "search_placeholder": "Buscar por placa o cliente...",
+    "filter_all": "Todos",
+    "no_matches": "No se encontraron coincidencias para tu búsqueda"
   },
   "whatsapp": {
     "btn_contactar": "Contactar Cliente",

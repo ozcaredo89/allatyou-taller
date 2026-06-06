@@ -161,7 +161,10 @@
     "detalle_title": "Service Details",
     "motivo_cancelacion": "Reason for Cancellation",
     "diagnostico_registrado": "Registered Diagnostic",
-    "servicios_facturados": "Registered Services"
+    "servicios_facturados": "Registered Services",
+    "search_placeholder": "Search by plate or client...",
+    "filter_all": "All",
+    "no_matches": "No matches found for your search"
   },
   "whatsapp": {
     "btn_contactar": "Contact Client",
