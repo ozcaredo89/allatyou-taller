@@ -331,9 +331,16 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* ── Header ── */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t('dashboard.title')}</h1>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+            {t('dashboard.title')}
+            {ingresos.length > 0 && (
+              <span className="bg-indigo-100 text-indigo-700 text-sm font-bold px-3 py-1 rounded-full shadow-sm">
+                {ingresos.length}
+              </span>
+            )}
+          </h1>
           <p className="text-slate-500 mt-1">{t('dashboard.subtitle')}</p>
         </div>
         <button onClick={() => navigate(`/${slug}/historial`)} className="flex items-center gap-2 border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-xl font-medium text-sm transition shadow-sm">
