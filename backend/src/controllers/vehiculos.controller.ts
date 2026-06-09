@@ -3,7 +3,11 @@ import { supabase } from '../config/supabase';
 
 export const getVehiculos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { data, error } = await supabase.from('taller_vehiculos').select('*, taller_clientes(*)');
+    const { data, error } = await supabase
+      .from('taller_vehiculos')
+      .select('*, taller_clientes(*)')
+      .eq('empresa_id', req.empresa_id);
+
     if (error) throw error;
     res.json(data);
   } catch (error: any) {
@@ -17,12 +21,13 @@ export const getVehiculoByPlaca = async (req: Request, res: Response): Promise<v
     const { data, error } = await supabase
       .from('taller_vehiculos')
       .select('*, taller_clientes(*)')
+      .eq('empresa_id', req.empresa_id)
       .eq('placa', String(placa).toUpperCase())
       .single();
     
     if (error && error.code !== 'PGRST116') throw error;
     if (!data) {
-      res.status(404).json({ error: 'Vehiculo no encontrado' });
+      res.status(200).json(null);
       return;
     }
     res.json(data);
@@ -38,6 +43,7 @@ export const createVehiculo = async (req: Request, res: Response): Promise<void>
     const { data: existing } = await supabase
       .from('taller_vehiculos')
       .select('*')
+      .eq('empresa_id', req.empresa_id)
       .eq('placa', String(placa).toUpperCase())
       .single();
 
@@ -54,7 +60,8 @@ export const createVehiculo = async (req: Request, res: Response): Promise<void>
         marca, 
         linea, 
         modelo_anio, 
-        color 
+        color,
+        empresa_id: req.empresa_id
       }])
       .select()
       .single();
@@ -62,6 +69,62 @@ export const createVehiculo = async (req: Request, res: Response): Promise<void>
     if (error) throw error;
     res.status(201).json(data);
   } catch (error: any) {
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Este vehículo ya se encuentra registrado en tu taller.' });
+      return;
+    }
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateVehiculo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { placa, marca, linea, modelo_anio, color, cliente_id } = req.body;
+    
+    const placaToSave = String(placa).toUpperCase();
+
+    // Validar unicidad de placa (asegurar que no existe en OTRO id)
+    const { data: existing } = await supabase
+      .from('taller_vehiculos')
+      .select('id')
+      .eq('empresa_id', req.empresa_id)
+      .eq('placa', placaToSave)
+      .neq('id', id)
+      .single();
+
+    if (existing) {
+       res.status(400).json({ error: 'Esta placa ya está registrada en otro vehículo.' });
+       return;
+    }
+
+    const updatePayload: any = { 
+      placa: placaToSave, 
+      marca, 
+      linea, 
+      modelo_anio, 
+      color 
+    };
+
+    if (cliente_id) {
+      updatePayload.cliente_id = cliente_id;
+    }
+
+    const { data, error } = await supabase
+      .from('taller_vehiculos')
+      .update(updatePayload)
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id)
+      .select('*, taller_clientes(*)')
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Esta placa ya está registrada en otro vehículo.' });
+      return;
+    }
     res.status(500).json({ error: error.message });
   }
 };

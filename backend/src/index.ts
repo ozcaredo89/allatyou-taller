@@ -6,6 +6,9 @@ import vehiculosRoutes from './routes/vehiculos.routes';
 import ingresosRoutes from './routes/ingresos.routes';
 import marcasRoutes from './routes/marcas.routes';
 import uploadRoutes from './routes/upload.routes';
+import kioscoRoutes from './routes/kiosco.routes';
+import tecnicosRoutes from './routes/tecnicos.routes';
+import liquidacionesRoutes from './routes/liquidaciones.routes';
 
 dotenv.config();
 
@@ -16,12 +19,18 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+import authRoutes from './routes/auth.routes';
+
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/vehiculos', vehiculosRoutes);
 app.use('/api/ingresos', ingresosRoutes);
 app.use('/api/marcas', marcasRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/tecnicos', tecnicosRoutes);
+app.use('/api/kiosco', kioscoRoutes);
+app.use('/api/liquidaciones', liquidacionesRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Taller Mecánico API' });
@@ -30,3 +39,4 @@ app.get('/health', (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`);
 });
+// Forzar despliegue en Railway - fix is_verified founding admin 2026-05-16
