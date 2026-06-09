@@ -12,6 +12,7 @@ interface ItemFactura {
   cantidad: number;
   precio_unitario: number;
   total: number;
+  categoria_crm?: 'aceite' | 'frenos' | 'aire' | 'general' | null;
 }
 
 const HistorialDetalle: React.FC = () => {

@@ -13,6 +13,7 @@ interface ItemFactura {
   cantidad: number;
   precio_unitario: number;
   total: number;
+  categoria_crm?: 'aceite' | 'frenos' | 'aire' | 'general' | null;
 }
 
 const Checkout: React.FC = () => {
@@ -42,6 +43,7 @@ const Checkout: React.FC = () => {
   const [nuevoDesc, setNuevoDesc] = useState('');
   const [nuevoCant, setNuevoCant] = useState(1);
   const [nuevoPrecio, setNuevoPrecio] = useState<string>('');
+  const [nuevoCategoria, setNuevoCategoria] = useState<ItemFactura['categoria_crm']>(null);
 
   useEffect(() => { cargarIngreso(); }, [id]);
 
@@ -70,6 +72,22 @@ const Checkout: React.FC = () => {
     setNuevoPrecio(formatCurrencyInput(e.target.value));
   };
 
+  const handleDescChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setNuevoDesc(val);
+
+    const lowerVal = val.toLowerCase();
+    if (lowerVal.includes('aceite')) {
+      setNuevoCategoria('aceite');
+    } else if (lowerVal.includes('freno') || lowerVal.includes('pastilla')) {
+      setNuevoCategoria('frenos');
+    } else if (lowerVal.includes('aire')) {
+      setNuevoCategoria('aire');
+    } else {
+      setNuevoCategoria(null);
+    }
+  };
+
   const agregarItem = () => {
     const precioNumerico = parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10);
     if (!nuevoDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
@@ -81,9 +99,10 @@ const Checkout: React.FC = () => {
       cantidad: nuevoCant,
       precio_unitario: precioNumerico,
       total: nuevoCant * precioNumerico,
+      categoria_crm: nuevoCategoria,
     };
     setItems(prev => [...prev, newItem]);
-    setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(''); setShowForm(false);
+    setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(''); setNuevoCategoria(null); setShowForm(false);
   };
 
   const eliminarItem = (itemId: string) => setItems(prev => prev.filter(i => i.id !== itemId));
@@ -390,7 +409,16 @@ const Checkout: React.FC = () => {
                   <Wrench size={14} /> {t('checkout.mano_obra')}
                 </button>
               </div>
-              <input type="text" placeholder={t('checkout.desc_placeholder')} value={nuevoDesc} onChange={e => setNuevoDesc(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+              <div className="flex gap-2">
+                <input type="text" placeholder={t('checkout.desc_placeholder')} value={nuevoDesc} onChange={handleDescChange} className="flex-[2] border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <select value={nuevoCategoria || ''} onChange={e => setNuevoCategoria((e.target.value as any) || null)} className="flex-1 border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                  <option value="">Categoría CRM (Opcional)</option>
+                  <option value="aceite">Aceite</option>
+                  <option value="frenos">Frenos</option>
+                  <option value="aire">Aire Acond.</option>
+                  <option value="general">General</option>
+                </select>
+              </div>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="text-xs text-slate-500 mb-0.5 block">{t('checkout.cantidad')}</label>
@@ -438,7 +466,14 @@ const Checkout: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {items.map(item => (
                   <tr key={item.id}>
-                    <td className="py-2.5 text-slate-800 font-medium">{item.descripcion}</td>
+                    <td className="py-2.5 text-slate-800 font-medium">
+                      {item.descripcion}
+                      {item.categoria_crm && (
+                        <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                          {item.categoria_crm}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2.5 text-center">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{item.tipo === 'repuesto' ? t('checkout.repuesto') : t('checkout.mano_obra')}</span>
                     </td>
