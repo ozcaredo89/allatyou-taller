@@ -171,8 +171,17 @@
     "btn_avisar_listo": "Notify Ready",
     "btn_notificar_cotizacion": "Send Quote",
     "msg_proceso": "Hello {{nombre}}, we are contacting you from {{taller}} regarding your vehicle {{placa}}: ",
-    "msg_cotizacion": "Hello {{nombre}}, the diagnostic for your vehicle {{placa}} at {{taller}} is ready. Please confirm if you approve the service order.",
+    "msg_cotizacion": "Hello {{nombre}}, at *{{taller}}* we have the quote ready for your vehicle *{{placa}}*. Please let us know when you have a minute to proceed.",
     "msg_listo": "Hello {{nombre}}, your vehicle {{placa}} is ready for pickup at {{taller}}."
+  },
+  "crm": {
+    "title": "Retention CRM",
+    "subtitle": "Predictive Maintenance and Prospects",
+    "search": "Search by plate or client...",
+    "no_data": "No upcoming maintenance suggested.",
+    "sugerido_para": "Suggested for:",
+    "km_estimado": "Est. KM:",
+    "btn_contactar": "Contact Client"
   },
   "reportes": {
     "title": "Revenue Report",
