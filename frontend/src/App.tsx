@@ -18,7 +18,6 @@ import ReporteLiquidaciones from './pages/ReporteLiquidaciones';
 import CRM from './pages/CRM';
 import { AIChatDrawer } from './components/AIChatDrawer';
 import { useState } from 'react';
-
 const Navbar = () => {
   const location = useLocation();
   const { slug } = useParams<{ slug: string }>();
@@ -89,7 +88,6 @@ const Navbar = () => {
               <Coins size={18} />
               <span className="hidden sm:inline">Liquidaciones</span>
             </Link>
-
             {/* Language Toggle Button */}
             <button
               onClick={toggleLanguage}
@@ -119,7 +117,6 @@ const Navbar = () => {
 const ProtectedLayout = () => {
   const { slug } = useParams<{ slug: string }>();
   const { token, empresaSlug, logout } = useAuth();
-
   // AI Chat State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'model'; parts: { text: string }[] }[]>([]);
@@ -140,7 +137,6 @@ const ProtectedLayout = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
-
       {/* FAB - Botón Flotante para el Asistente */}
       <button
         onClick={() => setIsDrawerOpen(true)}
@@ -168,7 +164,6 @@ function App() {
         <Routes>
           {/* Global entry point */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Registro />} />
           <Route path="/kiosco/:slug" element={<Kiosco />} />

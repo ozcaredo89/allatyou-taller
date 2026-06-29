@@ -502,7 +502,6 @@ const Diagnostico: React.FC = () => {
                         value={item.notas}
                         onChange={(e) => updateItem(sys.key, 'notas', e.target.value)}
                       />
-
                       {/* Subida de Fotos */}
                       <div>
                         {item.fotos.length > 0 && (

@@ -21,7 +21,6 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
 
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET) as { empresa_id: string, email: string };
-
     req.empresa_id = decoded.empresa_id;
     req.user_email = decoded.email;
 

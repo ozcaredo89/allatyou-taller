@@ -19,7 +19,6 @@ export const getTecnicos = async (req: Request, res: Response): Promise<void> =>
 export const createTecnico = async (req: Request, res: Response): Promise<void> => {
   try {
     const { nombre } = req.body;
-
     if (!nombre || !nombre.trim()) {
       res.status(400).json({ error: 'El nombre del técnico es requerido.' });
       return;

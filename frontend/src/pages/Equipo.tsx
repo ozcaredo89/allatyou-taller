@@ -134,7 +134,6 @@ const Equipo: React.FC = () => {
           <h1 className="text-2xl font-bold text-slate-900">{t('equipo.title')}</h1>
           <p className="text-slate-500 text-sm">{t('equipo.subtitle')}</p>
         </div>
-
         {/* Tabs */}
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
           <button
@@ -227,7 +226,6 @@ const Equipo: React.FC = () => {
                   <X size={20} />
                 </button>
                 <h2 className="text-xl font-bold text-slate-900">{t('equipo.modal_title')}</h2>
-
                 <form onSubmit={crearMiembro} className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">
@@ -349,7 +347,6 @@ const Equipo: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-900">
                   {tecnicoEditando ? t('equipo.btn_editar_tecnico') : t('equipo.btn_nuevo_tecnico')}
                 </h2>
-
                 <form onSubmit={guardarTecnico} className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">

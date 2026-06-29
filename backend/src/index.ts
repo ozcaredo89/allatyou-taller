@@ -11,7 +11,6 @@ import tecnicosRoutes from './routes/tecnicos.routes';
 import liquidacionesRoutes from './routes/liquidaciones.routes';
 import crmRoutes from './routes/crm.routes';
 import aiRoutes from './routes/ai.routes';
-
 dotenv.config();
 
 const app = express();
@@ -35,7 +34,6 @@ app.use('/api/kiosco', kioscoRoutes);
 app.use('/api/liquidaciones', liquidacionesRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/ai', aiRoutes);
-
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Taller Mecánico API' });
 });

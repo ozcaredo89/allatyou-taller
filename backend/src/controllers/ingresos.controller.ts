@@ -218,14 +218,12 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
 export const getReportesFinanzas = async (req: Request, res: Response): Promise<void> => {
   try {
     const { start, end } = req.query;
-
     // Obtener todos los ingresos entregados para histórico
     const { data: todos, error } = await supabase
       .from('taller_ingresos')
       .select('updated_at, items_factura')
       .eq('empresa_id', req.empresa_id)
       .eq('estado', 'entregado');
-
     if (error) throw error;
 
     const ingresos = todos || [];
@@ -243,7 +241,6 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
         diasUnicos.add(dia);
       }
     });
-
     const promedioDiarioHistorico = diasUnicos.size > 0 ? totalHistorico / diasUnicos.size : 0;
 
     // Hoy
@@ -267,7 +264,6 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
         return d >= startStr;
       });
     }
-
     const chartDataMap: Record<string, number> = {};
     let totalPeriodo = 0;
 
@@ -279,7 +275,6 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
       chartDataMap[d] += total;
       totalPeriodo += total;
     });
-
     // Extraer facturado hoy
     ingresos.forEach(ing => {
       const d = new Date(ing.updated_at).toISOString().split('T')[0];
@@ -302,7 +297,6 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
         totalPeriodo
       }
     });
-
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

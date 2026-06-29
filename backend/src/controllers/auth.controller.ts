@@ -160,7 +160,6 @@ export const updateEmpresaConfig = async (req: Request, res: Response): Promise<
 export const requestOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { empresa_id } = req.body;
-
     // 1. Obtener la empresa
     const { data: empresa, error: empresaError } = await supabase
       .from('taller_empresas')
@@ -213,7 +212,6 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
 export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { empresa_id, otp } = req.body;
-
     // 1. Obtener la empresa por id
     const { data: empresa, error: empresaError } = await supabase
       .from('taller_empresas')
@@ -246,7 +244,6 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
     // 3. Crear JWT (Inyectando un email representativo del que validó el código)
     const token = jwt.sign({ empresa_id: empresa.id, email: validRecord.email }, JWT_SECRET, { expiresIn: '24h' });
-
     res.json({
       success: true,
       token,

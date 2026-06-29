@@ -62,7 +62,6 @@ SELECT
   categoria,
   ultima_fecha,
   ultimo_kilometraje,
-
   -- Cálculo de Fecha Sugerida
   CASE categoria
     WHEN 'aceite' THEN ultima_fecha + INTERVAL '6 months'

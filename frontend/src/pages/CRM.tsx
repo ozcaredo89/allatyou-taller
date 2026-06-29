@@ -46,7 +46,6 @@ const CRM: React.FC = () => {
     const saludo = `Hola ${p.cliente_nombre}, somos tu taller de confianza.`;
     const motivo = `Notamos que ya ${isVencido ? 'pasó' : 'se acerca'} la fecha recomendada para el mantenimiento de tu ${p.marca} ${p.linea} (Placa ${p.placa}), específicamente para: *${p.categoria.toUpperCase()}*.`;
     const desp = `¿Te gustaría agendar una cita para revisarlo?`;
-
     const msg = `${saludo} ${motivo} ${desp}`;
     window.open(generarLinkWhatsApp(p.cliente_telefono, msg), '_blank');
   };
@@ -111,7 +110,6 @@ const CRM: React.FC = () => {
                     <span className="text-slate-500 text-xs uppercase tracking-wider font-semibold">{p.marca} {p.linea}</span>
                     <span className="font-black text-slate-800 tracking-widest">{p.placa}</span>
                   </div>
-
                   <div className="h-px bg-slate-200 w-full my-2"></div>
 
                   <div className="flex justify-between items-center text-sm">
@@ -120,7 +118,6 @@ const CRM: React.FC = () => {
                       {new Date(p.fecha_sugerida).toLocaleDateString()}
                     </span>
                   </div>
-
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-500">{t('crm.km_estimado', 'KM Estimado:')}</span>
                     <span className="font-semibold text-slate-700">~{p.kilometraje_sugerido?.toLocaleString() || '?'} km</span>

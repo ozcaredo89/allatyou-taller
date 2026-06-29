@@ -9,7 +9,6 @@ type OpSubView = 'total' | 'detalle';
 
 const Reportes: React.FC = () => {
   const { t } = useTranslation();
-
   const [activeTab, setActiveTab] = useState<TabType>('financiero');
 
   // ── Financiero ──
@@ -34,7 +33,6 @@ const Reportes: React.FC = () => {
       let start = '';
       let end = new Date().toISOString().split('T')[0];
       const hoy = new Date();
-
       if (filtro === 'hoy') { start = end; }
       else if (filtro === 'semana') {
         const d = new Date(); d.setDate(hoy.getDate() - 6);
@@ -43,7 +41,6 @@ const Reportes: React.FC = () => {
         const d = new Date(); d.setDate(hoy.getDate() - 29);
         start = d.toISOString().split('T')[0];
       }
-
       const endpoint = start ? `/ingresos/reportes/finanzas?start=${start}&end=${end}` : '/ingresos/reportes/finanzas';
       const res = await api.get(endpoint);
       setData(res.data);
@@ -57,7 +54,6 @@ const Reportes: React.FC = () => {
       let start = '';
       let end = new Date().toISOString().split('T')[0];
       const hoy = new Date();
-
       if (filtro === 'hoy') { start = end; }
       else if (filtro === 'semana') {
         const d = new Date(); d.setDate(hoy.getDate() - 6);
@@ -66,7 +62,6 @@ const Reportes: React.FC = () => {
         const d = new Date(); d.setDate(hoy.getDate() - 29);
         start = d.toISOString().split('T')[0];
       }
-
       const endpoint = start ? `/ingresos/reportes/operaciones?start=${start}&end=${end}` : '/ingresos/reportes/operaciones';
       const res = await api.get(endpoint);
       setOpData(res.data);
@@ -75,7 +70,6 @@ const Reportes: React.FC = () => {
   };
 
   const formatearDinero = (monto: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(monto);
-
   const formatearTiempo = (mins: number): string => {
     if (mins < 1) return '<1m';
     const h = Math.floor(mins / 60);

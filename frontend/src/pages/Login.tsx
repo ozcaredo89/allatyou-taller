@@ -20,7 +20,6 @@ const Login: React.FC = () => {
   const [loginMode, setLoginMode] = useState<'password' | 'otp'>('password');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
   const [empresas, setEmpresas] = useState<EmpresaItem[]>([]);
   const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaItem | null>(null);
 
@@ -81,7 +80,6 @@ const Login: React.FC = () => {
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim() || !selectedEmpresa) return;
-
     setLoading(true);
     setError('');
     try {
@@ -98,7 +96,6 @@ const Login: React.FC = () => {
   const submitOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otp.length !== 4 || !selectedEmpresa) return;
-
     setLoading(true);
     setError('');
     try {
@@ -132,7 +129,6 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-
         {/* App Logo */}
         <div className="flex flex-col items-center justify-center mb-8">
           <div className="p-3 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/30 mb-4">
@@ -191,7 +187,6 @@ const Login: React.FC = () => {
           {/* STEP 2: Login Híbrido */}
           {step === 2 && selectedEmpresa && (
             <div className="animate-in fade-in slide-in-from-bottom-2">
-
               <div className="flex items-center gap-2 mb-6 text-sm">
                 <button type="button" onClick={clearSelection} className="p-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">
                   <ArrowLeft size={16} />
@@ -307,7 +302,6 @@ const Login: React.FC = () => {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );

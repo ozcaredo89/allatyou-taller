@@ -91,7 +91,6 @@ const Checkout: React.FC = () => {
   const agregarItem = () => {
     const precioNumerico = parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10);
     if (!nuevoDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
-
     const newItem: ItemFactura = {
       id: crypto.randomUUID(),
       tipo: nuevoTipo,
