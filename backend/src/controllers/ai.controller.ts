@@ -27,14 +27,21 @@ export const chatConAsistente = async (req: Request, res: Response): Promise<voi
 
     // 1. Recopilación de Contexto
 
-    // Vehículos en el taller hoy (recepcion, diagnostico, en_reparacion)
+    // Vehículos activos en el taller (mismos estados que el Dashboard)
+    const ESTADOS_ACTIVOS = ['recepcion', 'diagnostico', 'cotizacion', 'esperando_aprobacion', 'en_reparacion'];
     const { data: vehiculosTaller, error: errVehiculos } = await supabase
       .from('taller_ingresos')
-      .select('id')
+      .select('id, estado')
       .eq('empresa_id', empresa_id)
-      .in('estado', ['recepcion', 'diagnostico', 'en_reparacion']);
+      .in('estado', ESTADOS_ACTIVOS);
 
     if (errVehiculos) throw errVehiculos;
+
+    // Desglose por estado para dar contexto más rico al AI
+    const desglosePorEstado: Record<string, number> = {};
+    (vehiculosTaller || []).forEach(v => {
+      desglosePorEstado[v.estado] = (desglosePorEstado[v.estado] || 0) + 1;
+    });
 
     // Ingresos facturados hoy/esta semana
     const hoy = new Date();
@@ -42,12 +49,13 @@ export const chatConAsistente = async (req: Request, res: Response): Promise<voi
     const inicioSemana = new Date(hoy);
     inicioSemana.setDate(hoy.getDate() - hoy.getDay() + (hoy.getDay() === 0 ? -6 : 1)); // Lunes
 
-    // Traer todos los ingresos de la semana y sumar (podríamos hacerlo con RPC o agrupando, pero en backend JS es simple)
+    // Traer items_factura para calcular el total (no existe columna 'total', se suma desde el JSONB)
     const { data: ingresosSemana, error: errIngresos } = await supabase
       .from('taller_ingresos')
-      .select('total, fecha_ingreso')
+      .select('items_factura, updated_at')
       .eq('empresa_id', empresa_id)
-      .gte('fecha_ingreso', inicioSemana.toISOString());
+      .eq('estado', 'entregado')
+      .gte('updated_at', inicioSemana.toISOString());
 
     if (errIngresos) throw errIngresos;
 
@@ -56,10 +64,10 @@ export const chatConAsistente = async (req: Request, res: Response): Promise<voi
 
     if (ingresosSemana) {
       ingresosSemana.forEach(ingreso => {
-        const total = Number(ingreso.total || 0);
+        const total = (ingreso.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
         totalSemana += total;
-        const fechaIngreso = new Date(ingreso.fecha_ingreso);
-        if (fechaIngreso >= hoy) {
+        const fechaUpdated = new Date(ingreso.updated_at);
+        if (fechaUpdated >= hoy) {
           totalHoy += total;
         }
       });
@@ -81,7 +89,8 @@ export const chatConAsistente = async (req: Request, res: Response): Promise<voi
     }
 
     const kpis = {
-      vehiculos_en_taller: vehiculosTaller?.length || 0,
+      vehiculos_en_taller_total: vehiculosTaller?.length || 0,
+      vehiculos_por_estado: desglosePorEstado, // e.g. { recepcion: 3, diagnostico: 5, en_reparacion: 11 }
       total_facturado_hoy: totalHoy,
       total_facturado_semana: totalSemana,
       mantenimientos_vencidos: vencidos,
@@ -90,19 +99,35 @@ export const chatConAsistente = async (req: Request, res: Response): Promise<voi
     // 2. Integración con Gemini
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    const systemInstruction = `Eres el Administrador Virtual de este taller mecánico. Tu rol es asistir al dueño basándote en los datos en tiempo real proporcionados en este JSON: ${JSON.stringify(kpis)}.
+    const systemInstruction = {
+      role: 'system',
+      parts: [{
+        text: `Eres el Administrador Virtual de este taller mecánico. Tu rol es asistir al dueño basándote en los datos en tiempo real proporcionados en este JSON: ${JSON.stringify(kpis)}.
 REGLAS ESTRICTAS:
 NUNCA des consejos ni alertas no solicitadas.
 Responde ÚNICAMENTE a lo que el usuario pregunta, de forma concisa y profesional.
-Al final de tu respuesta, DEBES proporcionar siempre 3 opciones de preguntas de seguimiento (sugerencias) que el usuario podría hacerte, basadas en los datos disponibles. Formatea estas sugerencias al final de tu mensaje usando un bloque especial, por ejemplo: [SUGERENCIA: ¿Cuáles son los vehículos pendientes?].`;
+Al final de tu respuesta, DEBES proporcionar siempre 3 opciones de preguntas de seguimiento (sugerencias) que el usuario podría hacerte, basadas en los datos disponibles. Formatea estas sugerencias al final de tu mensaje usando un bloque especial, por ejemplo: [SUGERENCIA: ¿Cuáles son los vehículos pendientes?].`
+      }]
+    };
 
     // Initialize chat with system instruction
+    // Gemini requires: history must start with 'user' and alternate user/model.
+    // We exclude the last message (sent via sendMessage) and ensure history starts with 'user'.
+    const rawHistory = messages.slice(0, -1).map(m => ({
+        role: m.role as 'user' | 'model',
+        parts: m.parts,
+    }));
+
+    // Drop leading 'model' messages (Gemini will throw if history[0].role !== 'user')
+    let historyStart = 0;
+    while (historyStart < rawHistory.length && rawHistory[historyStart].role !== 'user') {
+        historyStart++;
+    }
+    const safeHistory = rawHistory.slice(historyStart);
+
     const chat = model.startChat({
         systemInstruction,
-        history: messages.slice(0, -1).map(m => ({
-            role: m.role,
-            parts: m.parts,
-        }))
+        history: safeHistory,
     });
 
     const lastMessage = messages[messages.length - 1];
