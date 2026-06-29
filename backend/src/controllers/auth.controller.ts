@@ -110,11 +110,11 @@ export const registro = async (req: Request, res: Response): Promise<void> => {
       text: `Hola,\n\nTu taller "${nombre}" ha sido registrado exitosamente.\n\nEl código de verificación de 4 dígitos para acceder por primera vez a tu tablero es: ${initialOtp}\n\nEscríbelo en la pantalla para continuar.`
     });
 
-    res.status(201).json({ 
-      success: true, 
-      empresa_id: nuevaEmpresa.id, 
-      slug: finalSlug, 
-      message: 'Registro exitoso y OTP enviado' 
+    res.status(201).json({
+      success: true,
+      empresa_id: nuevaEmpresa.id,
+      slug: finalSlug,
+      message: 'Registro exitoso y OTP enviado'
     });
 
   } catch (err: any) {
@@ -160,7 +160,6 @@ export const updateEmpresaConfig = async (req: Request, res: Response): Promise<
 export const requestOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { empresa_id } = req.body;
-    
     // 1. Obtener la empresa
     const { data: empresa, error: empresaError } = await supabase
       .from('taller_empresas')
@@ -213,7 +212,6 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
 export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { empresa_id, otp } = req.body;
-    
     // 1. Obtener la empresa por id
     const { data: empresa, error: empresaError } = await supabase
       .from('taller_empresas')
@@ -246,11 +244,10 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
     // 3. Crear JWT (Inyectando un email representativo del que validó el código)
     const token = jwt.sign({ empresa_id: empresa.id, email: validRecord.email }, JWT_SECRET, { expiresIn: '24h' });
-    
-    res.json({ 
-      success: true, 
-      token, 
-      empresa: { id: empresa.id, nombre: empresa.nombre, slug: empresa.slug } 
+    res.json({
+      success: true,
+      token,
+      empresa: { id: empresa.id, nombre: empresa.nombre, slug: empresa.slug }
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

@@ -91,7 +91,6 @@ const Checkout: React.FC = () => {
   const agregarItem = () => {
     const precioNumerico = parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10);
     if (!nuevoDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
-    
     const newItem: ItemFactura = {
       id: crypto.randomUUID(),
       tipo: nuevoTipo,
@@ -436,8 +435,8 @@ const Checkout: React.FC = () => {
               </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">{t('diagnostico.btn_cancelar')}</button>
-                <button 
-                  onClick={agregarItem} 
+                <button
+                  onClick={agregarItem}
                   disabled={!nuevoDesc.trim() || parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10) < 0}
                   className={`px-4 py-2 text-sm font-bold rounded-lg transition ${
                     !nuevoDesc.trim() || parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10) < 0

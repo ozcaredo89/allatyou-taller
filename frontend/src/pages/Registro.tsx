@@ -12,12 +12,10 @@ const Registro: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
   // Paso 1
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  
   // Paso 2
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
@@ -25,10 +23,9 @@ const Registro: React.FC = () => {
   const submitRegistro = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim() || !email.trim()) return;
-    
     setLoading(true);
     setError('');
-    
+
     try {
       const { data } = await api.post('/auth/registro', { nombre, email, turnstileToken });
       if (data.success) {
@@ -45,16 +42,15 @@ const Registro: React.FC = () => {
   const submitOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otp.length !== 4 || !empresaId) return;
-    
     setLoading(true);
     setError('');
-    
+
     try {
-      const { data } = await api.post('/auth/verify-otp', { 
-        empresa_id: empresaId, 
-        otp 
+      const { data } = await api.post('/auth/verify-otp', {
+        empresa_id: empresaId,
+        otp
       });
-      
+
       if (data.token) {
         login(data.token, data.empresa.id, data.empresa.slug, data.empresa.nombre, email);
         navigate(`/${data.empresa.slug}`);
@@ -69,7 +65,6 @@ const Registro: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        
         {/* Logo */}
         <div className="flex flex-col items-center justify-center mb-8">
           <div className="p-3 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/30 mb-4">
@@ -130,8 +125,8 @@ const Registro: React.FC = () => {
                </div>
 
                <div className="pt-2">
-                 <button 
-                   type="submit" 
+                 <button
+                   type="submit"
                    disabled={loading || !turnstileToken}
                    className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
                  >
@@ -139,11 +134,10 @@ const Registro: React.FC = () => {
                    Crear mi cuenta gratis
                  </button>
                </div>
-               
                <div className="text-center pt-2">
-                 <button 
-                   type="button" 
-                   onClick={() => navigate('/login')} 
+                 <button
+                   type="button"
+                   onClick={() => navigate('/login')}
                    className="text-sm text-slate-500 hover:text-indigo-600 font-medium transition-colors"
                  >
                    ¿Ya tienes un taller registrado? <span className="underline">Inicia Sesión</span>
@@ -154,7 +148,6 @@ const Registro: React.FC = () => {
 
           {step === 2 && (
              <form onSubmit={submitOtp} className="space-y-5 animate-in fade-in slide-in-from-right-4">
-               
                <div className="text-center mb-6">
                  <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full mb-3 shadow-sm">
                    <CheckCircle2 size={24} />
@@ -177,8 +170,8 @@ const Registro: React.FC = () => {
                    disabled={loading}
                  />
                </div>
-               <button 
-                 type="submit" 
+               <button
+                 type="submit"
                  disabled={loading || otp.length < 4}
                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
                >
@@ -187,7 +180,6 @@ const Registro: React.FC = () => {
              </form>
           )}
         </div>
-        
       </div>
     </div>
   );

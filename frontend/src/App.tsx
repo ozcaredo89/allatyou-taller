@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
@@ -16,7 +16,8 @@ import Equipo from './pages/Equipo';
 import Kiosco from './pages/Kiosco';
 import ReporteLiquidaciones from './pages/ReporteLiquidaciones';
 import CRM from './pages/CRM';
-
+import { AIChatDrawer } from './components/AIChatDrawer';
+import { useState } from 'react';
 const Navbar = () => {
   const location = useLocation();
   const { slug } = useParams<{ slug: string }>();
@@ -46,50 +47,49 @@ const Navbar = () => {
               <span className="hidden sm:inline">{t('navbar.dashboard')}</span>
             </Link>
             <Link 
-              to={`/${slug}/nuevo-ingreso`} 
+              to={`/${slug}/nuevo-ingreso`}
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname === `/${slug}/nuevo-ingreso` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <PlusCircle size={18} />
               <span className="hidden sm:inline">{t('navbar.nuevo_ingreso')}</span>
             </Link>
-            <Link 
-              to={`/${slug}/historial`} 
+            <Link
+              to={`/${slug}/historial`}
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/historial') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <History size={18} />
               <span className="hidden sm:inline">{t('navbar.historial')}</span>
             </Link>
-            <Link 
-              to={`/${slug}/reportes`} 
+            <Link
+              to={`/${slug}/reportes`}
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/reportes') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <BarChart3 size={18} />
               <span className="hidden sm:inline">{t('navbar.reportes')}</span>
             </Link>
-            <Link 
-              to={`/${slug}/crm`} 
+            <Link
+              to={`/${slug}/crm`}
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/crm') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <Target size={18} />
               <span className="hidden sm:inline">{t('navbar.crm', 'CRM')}</span>
             </Link>
-            <Link 
-              to={`/${slug}/equipo`} 
+            <Link
+              to={`/${slug}/equipo`}
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/equipo') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <Users size={18} />
               <span className="hidden sm:inline">{t('navbar.equipo')}</span>
             </Link>
-            <Link 
-              to={`/${slug}/liquidaciones`} 
+            <Link
+              to={`/${slug}/liquidaciones`}
               className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/liquidaciones') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <Coins size={18} />
               <span className="hidden sm:inline">Liquidaciones</span>
             </Link>
-            
             {/* Language Toggle Button */}
-            <button 
+            <button
               onClick={toggleLanguage}
               className="ml-2 flex items-center gap-2 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border border-slate-700 font-bold text-xs"
               title="Cambiar idioma / Change language"
@@ -99,7 +99,7 @@ const Navbar = () => {
             </button>
 
             {/* Logout Button */}
-            <button 
+            <button
               onClick={logout}
               className="ml-2 flex items-center gap-2 px-3 py-2 border border-slate-700 rounded-md text-slate-300 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50 transition-colors"
               title={t('navbar.cerrar_sesion')}
@@ -117,7 +117,10 @@ const Navbar = () => {
 const ProtectedLayout = () => {
   const { slug } = useParams<{ slug: string }>();
   const { token, empresaSlug, logout } = useAuth();
-  
+  // AI Chat State
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [messages, setMessages] = useState<{ role: 'user' | 'model'; parts: { text: string }[] }[]>([]);
+
   if (!token) {
     return <Navigate to={`/login`} replace />;
   }
@@ -129,11 +132,27 @@ const ProtectedLayout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-200">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-200 relative">
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
+      {/* FAB - Botón Flotante para el Asistente */}
+      <button
+        onClick={() => setIsDrawerOpen(true)}
+        className="fixed bottom-6 right-6 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all z-40 group"
+        title="Abrir Asistente Virtual"
+      >
+        <Sparkles size={24} className="group-hover:animate-pulse" />
+      </button>
+
+      {/* Drawer del Asistente */}
+      <AIChatDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        messages={messages}
+        setMessages={setMessages}
+      />
     </div>
   );
 };
@@ -145,11 +164,10 @@ function App() {
         <Routes>
           {/* Global entry point */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-          
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Registro />} />
           <Route path="/kiosco/:slug" element={<Kiosco />} />
-          
+
           <Route path="/:slug" element={<ProtectedLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="nuevo-ingreso" element={<NuevoIngreso />} />

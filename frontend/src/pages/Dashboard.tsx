@@ -188,7 +188,7 @@ const Dashboard: React.FC = () => {
               <h2 className="text-xl font-bold text-slate-900">{t('checkout.btn_entregar')}</h2>
             </div>
             <p className="text-slate-600 mb-6">
-              ¿Confirmas que deseas registrar la entrega del vehículo <strong>{entregarTarget.taller_vehiculos?.placa}</strong>? 
+              ¿Confirmas que deseas registrar la entrega del vehículo <strong>{entregarTarget.taller_vehiculos?.placa}</strong>?
               La orden pasará al historial de vehículos entregados.
             </p>
             <div className="flex gap-3 justify-end">

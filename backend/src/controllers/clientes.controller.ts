@@ -89,10 +89,10 @@ export const updateCliente = async (req: Request, res: Response): Promise<void> 
       .single();
 
     if (existing) {
-       res.status(409).json({ 
-         error: 'Documento duplicado', 
-         isDuplicate: true, 
-         existingClient: existing 
+       res.status(409).json({
+         error: 'Documento duplicado',
+         isDuplicate: true,
+         existingClient: existing
        });
        return;
     }

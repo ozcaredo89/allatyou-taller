@@ -6,6 +6,5 @@ export function generarLinkWhatsApp(telefono: string, mensaje: string): string {
   }
   // remover el + si lo tiene para formato wa.me
   telefonoLimpio = telefonoLimpio.replace('+', '');
-  
   return `https://wa.me/${telefonoLimpio}?text=${encodeURIComponent(mensaje)}`;
 }

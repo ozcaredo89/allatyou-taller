@@ -204,7 +204,6 @@ const NuevoIngreso: React.FC = () => {
       const confirm = window.confirm('Estás modificando el identificador principal (Documento). Verifica que estás corrigiendo un error de digitación y no reemplazando la identidad de otro cliente. ¿Deseas continuar?');
       if (!confirm) return;
     }
-    
     try {
       setEditingLoading(true);
       setError('');
@@ -214,10 +213,9 @@ const NuevoIngreso: React.FC = () => {
       setIsEditingCliente(false);
     } catch (err: any) {
       const errorData = err.response?.data;
-      
       if (errorData?.isDuplicate && errorData.existingClient) {
         const confirm = window.confirm(`El documento está registrado al cliente ${errorData.existingClient.nombre_completo}. ¿Deseas asignar este vehículo al cliente ${errorData.existingClient.nombre_completo}?`);
-        
+
         if (confirm) {
           try {
             setEditingLoading(true);

@@ -340,7 +340,7 @@ const Diagnostico: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-900 text-white p-4 rounded-2xl shadow-lg">
         <div className="mb-4 sm:mb-0">
           <h2 className="font-semibold text-lg flex items-center gap-2">
-            <Settings size={20} className="text-indigo-400" /> 
+            <Settings size={20} className="text-indigo-400" />
             {isEditMode ? t('diagnostico.modo_personalizacion') : t('diagnostico.sistemas_evaluacion')}
           </h2>
           {isEditMode && <p className="text-slate-400 text-sm mt-0.5">Oculta sistemas que no uses, añade fallas comunes personalizadas por sistema.</p>}
@@ -366,7 +366,7 @@ const Diagnostico: React.FC = () => {
                 disabled={savingConfig}
                 className="flex-[2] flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition disabled:opacity-50"
               >
-                {savingConfig ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
+                {savingConfig ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 {t('diagnostico.btn_guardar')}
               </button>
             </div>
@@ -381,8 +381,8 @@ const Diagnostico: React.FC = () => {
           const isVisible = configDiagnostico[sys.key] === undefined || configDiagnostico[sys.key].visible !== false;
 
           return (
-            <div 
-              key={sys.key} 
+            <div
+              key={sys.key}
               className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${
                 isEditMode && !isVisible ? 'opacity-60 border-slate-200 bg-slate-50' : 'border-slate-200 hover:shadow-md'
               }`}
@@ -390,8 +390,8 @@ const Diagnostico: React.FC = () => {
               <div className="p-5 border-b border-slate-100 flex flex-wrap gap-4 justify-between items-center bg-slate-50/50">
                 <div className="flex items-center gap-3">
                   {isEditMode && (
-                    <button 
-                      onClick={() => toggleVisibility(sys.key)} 
+                    <button
+                      onClick={() => toggleVisibility(sys.key)}
                       className={`p-1.5 rounded-lg transition ${isVisible ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
                       title={isVisible ? 'Ocultar sistema' : 'Mostrar sistema'}
                     >
@@ -440,7 +440,7 @@ const Diagnostico: React.FC = () => {
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-sm font-medium text-slate-700">{t('diagnostico.fallas_comunes')}</label>
                       {isEditMode && (
-                        <button 
+                        <button
                           onClick={() => setSistemaActivoParaFalla(sistemaActivoParaFalla === sys.key ? null : sys.key)}
                           className="text-xs flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded"
                         >
@@ -470,7 +470,7 @@ const Diagnostico: React.FC = () => {
                         const isCustom = configDiagnostico[sys.key]?.fallas_adicionales?.includes(falla);
                         return (
                           <div key={falla} className="flex group">
-                            <span 
+                            <span
                               onClick={() => !isEditMode && toggleFalla(sys.key, falla)}
                               className={`text-sm px-3 py-1.5 border rounded-lg cursor-pointer transition-colors ${
                                 isEditMode ? 'cursor-default border-slate-200 bg-slate-50 text-slate-700' :
@@ -480,7 +480,7 @@ const Diagnostico: React.FC = () => {
                               {falla}
                             </span>
                             {isEditMode && isCustom && (
-                              <button 
+                              <button
                                 onClick={() => removeFallaPersonalizada(sys.key, falla)}
                                 className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white border border-red-200 rounded-r-lg px-2 flex items-center justify-center transition-colors"
                                 title="Eliminar falla personalizada"
@@ -502,7 +502,6 @@ const Diagnostico: React.FC = () => {
                         value={item.notas}
                         onChange={(e) => updateItem(sys.key, 'notas', e.target.value)}
                       />
-                      
                       {/* Subida de Fotos */}
                       <div>
                         {item.fotos.length > 0 && (
@@ -545,7 +544,7 @@ const Diagnostico: React.FC = () => {
               disabled={saving}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
             >
-              {saving ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />} 
+              {saving ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}
               {t('diagnostico.btn_finalizar')}
             </button>
           </div>

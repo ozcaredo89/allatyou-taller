@@ -25,9 +25,9 @@ WITH servicios_crm AS (
   LEFT JOIN taller_clientes c ON c.id = v.cliente_id
   -- jsonb_array_elements expande el array a filas individuales para facilitar la consulta
   CROSS JOIN jsonb_array_elements(
-    CASE 
-      WHEN jsonb_typeof(i.items_factura) = 'array' THEN i.items_factura 
-      ELSE '[]'::jsonb 
+    CASE
+      WHEN jsonb_typeof(i.items_factura) = 'array' THEN i.items_factura
+      ELSE '[]'::jsonb
     END
   ) AS item
   WHERE i.estado = 'entregado'
@@ -62,7 +62,6 @@ SELECT
   categoria,
   ultima_fecha,
   ultimo_kilometraje,
-  
   -- Cálculo de Fecha Sugerida
   CASE categoria
     WHEN 'aceite' THEN ultima_fecha + INTERVAL '6 months'
@@ -81,7 +80,7 @@ SELECT
 FROM ultimos_servicios;
 
 -- 2. Crear Índice Único para poder hacer REFRESH MATERIALIZED VIEW CONCURRENTLY (Opcional pero recomendado)
-CREATE UNIQUE INDEX idx_taller_mv_proximos_mantenimientos_veh_cat 
+CREATE UNIQUE INDEX idx_taller_mv_proximos_mantenimientos_veh_cat
 ON taller_mv_proximos_mantenimientos(vehiculo_id, categoria);
 
 -- 3. Configurar pg_cron para actualizar a las 3:00 AM (Solo funciona si tienes pg_cron habilitado)

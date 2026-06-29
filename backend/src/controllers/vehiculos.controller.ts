@@ -81,7 +81,6 @@ export const updateVehiculo = async (req: Request, res: Response): Promise<void>
   try {
     const { id } = req.params;
     const { placa, marca, linea, modelo_anio, color, cliente_id } = req.body;
-    
     const placaToSave = String(placa).toUpperCase();
 
     // Validar unicidad de placa (asegurar que no existe en OTRO id)
@@ -98,12 +97,12 @@ export const updateVehiculo = async (req: Request, res: Response): Promise<void>
        return;
     }
 
-    const updatePayload: any = { 
-      placa: placaToSave, 
-      marca, 
-      linea, 
-      modelo_anio, 
-      color 
+    const updatePayload: any = {
+      placa: placaToSave,
+      marca,
+      linea,
+      modelo_anio,
+      color
     };
 
     if (cliente_id) {

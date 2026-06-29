@@ -24,7 +24,6 @@ const CronometroInteligente: React.FC<Props> = ({ estadoDesde, promedioHistorico
 
   const formatearTiempo = (totalSeg: number): string => {
     if (totalSeg < 1) return '0s';
-    
     const dias = Math.floor(totalSeg / 86400);
     const horas = Math.floor((totalSeg % 86400) / 3600);
     const minutos = Math.floor((totalSeg % 3600) / 60);

@@ -71,7 +71,6 @@ const ModalAsignarTecnicos: React.FC<Props> = ({ ingresoId, tecnicosAsignadosIds
         <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
           <X size={20} />
         </button>
-        
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
             <Wrench size={20} />

@@ -46,13 +46,12 @@ const CRM: React.FC = () => {
     const saludo = `Hola ${p.cliente_nombre}, somos tu taller de confianza.`;
     const motivo = `Notamos que ya ${isVencido ? 'pasó' : 'se acerca'} la fecha recomendada para el mantenimiento de tu ${p.marca} ${p.linea} (Placa ${p.placa}), específicamente para: *${p.categoria.toUpperCase()}*.`;
     const desp = `¿Te gustaría agendar una cita para revisarlo?`;
-    
     const msg = `${saludo} ${motivo} ${desp}`;
     window.open(generarLinkWhatsApp(p.cliente_telefono, msg), '_blank');
   };
 
-  const filtrados = prospectos.filter(p => 
-    p.placa?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filtrados = prospectos.filter(p =>
+    p.placa?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.cliente_nombre?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -72,8 +71,8 @@ const CRM: React.FC = () => {
 
       <div className="flex items-center bg-white rounded-xl shadow-sm border border-slate-200 p-2 max-w-md">
         <Search className="text-slate-400 ml-2" size={20} />
-        <input 
-          type="text" 
+        <input
+          type="text"
           placeholder={t('crm.search', 'Buscar por placa o cliente...')}
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
@@ -111,7 +110,6 @@ const CRM: React.FC = () => {
                     <span className="text-slate-500 text-xs uppercase tracking-wider font-semibold">{p.marca} {p.linea}</span>
                     <span className="font-black text-slate-800 tracking-widest">{p.placa}</span>
                   </div>
-                  
                   <div className="h-px bg-slate-200 w-full my-2"></div>
 
                   <div className="flex justify-between items-center text-sm">
@@ -120,14 +118,13 @@ const CRM: React.FC = () => {
                       {new Date(p.fecha_sugerida).toLocaleDateString()}
                     </span>
                   </div>
-                  
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-500">{t('crm.km_estimado', 'KM Estimado:')}</span>
                     <span className="font-semibold text-slate-700">~{p.kilometraje_sugerido?.toLocaleString() || '?'} km</span>
                   </div>
                 </div>
 
-                <button 
+                <button
                   onClick={() => handleWhatsApp(p)}
                   disabled={!p.cliente_telefono}
                   className="w-full bg-[#25D366] hover:bg-[#20bd59] text-white font-bold py-2.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
