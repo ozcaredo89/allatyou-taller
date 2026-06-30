@@ -11,7 +11,7 @@ interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (token: string, empresaId: string, slug: string, nombre: string, email: string) => void;
-  loginWithPassword: (empresaId: string, email: string, password: string) => Promise<{ slug: string }>;
+  loginWithPassword: (empresaId: string, email: string, password: string, rememberMe?: boolean) => Promise<{ slug: string }>;
   logout: () => void;
   setEmpresaInfo: (nombre: string, slug: string) => void;
   sessionExpired: boolean;
@@ -51,6 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // Fire-and-forget: revoke device session on backend (if any)
+    api.post('/auth/logout').catch(() => {});
     setAuth({ token: null, empresaId: null, empresaNombre: 'TallerPro', empresaSlug: null, email: null });
   };
 
@@ -60,8 +62,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearSessionExpired = () => setSessionExpired(false);
 
-  const loginWithPassword = async (empresaId: string, email: string, password: string): Promise<{ slug: string }> => {
-    const { data } = await api.post('/auth/login-password', { empresa_id: empresaId, email, password });
+  const loginWithPassword = async (empresaId: string, email: string, password: string, rememberMe?: boolean): Promise<{ slug: string }> => {
+    const { data } = await api.post('/auth/login-password', { empresa_id: empresaId, email, password, rememberMe: !!rememberMe });
     if (data.token) {
       login(data.token, data.empresa.id, data.empresa.slug, data.empresa.nombre, email);
     }

@@ -7,7 +7,8 @@
     "cambiar_sucursal": "Change Branch",
     "reportes": "Reports",
     "equipo": "Team",
-    "liquidaciones": "Commissions"
+    "liquidaciones": "Commissions",
+    "configuracion": "Settings"
   },
   "dashboard": {
     "title": "Control Dashboard",
@@ -214,7 +215,9 @@
     "btn_usar_codigo": "Back to one-time code",
     "btn_usar_password": "Or login with password",
     "leyenda_otp": "For added security, we have sent an access code to your administrative email. You can also use your password if you have set one up.",
-    "session_expired": "Your session has expired for security reasons. Please log in again."
+    "session_expired": "Your session has expired for security reasons. Please log in again.",
+    "remember_me": "Trust this device for 24 hours",
+    "remember_me_desc": "Keeps your session active and protects from access from other browsers"
   },
   "equipo": {
     "title": "Team Management",
@@ -297,5 +300,30 @@
     "error_invalido": "Enter a valid percentage between 0 and 100.",
     "error_guardar": "Error saving percentage. Please try again.",
     "error_masiva": "Error in bulk assignment."
+  },
+  "configuracion": {
+    "titulo": "Linked Devices",
+    "subtitulo": "Manage authorized devices for passwordless sign-in.",
+    "actualizar": "Refresh",
+    "revocar": "Revoke access",
+    "sesion_actual": "Current Session",
+    "expirado": "Expired",
+    "ultimo_uso": "Last used",
+    "expira": "Expires",
+    "ahora": "Just now",
+    "hace": "",
+    "minutos": "min. ago",
+    "horas": "hrs. ago",
+    "dias": "days ago",
+    "dispositivo_desconocido": "Unknown Device",
+    "sin_sesion_persistente": "Your current session is not linked to any device. Sign in checking \"Trust this device\" to activate this feature.",
+    "sin_dispositivos": "No active devices",
+    "sin_dispositivos_desc": "You have no trusted devices registered.",
+    "un_dispositivo": "1 active device",
+    "n_dispositivos": "active devices",
+    "error_cargar": "Could not load devices. Please try again.",
+    "error_revocar": "Could not revoke access. Please try again.",
+    "confirm_revocar": "Revoke access to device",
+    "confirm_revocar_actual": "You are about to close this session. Do you want to continue? You will need to sign in again."
   }
 }

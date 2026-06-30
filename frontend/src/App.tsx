@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { useState, useRef, useEffect } from 'react';
 
 import Dashboard from './pages/Dashboard';
 import NuevoIngreso from './pages/NuevoIngreso';
@@ -16,98 +17,202 @@ import Equipo from './pages/Equipo';
 import Kiosco from './pages/Kiosco';
 import ReporteLiquidaciones from './pages/ReporteLiquidaciones';
 import CRM from './pages/CRM';
+import Configuracion from './pages/Configuracion';
 import { AIChatDrawer } from './components/AIChatDrawer';
-import { useState } from 'react';
+
+// ─── Profile Dropdown ──────────────────────────────────────────────────────────
+const ProfileMenu = () => {
+  const { slug } = useParams<{ slug: string }>();
+  const { empresaNombre, email, logout } = useAuth();
+  const { t, i18n } = useTranslation();
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Close on route change
+  useEffect(() => { setOpen(false); }, [location.pathname]);
+
+  const initials = empresaNombre
+    ? empresaNombre.slice(0, 2).toUpperCase()
+    : 'T';
+
+  const isConfigActive = location.pathname.includes('/configuracion');
+
+  return (
+    <div ref={ref} className="relative ml-2">
+      {/* Trigger button */}
+      <button
+        onClick={() => setOpen(prev => !prev)}
+        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-all duration-200 ${
+          open || isConfigActive
+            ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/20'
+            : 'border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-600'
+        }`}
+        title="Perfil y configuración"
+      >
+        {/* Avatar circle */}
+        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-black ${
+          open || isConfigActive ? 'bg-white/20 text-white' : 'bg-indigo-500/30 text-indigo-300'
+        }`}>
+          {initials}
+        </span>
+        <span className="hidden sm:block text-sm font-semibold max-w-[100px] truncate">
+          {empresaNombre || 'TallerPro'}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-64 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl shadow-black/40 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+          {/* User info header */}
+          <div className="px-4 py-3 border-b border-slate-700 bg-slate-900/50">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-indigo-500/30 border border-indigo-500/40 shrink-0">
+                <UserCircle2 size={20} className="text-indigo-300" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-white font-semibold text-sm truncate">{empresaNombre}</p>
+                {email && <p className="text-slate-400 text-xs truncate">{email}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Menu items */}
+          <div className="py-1.5">
+            {/* Dispositivos Vinculados */}
+            <Link
+              to={`/${slug}/configuracion`}
+              className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                isConfigActive
+                  ? 'bg-indigo-600/20 text-indigo-300'
+                  : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              <ShieldCheck size={16} className="shrink-0" />
+              <span>{t('navbar.configuracion', 'Dispositivos Vinculados')}</span>
+              {isConfigActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+            </Link>
+
+            {/* Separator */}
+            <div className="my-1.5 border-t border-slate-700/60" />
+
+            {/* Language toggle */}
+            <button
+              onClick={() => i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es')}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+            >
+              <Globe size={16} className="shrink-0" />
+              <span>
+                {i18n.language === 'es' ? 'Switch to English' : 'Cambiar a Español'}
+              </span>
+              <span className="ml-auto text-xs font-bold bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">
+                {i18n.language.toUpperCase()}
+              </span>
+            </button>
+
+            {/* Separator */}
+            <div className="my-1.5 border-t border-slate-700/60" />
+
+            {/* Logout */}
+            <button
+              onClick={() => { setOpen(false); logout(); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+            >
+              <LogOut size={16} className="shrink-0" />
+              <span>{t('navbar.cerrar_sesion')}</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Navbar ───────────────────────────────────────────────────────────────────
 const Navbar = () => {
   const location = useLocation();
   const { slug } = useParams<{ slug: string }>();
-  const { empresaNombre, logout } = useAuth();
-  const { t, i18n } = useTranslation();
-  
-  const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es');
-  };
+  const { t } = useTranslation();
 
   return (
     <nav className="bg-slate-900 border-b border-slate-800 text-white shadow-xl sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
-          <div className="flex items-center gap-3">
+        <div className="flex justify-between h-16 items-center gap-2">
+          {/* Logo */}
+          <div className="flex items-center gap-3 shrink-0">
             <div className="p-2 bg-indigo-500 rounded-lg shadow-lg shadow-indigo-500/30">
               <Wrench className="h-6 w-6 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight">{empresaNombre || 'TallerPro'}</span>
           </div>
-          <div className="flex gap-2 sm:gap-4 items-center">
-            <Link 
+
+          {/* Nav links — overflow-x scrollable on very small screens */}
+          <div className="flex gap-1 sm:gap-2 items-center overflow-x-auto scrollbar-none flex-1 justify-start px-1">
+            <Link
               to={`/${slug}`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname === `/${slug}` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname === `/${slug}` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
-              <LayoutDashboard size={18} />
-              <span className="hidden sm:inline">{t('navbar.dashboard')}</span>
+              <LayoutDashboard size={16} />
+              <span className="hidden lg:inline">{t('navbar.dashboard')}</span>
             </Link>
-            <Link 
+            <Link
               to={`/${slug}/nuevo-ingreso`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname === `/${slug}/nuevo-ingreso` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname === `/${slug}/nuevo-ingreso` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
-              <PlusCircle size={18} />
-              <span className="hidden sm:inline">{t('navbar.nuevo_ingreso')}</span>
+              <PlusCircle size={16} />
+              <span className="hidden lg:inline">{t('navbar.nuevo_ingreso')}</span>
             </Link>
             <Link
               to={`/${slug}/historial`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/historial') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/historial') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
-              <History size={18} />
-              <span className="hidden sm:inline">{t('navbar.historial')}</span>
+              <History size={16} />
+              <span className="hidden lg:inline">{t('navbar.historial')}</span>
             </Link>
             <Link
               to={`/${slug}/reportes`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/reportes') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/reportes') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
-              <BarChart3 size={18} />
-              <span className="hidden sm:inline">{t('navbar.reportes')}</span>
+              <BarChart3 size={16} />
+              <span className="hidden lg:inline">{t('navbar.reportes')}</span>
             </Link>
             <Link
               to={`/${slug}/crm`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/crm') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/crm') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
-              <Target size={18} />
-              <span className="hidden sm:inline">{t('navbar.crm', 'CRM')}</span>
+              <Target size={16} />
+              <span className="hidden lg:inline">{t('navbar.crm', 'CRM')}</span>
             </Link>
             <Link
               to={`/${slug}/equipo`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/equipo') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/equipo') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
-              <Users size={18} />
-              <span className="hidden sm:inline">{t('navbar.equipo')}</span>
+              <Users size={16} />
+              <span className="hidden lg:inline">{t('navbar.equipo')}</span>
             </Link>
             <Link
               to={`/${slug}/liquidaciones`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-300 ease-in-out ${location.pathname.includes('/liquidaciones') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/liquidaciones') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
-              <Coins size={18} />
-              <span className="hidden sm:inline">Liquidaciones</span>
+              <Coins size={16} />
+              <span className="hidden lg:inline">{t('navbar.liquidaciones')}</span>
             </Link>
-            {/* Language Toggle Button */}
-            <button
-              onClick={toggleLanguage}
-              className="ml-2 flex items-center gap-2 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border border-slate-700 font-bold text-xs"
-              title="Cambiar idioma / Change language"
-            >
-              <Globe size={16} />
-              <span className="hidden md:inline">{i18n.language.toUpperCase()}</span>
-            </button>
-
-            {/* Logout Button */}
-            <button
-              onClick={logout}
-              className="ml-2 flex items-center gap-2 px-3 py-2 border border-slate-700 rounded-md text-slate-300 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50 transition-colors"
-              title={t('navbar.cerrar_sesion')}
-            >
-              <LogOut size={18} />
-              <span className="hidden md:inline font-medium text-sm">{t('navbar.cerrar_sesion')}</span>
-            </button>
           </div>
+
+          {/* Profile menu — always visible, never overflows */}
+          <ProfileMenu />
         </div>
       </div>
     </nav>
@@ -179,6 +284,7 @@ function App() {
             <Route path="equipo" element={<Equipo />} />
             <Route path="liquidaciones" element={<ReporteLiquidaciones />} />
             <Route path="crm" element={<CRM />} />
+            <Route path="configuracion" element={<Configuracion />} />
           </Route>
         </Routes>
       </BrowserRouter>

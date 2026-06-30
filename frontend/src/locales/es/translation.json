@@ -7,7 +7,8 @@
     "cambiar_sucursal": "Cambiar Sucursal",
     "reportes": "Reportes",
     "equipo": "Equipo",
-    "liquidaciones": "Liquidaciones"
+    "liquidaciones": "Liquidaciones",
+    "configuracion": "Config."
   },
   "dashboard": {
     "title": "Tablero de Control",
@@ -214,7 +215,9 @@
     "btn_usar_codigo": "Volver a código de un solo uso",
     "btn_usar_password": "O ingresar con contraseña",
     "leyenda_otp": "Para mayor seguridad, te hemos enviado un código de acceso a tu correo administrativo. También puedes usar tu contraseña si ya la configuraste.",
-    "session_expired": "Tu sesión ha expirado por seguridad. Por favor, ingresa de nuevo."
+    "session_expired": "Tu sesión ha expirado por seguridad. Por favor, ingresa de nuevo.",
+    "remember_me": "Confiar en este dispositivo por 24 horas",
+    "remember_me_desc": "Mantiene tu sesión activa y te protege de accesos desde otros navegadores"
   },
   "equipo": {
     "title": "Gestión de Equipo",
@@ -297,5 +300,30 @@
     "error_invalido": "Ingresa un porcentaje válido entre 0 y 100.",
     "error_guardar": "Error al guardar el porcentaje. Intenta de nuevo.",
     "error_masiva": "Error en la asignación masiva."
+  },
+  "configuracion": {
+    "titulo": "Dispositivos Vinculados",
+    "subtitulo": "Administra los dispositivos autorizados para iniciar sesión sin contraseña.",
+    "actualizar": "Actualizar",
+    "revocar": "Revocar acceso",
+    "sesion_actual": "Sesión Actual",
+    "expirado": "Expirado",
+    "ultimo_uso": "Último uso",
+    "expira": "Expira",
+    "ahora": "Ahora mismo",
+    "hace": "hace",
+    "minutos": "min.",
+    "horas": "hrs.",
+    "dias": "días",
+    "dispositivo_desconocido": "Dispositivo Desconocido",
+    "sin_sesion_persistente": "Tu sesión actual no está vinculada a ningún dispositivo. Inicia sesión marcando \"Confiar en este dispositivo\" para activar esta función.",
+    "sin_dispositivos": "Sin dispositivos activos",
+    "sin_dispositivos_desc": "No tienes dispositivos de confianza registrados.",
+    "un_dispositivo": "1 dispositivo activo",
+    "n_dispositivos": "dispositivos activos",
+    "error_cargar": "No se pudieron cargar los dispositivos. Intenta de nuevo.",
+    "error_revocar": "No se pudo revocar el acceso. Intenta de nuevo.",
+    "confirm_revocar": "¿Revocar acceso al dispositivo",
+    "confirm_revocar_actual": "Estás a punto de cerrar esta sesión. ¿Deseas continuar? Tendrás que iniciar sesión nuevamente."
   }
 }

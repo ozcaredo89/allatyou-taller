@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
-import { Loader2, ArrowLeft, AlertCircle, Wrench, Building2, CheckCircle2, Lock, Mail, KeyRound } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, Wrench, Building2, CheckCircle2, Lock, Mail, KeyRound, Shield } from 'lucide-react';
 
 interface EmpresaItem {
   id: string;
@@ -29,6 +29,9 @@ const Login: React.FC = () => {
 
   // OTP mode
   const [otp, setOtp] = useState('');
+
+  // Persistent session
+  const [rememberMe, setRememberMe] = useState(false);
 
   useEffect(() => { fetchEmpresas(); }, []);
 
@@ -83,7 +86,7 @@ const Login: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const result = await loginWithPassword(selectedEmpresa.id, email, password);
+      const result = await loginWithPassword(selectedEmpresa.id, email, password, rememberMe);
       if (sessionExpired) clearSessionExpired();
       navigate(`/${result.slug}`);
     } catch (err: any) {
@@ -101,7 +104,8 @@ const Login: React.FC = () => {
     try {
       const { data } = await api.post('/auth/verify-otp', {
         empresa_id: selectedEmpresa.id,
-        otp
+        otp,
+        rememberMe
       });
 
       if (data.token) {
@@ -218,6 +222,24 @@ const Login: React.FC = () => {
                       disabled={loading}
                     />
                   </div>
+                  {/* Remember Me */}
+                  <label className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 cursor-pointer transition-colors group">
+                    <input
+                      type="checkbox"
+                      id="rememberMe-otp"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Shield size={15} className={rememberMe ? 'text-indigo-600' : 'text-slate-400'} />
+                      <div>
+                        <span className="text-sm font-semibold text-slate-700 block leading-none">{t('login.remember_me')}</span>
+                        <span className="text-xs text-slate-400 mt-0.5 block">{t('login.remember_me_desc')}</span>
+                      </div>
+                    </div>
+                  </label>
+
                   <button
                     type="submit"
                     disabled={loading || otp.length < 4}
@@ -273,6 +295,24 @@ const Login: React.FC = () => {
                       disabled={loading}
                     />
                   </div>
+                  {/* Remember Me */}
+                  <label className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      id="rememberMe-pass"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Shield size={15} className={rememberMe ? 'text-indigo-600' : 'text-slate-400'} />
+                      <div>
+                        <span className="text-sm font-semibold text-slate-700 block leading-none">{t('login.remember_me')}</span>
+                        <span className="text-xs text-slate-400 mt-0.5 block">{t('login.remember_me_desc')}</span>
+                      </div>
+                    </div>
+                  </label>
+
                   <button
                     type="submit"
                     disabled={loading || !email.trim() || !password.trim()}

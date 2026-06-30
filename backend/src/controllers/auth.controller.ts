@@ -5,6 +5,7 @@ import axios from 'axios';
 import { supabase } from '../config/supabase';
 import { sendEmail } from '../services/emailService';
 import crypto from 'crypto';
+import { generateDeviceFingerprint, getDeviceName } from '../utils/device';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'allatyou-super-secret-key';
 
@@ -211,7 +212,7 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
 
 export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { empresa_id, otp } = req.body;
+    const { empresa_id, otp, rememberMe } = req.body;
     // 1. Obtener la empresa por id
     const { data: empresa, error: empresaError } = await supabase
       .from('taller_empresas')
@@ -242,8 +243,48 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
     // CRÍTICO: NO se actualiza ni se limpia el otp_code para permitir múltiples sesiones simultáneas.
 
+    let device_id: string | undefined;
+
+    if (rememberMe) {
+      const fingerprint_hash = generateDeviceFingerprint(req);
+      const device_name = getDeviceName(req);
+      const expires_at = new Date();
+      expires_at.setHours(expires_at.getHours() + 24);
+
+      const { data: device, error: deviceError } = await supabase
+        .from('taller_dispositivos_autorizados')
+        .insert({
+          empresa_id: empresa.id,
+          usuario_email: validRecord.email,
+          device_name,
+          fingerprint_hash,
+          expires_at: expires_at.toISOString()
+        })
+        .select('id')
+        .single();
+        
+      if (!deviceError && device) {
+        device_id = device.id;
+      } else if (deviceError) {
+        // No bloqueamos el login, pero sí lo registramos en el response para depuración
+        console.error('[verifyOtp] Error creando dispositivo autorizado:', JSON.stringify(deviceError));
+        // En desarrollo podemos incluir el error en el response para visibilidad
+        res.json({
+          success: true,
+          token: jwt.sign({ empresa_id: empresa.id, email: validRecord.email }, JWT_SECRET, { expiresIn: '24h' }),
+          empresa: { id: empresa.id, nombre: empresa.nombre, slug: empresa.slug },
+          device_warning: `No se pudo registrar el dispositivo: ${deviceError.message || JSON.stringify(deviceError)}`
+        });
+        return;
+      }
+    }
+
     // 3. Crear JWT (Inyectando un email representativo del que validó el código)
-    const token = jwt.sign({ empresa_id: empresa.id, email: validRecord.email }, JWT_SECRET, { expiresIn: '24h' });
+    const jwtPayload: any = { empresa_id: empresa.id, email: validRecord.email };
+    if (device_id) jwtPayload.device_id = device_id;
+
+    const token = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: '24h' });
+    
     res.json({
       success: true,
       token,
@@ -256,7 +297,7 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
 export const loginWithPassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { empresa_id, email, password } = req.body;
+    const { empresa_id, email, password, rememberMe } = req.body;
 
     if (!empresa_id || !email || !password) {
       res.status(400).json({ error: 'Faltan campos requeridos (empresa_id, email, password).' });
@@ -306,8 +347,48 @@ export const loginWithPassword = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // 5. Crear JWT (misma estructura que verify-otp)
-    const token = jwt.sign({ empresa_id: empresa.id, email: correoRecord.email }, JWT_SECRET, { expiresIn: '24h' });
+    // 5. Crear dispositivo autorizado si 'rememberMe' es true
+    let device_id: string | undefined;
+
+    if (rememberMe) {
+      const fingerprint_hash = generateDeviceFingerprint(req);
+      const device_name = getDeviceName(req);
+      const expires_at = new Date();
+      expires_at.setHours(expires_at.getHours() + 24);
+
+      const { data: device, error: deviceError } = await supabase
+        .from('taller_dispositivos_autorizados')
+        .insert({
+          empresa_id: empresa.id,
+          usuario_email: correoRecord.email,
+          device_name,
+          fingerprint_hash,
+          expires_at: expires_at.toISOString()
+        })
+        .select('id')
+        .single();
+        
+      if (!deviceError && device) {
+        device_id = device.id;
+      } else if (deviceError) {
+        console.error('[loginWithPassword] Error creando dispositivo autorizado:', JSON.stringify(deviceError));
+        res.json({
+          success: true,
+          token: jwt.sign({ empresa_id: empresa.id, email: correoRecord.email }, JWT_SECRET, { expiresIn: '24h' }),
+          empresa: { id: empresa.id, nombre: empresa.nombre, slug: empresa.slug },
+          device_warning: `No se pudo registrar el dispositivo: ${deviceError.message || JSON.stringify(deviceError)}`
+        });
+        return;
+      }
+    }
+
+    // 6. Crear JWT
+    const jwtPayload: any = { empresa_id: empresa.id, email: correoRecord.email };
+    if (device_id) jwtPayload.device_id = device_id;
+
+    // Si no marcó "Mantener sesión", podríamos poner expiresIn: '4h' y si la marcó '24h'
+    // Para simplificar, dejamos 24h para ambos pero el 'rememberMe' tiene protección de dispositivo
+    const token = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: rememberMe ? '24h' : '4h' });
 
     res.json({
       success: true,
@@ -410,6 +491,67 @@ export const aprobarMiembro = async (req: Request, res: Response): Promise<void>
 
     if (error) throw error;
     res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ──────── DISPOSITIVOS AUTORIZADOS ────────
+
+export const getDispositivos = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data, error } = await supabase
+      .from('taller_dispositivos_autorizados')
+      .select('id, device_name, usuario_email, is_active, last_used_at, expires_at, created_at')
+      .eq('empresa_id', req.empresa_id)
+      .eq('is_active', true)
+      .order('last_used_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const revocarDispositivo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('taller_dispositivos_autorizados')
+      .update({ is_active: false })
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id)
+      .eq('usuario_email', req.user_email);
+
+    if (error) throw error;
+    res.json({ success: true, message: 'Dispositivo revocado' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Si el usuario tiene sesión vinculada a un device_id, la revocamos
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as { device_id?: string };
+        if (decoded.device_id) {
+          await supabase
+            .from('taller_dispositivos_autorizados')
+            .update({ is_active: false })
+            .eq('id', decoded.device_id);
+        }
+      } catch (e) {
+        // Ignorar si el token ya expiró o es inválido al hacer logout
+      }
+    }
+    
+    res.json({ success: true, message: 'Sesión cerrada correctamente' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
