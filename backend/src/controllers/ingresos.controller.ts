@@ -114,87 +114,90 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     
     console.log(`[updateIngreso] id=${id} empresa_id=${req.empresa_id} body_keys=${Object.keys(body).join(',')}`);
 
-    // Si viene un cambio de estado, registrar la transición SLA
-    if (body.estado) {
-      const { data: current, error: fetchError } = await supabase
-        .from('taller_ingresos')
-        .select('estado, estado_desde, items_factura')
-        .eq('empresa_id', req.empresa_id)
-        .eq('id', id)
-        .single();
+    // 1. Obtener estado actual para SLA y comisiones
+    const { data: current, error: fetchError } = await supabase
+      .from('taller_ingresos')
+      .select('estado, estado_desde, items_factura')
+      .eq('empresa_id', req.empresa_id)
+      .eq('id', id)
+      .single();
 
-      if (!fetchError && current && current.estado !== body.estado) {
-        // Calcular duración en minutos del estado anterior
-        const estadoDesde = current.estado_desde ? new Date(current.estado_desde).getTime() : Date.now();
-        const duracionMinutos = Math.round((Date.now() - estadoDesde) / 60000);
+    if (fetchError) {
+      console.error('[updateIngreso] Error fetching current state:', fetchError);
+    }
 
-        // Registrar el tiempo en la tabla de historial
-        const { error: insertTiemposError } = await supabase
-          .from('taller_ingresos_tiempos')
-          .insert({
-            ingreso_id: id,
-            empresa_id: req.empresa_id,
-            estado: current.estado,
-            duracion_minutos: duracionMinutos
-          });
+    // 2. Si viene un cambio de estado, registrar la transición SLA
+    if (body.estado && current && current.estado !== body.estado) {
+      // Calcular duración en minutos del estado anterior
+      const estadoDesde = current.estado_desde ? new Date(current.estado_desde).getTime() : Date.now();
+      const duracionMinutos = Math.round((Date.now() - estadoDesde) / 60000);
 
-        if (insertTiemposError) {
-          console.error('[updateIngreso] Error insertando en taller_ingresos_tiempos:', insertTiemposError);
-          // throw insertTiemposError; // Descomentar si queremos ser estrictos
+      // Registrar el tiempo en la tabla de historial
+      const { error: insertTiemposError } = await supabase
+        .from('taller_ingresos_tiempos')
+        .insert({
+          ingreso_id: id,
+          empresa_id: req.empresa_id,
+          estado: current.estado,
+          duracion_minutos: duracionMinutos
+        });
+
+      if (insertTiemposError) {
+        console.error('[updateIngreso] Error insertando en taller_ingresos_tiempos:', insertTiemposError);
+      }
+
+      // Resetear estado_desde para el nuevo estado
+      body.estado_desde = new Date().toISOString();
+    }
+
+    // 3. ── AUTOMATISMO DE COMISIONES (MODELO PORCENTAJE) ──────────────────
+    // Calcular y guardar comisiones por MO si pasa a entregado, o si ya estaba entregado y se están editando los ítems
+    const isTransitioningToEntregado = body.estado === 'entregado' && current?.estado !== 'entregado';
+    const isAlreadyEntregadoAndEditingItems = current?.estado === 'entregado' && body.items_factura !== undefined && body.estado !== 'cancelado';
+
+    if (isTransitioningToEntregado || isAlreadyEntregadoAndEditingItems) {
+      try {
+        // Porcentaje global del taller a repartir entre todos los técnicos
+        const PORCENTAJE_GLOBAL_MO = 50; // 50% del total de MO se reparte
+
+        // Obtener items_factura: prefiere los del body, sino los de la BD
+        const itemsFactura: any[] = body.items_factura ?? current?.items_factura ?? [];
+
+        const totalManoObra = itemsFactura
+          .filter((item: any) => item.tipo === 'mano_obra')
+          .reduce((acc: number, item: any) => acc + (item.total || 0), 0);
+
+        // Si totalManoObra es >= 0, recalcular (incluso si bajó a 0 hay que actualizar a 0)
+        // Consultar técnicos asignados a este ingreso
+        const { data: pivoteRows } = await supabase
+          .from('taller_ingresos_tecnicos')
+          .select('id')
+          .eq('ingreso_id', id);
+
+        const numTecnicos = pivoteRows?.length ?? 0;
+
+        if (numTecnicos > 0) {
+          const porcentajePorTecnico = PORCENTAJE_GLOBAL_MO / numTecnicos;
+          const comisionPorTecnico = Math.round(totalManoObra * (porcentajePorTecnico / 100));
+
+          // Actualizar monto_comision Y porcentaje_aplicado para cada fila pivote
+          const updatePromises = (pivoteRows || []).map((row: any) =>
+            supabase
+              .from('taller_ingresos_tecnicos')
+              .update({
+                monto_comision: comisionPorTecnico,
+                porcentaje_aplicado: porcentajePorTecnico
+              })
+              .eq('id', row.id)
+          );
+          await Promise.all(updatePromises);
+          console.log(`[updateIngreso] Comisiones recalculadas: ${porcentajePorTecnico}% = $${comisionPorTecnico} x ${numTecnicos} técnicos (MO: $${totalManoObra})`);
         }
-
-        // Resetear estado_desde para el nuevo estado
-        body.estado_desde = new Date().toISOString();
-
-        // ── AUTOMATISMO DE COMISIONES (MODELO PORCENTAJE) ──────────────────
-        // Cuando el vehículo es entregado, calcular y guardar comisiones por MO
-        if (body.estado === 'entregado') {
-          try {
-            // Porcentaje global del taller a repartir entre todos los técnicos
-            const PORCENTAJE_GLOBAL_MO = 50; // 50% del total de MO se reparte
-
-            // Obtener items_factura: prefiere los del body, sino los de la BD
-            const itemsFactura: any[] = body.items_factura ?? current.items_factura ?? [];
-
-            const totalManoObra = itemsFactura
-              .filter((item: any) => item.tipo === 'mano_obra')
-              .reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-
-            if (totalManoObra > 0) {
-              // Consultar técnicos asignados a este ingreso
-              const { data: pivoteRows } = await supabase
-                .from('taller_ingresos_tecnicos')
-                .select('id')
-                .eq('ingreso_id', id);
-
-              const numTecnicos = pivoteRows?.length ?? 0;
-
-              if (numTecnicos > 0) {
-                const porcentajePorTecnico = PORCENTAJE_GLOBAL_MO / numTecnicos;
-                const comisionPorTecnico = Math.round(totalManoObra * (porcentajePorTecnico / 100));
-
-                // Actualizar monto_comision Y porcentaje_aplicado para cada fila pivote
-                const updatePromises = (pivoteRows || []).map((row: any) =>
-                  supabase
-                    .from('taller_ingresos_tecnicos')
-                    .update({
-                      monto_comision: comisionPorTecnico,
-                      porcentaje_aplicado: porcentajePorTecnico
-                    })
-                    .eq('id', row.id)
-                );
-                await Promise.all(updatePromises);
-                console.log(`[updateIngreso] Comisiones: ${porcentajePorTecnico}% = $${comisionPorTecnico} x ${numTecnicos} técnicos (MO: $${totalManoObra})`);
-              }
-            }
-          } catch (comisionError: any) {
-            console.error('[updateIngreso] Error calculando comisiones:', comisionError.message);
-            // No lanzamos el error para no bloquear la entrega del vehículo
-          }
-        }
-        // ───────────────────────────────────────────────────────────────────
+      } catch (comisionError: any) {
+        console.error('[updateIngreso] Error calculando comisiones:', comisionError.message);
       }
     }
+    // ───────────────────────────────────────────────────────────────────
 
     const { data, error } = await supabase
       .from('taller_ingresos')

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp } from 'lucide-react';
+import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -44,6 +44,14 @@ const Checkout: React.FC = () => {
   const [nuevoCant, setNuevoCant] = useState(1);
   const [nuevoPrecio, setNuevoPrecio] = useState<string>('');
   const [nuevoCategoria, setNuevoCategoria] = useState<ItemFactura['categoria_crm']>(null);
+
+  // Edición inline de ítem existente
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editTipo, setEditTipo] = useState<'repuesto' | 'mano_obra'>('repuesto');
+  const [editDesc, setEditDesc] = useState('');
+  const [editCant, setEditCant] = useState(1);
+  const [editPrecio, setEditPrecio] = useState<string>('');
+  const [editCategoria, setEditCategoria] = useState<ItemFactura['categoria_crm']>(null);
 
   useEffect(() => { cargarIngreso(); }, [id]);
 
@@ -106,6 +114,60 @@ const Checkout: React.FC = () => {
 
   const eliminarItem = (itemId: string) => setItems(prev => prev.filter(i => i.id !== itemId));
 
+  const startEdit = (item: ItemFactura) => {
+    setEditingItemId(item.id);
+    setEditTipo(item.tipo);
+    setEditDesc(item.descripcion);
+    setEditCant(item.cantidad);
+    setEditPrecio(item.precio_unitario.toString());
+    setEditCategoria(item.categoria_crm || null);
+  };
+
+  const cancelEdit = () => {
+    setEditingItemId(null);
+  };
+
+  const handleEditPrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditPrecio(formatCurrencyInput(e.target.value));
+  };
+
+  const handleEditDescChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setEditDesc(val);
+    const lowerVal = val.toLowerCase();
+    if (lowerVal.includes('aceite')) {
+      setEditCategoria('aceite');
+    } else if (lowerVal.includes('freno') || lowerVal.includes('pastilla')) {
+      setEditCategoria('frenos');
+    } else if (lowerVal.includes('aire')) {
+      setEditCategoria('aire');
+    } else {
+      setEditCategoria(null);
+    }
+  };
+
+  const saveEdit = () => {
+    if (!editingItemId) return;
+    const precioNumerico = parseInt(editPrecio.replace(/\D/g, '') || '0', 10);
+    if (!editDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
+    
+    setItems(prev => prev.map(item => {
+      if (item.id === editingItemId) {
+        return {
+          ...item,
+          tipo: editTipo,
+          descripcion: editDesc.trim(),
+          cantidad: editCant,
+          precio_unitario: precioNumerico,
+          total: editCant * precioNumerico,
+          categoria_crm: editCategoria,
+        };
+      }
+      return item;
+    }));
+    setEditingItemId(null);
+  };
+
   const sumaItems = items.reduce((acc, i) => acc + i.total, 0);
   const subtotal = ivaIncluido ? Math.round(sumaItems / 1.19) : sumaItems;
   const iva = ivaIncluido ? (sumaItems - subtotal) : Math.round(subtotal * 0.19);
@@ -132,7 +194,6 @@ const Checkout: React.FC = () => {
           notas_factura: notasFactura,
           iva_incluido: ivaIncluido,
           historial_enmiendas: historialEnmiendas,
-          estado: 'esperando_aprobacion'
         });
         setIngreso((prev: any) => ({ ...prev, ...data }));
       } else {
@@ -464,24 +525,87 @@ const Checkout: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map(item => (
-                  <tr key={item.id}>
-                    <td className="py-2.5 text-slate-800 font-medium">
-                      {item.descripcion}
-                      {item.categoria_crm && (
-                        <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
-                          {item.categoria_crm}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2.5 text-center">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{item.tipo === 'repuesto' ? t('checkout.repuesto') : t('checkout.mano_obra')}</span>
-                    </td>
-                    <td className="py-2.5 text-right text-slate-600">{item.cantidad}</td>
-                    <td className="py-2.5 text-right text-slate-600">${item.precio_unitario.toLocaleString('es-CO')}</td>
-                    <td className="py-2.5 text-right font-bold text-slate-800">${item.total.toLocaleString('es-CO')}</td>
-                    <td className="py-2.5 text-right print:hidden">
-                      <button onClick={() => eliminarItem(item.id)} className="text-red-400 hover:text-red-600 transition p-1"><Trash2 size={14} /></button>
-                    </td>
+                  <tr key={item.id} className={editingItemId === item.id ? 'bg-indigo-50/50' : ''}>
+                    {editingItemId === item.id ? (
+                      <>
+                        <td className="py-2.5 px-2">
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              value={editDesc} 
+                              onChange={handleEditDescChange}
+                              className="w-full border border-indigo-200 bg-white rounded px-2 py-1 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
+                            />
+                            <select 
+                              value={editCategoria || ''} 
+                              onChange={e => setEditCategoria((e.target.value as any) || null)} 
+                              className="w-24 border border-indigo-200 bg-white rounded px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                            >
+                              <option value="">Cat...</option>
+                              <option value="aceite">Aceite</option>
+                              <option value="frenos">Frenos</option>
+                              <option value="aire">Aire</option>
+                              <option value="general">General</option>
+                            </select>
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <select 
+                            value={editTipo} 
+                            onChange={e => setEditTipo(e.target.value as any)}
+                            className="border border-indigo-200 bg-white rounded px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                          >
+                            <option value="repuesto">{t('checkout.repuesto')}</option>
+                            <option value="mano_obra">{t('checkout.mano_obra')}</option>
+                          </select>
+                        </td>
+                        <td className="py-2.5 text-right px-2">
+                          <input 
+                            type="number" 
+                            min={1} 
+                            value={editCant} 
+                            onChange={e => setEditCant(Number(e.target.value))}
+                            className="w-16 border border-indigo-200 bg-white rounded px-2 py-1 text-sm text-right focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                        </td>
+                        <td className="py-2.5 text-right px-2">
+                          <input 
+                            type="text" 
+                            value={editPrecio} 
+                            onChange={handleEditPrecioChange}
+                            className="w-24 border border-indigo-200 bg-white rounded px-2 py-1 text-sm text-right focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                        </td>
+                        <td className="py-2.5 text-right font-bold text-indigo-700 px-2">
+                          ${(editCant * (parseInt(editPrecio.replace(/\D/g, '') || '0', 10))).toLocaleString('es-CO')}
+                        </td>
+                        <td className="py-2.5 text-right print:hidden whitespace-nowrap">
+                          <button onClick={saveEdit} className="text-emerald-600 hover:text-emerald-700 transition p-1 mr-1 bg-emerald-50 rounded"><Check size={14} /></button>
+                          <button onClick={cancelEdit} className="text-slate-400 hover:text-slate-600 transition p-1 bg-slate-50 rounded"><X size={14} /></button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="py-2.5 text-slate-800 font-medium px-2">
+                          {item.descripcion}
+                          {item.categoria_crm && (
+                            <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                              {item.categoria_crm}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{item.tipo === 'repuesto' ? t('checkout.repuesto') : t('checkout.mano_obra')}</span>
+                        </td>
+                        <td className="py-2.5 text-right text-slate-600 px-2">{item.cantidad}</td>
+                        <td className="py-2.5 text-right text-slate-600 px-2">${item.precio_unitario.toLocaleString('es-CO')}</td>
+                        <td className="py-2.5 text-right font-bold text-slate-800 px-2">${item.total.toLocaleString('es-CO')}</td>
+                        <td className="py-2.5 text-right print:hidden whitespace-nowrap">
+                          <button onClick={() => startEdit(item)} className="text-indigo-400 hover:text-indigo-600 transition p-1 mr-1"><Edit2 size={14} /></button>
+                          <button onClick={() => eliminarItem(item.id)} className="text-red-400 hover:text-red-600 transition p-1"><Trash2 size={14} /></button>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
