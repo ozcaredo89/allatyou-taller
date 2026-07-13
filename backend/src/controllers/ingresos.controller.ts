@@ -221,7 +221,21 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
 export const getReportesFinanzas = async (req: Request, res: Response): Promise<void> => {
   try {
     const { start, end } = req.query;
-    // Obtener todos los ingresos entregados para histórico
+
+    // ── Determinar rango de fechas ──────────────────────────────
+    let startStr: string;
+    let endStr: string;
+    if (start && end) {
+      startStr = start as string;
+      endStr = end as string;
+    } else {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      startStr = thirtyDaysAgo.toISOString().split('T')[0];
+      endStr = new Date().toISOString().split('T')[0];
+    }
+
+    // ── 1. Ingresos entregados (histórico completo para promedios) ──
     const { data: todos, error } = await supabase
       .from('taller_ingresos')
       .select('updated_at, items_factura')
@@ -230,61 +244,35 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
     if (error) throw error;
 
     const ingresos = todos || [];
-
-    // Total historico y dias con ingresos
     let totalHistorico = 0;
     const diasUnicos = new Set<string>();
+    const hoyStr = new Date().toISOString().split('T')[0];
+    let facturadoHoy = 0;
 
-    // Para agrupar
     ingresos.forEach(ing => {
       const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
       if (total > 0) {
         totalHistorico += total;
         const dia = new Date(ing.updated_at).toISOString().split('T')[0];
         diasUnicos.add(dia);
+        if (dia === hoyStr) facturadoHoy += total;
       }
     });
     const promedioDiarioHistorico = diasUnicos.size > 0 ? totalHistorico / diasUnicos.size : 0;
 
-    // Hoy
-    const hoyStr = new Date().toISOString().split('T')[0];
-    let facturadoHoy = 0;
+    // Filtrar por rango para gráfico y totalPeriodo
+    const filtered = ingresos.filter(ing => {
+      const d = new Date(ing.updated_at).toISOString().split('T')[0];
+      return d >= startStr && d <= endStr;
+    });
 
-    // Filtrar por rango
-    let filtered = ingresos;
-    if (start && end) {
-      filtered = ingresos.filter(ing => {
-        const d = new Date(ing.updated_at).toISOString().split('T')[0];
-        return d >= (start as string) && d <= (end as string);
-      });
-    } else {
-      // By default last 30 days if not provided
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const startStr = thirtyDaysAgo.toISOString().split('T')[0];
-      filtered = ingresos.filter(ing => {
-        const d = new Date(ing.updated_at).toISOString().split('T')[0];
-        return d >= startStr;
-      });
-    }
     const chartDataMap: Record<string, number> = {};
     let totalPeriodo = 0;
-
     filtered.forEach(ing => {
       const d = new Date(ing.updated_at).toISOString().split('T')[0];
       const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-
-      if (!chartDataMap[d]) chartDataMap[d] = 0;
-      chartDataMap[d] += total;
+      chartDataMap[d] = (chartDataMap[d] || 0) + total;
       totalPeriodo += total;
-    });
-    // Extraer facturado hoy
-    ingresos.forEach(ing => {
-      const d = new Date(ing.updated_at).toISOString().split('T')[0];
-      if (d === hoyStr) {
-        const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-        facturadoHoy += total;
-      }
     });
 
     const chartData = Object.keys(chartDataMap).sort().map(fecha => ({
@@ -292,18 +280,65 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
       total: chartDataMap[fecha]
     }));
 
+    // ── 2. Gastos ejecutados en el mismo período ─────────────────
+    const { data: gastosData, error: gastosError } = await supabase
+      .from('taller_gastos')
+      .select(`
+        monto, fecha,
+        taller_categorias_gastos(id, nombre, color)
+      `)
+      .eq('empresa_id', req.empresa_id)
+      .gte('fecha', startStr)
+      .lte('fecha', endStr);
+
+    if (gastosError) {
+      console.error('[getReportesFinanzas] Error fetching gastos:', gastosError.message);
+    }
+
+    const gastos = gastosData || [];
+    let totalGastos = 0;
+    const gastosPorCategoriaMap: Record<string, { nombre: string; color: string; total: number }> = {};
+
+    gastos.forEach((g: any) => {
+      totalGastos += Number(g.monto || 0);
+      const cat = g.taller_categorias_gastos;
+      if (cat) {
+        if (!gastosPorCategoriaMap[cat.id]) {
+          gastosPorCategoriaMap[cat.id] = { nombre: cat.nombre, color: cat.color, total: 0 };
+        }
+        gastosPorCategoriaMap[cat.id].total += Number(g.monto || 0);
+      } else {
+        if (!gastosPorCategoriaMap['sin_categoria']) {
+          gastosPorCategoriaMap['sin_categoria'] = { nombre: 'Sin categoría', color: '#6b7280', total: 0 };
+        }
+        gastosPorCategoriaMap['sin_categoria'].total += Number(g.monto || 0);
+      }
+    });
+
+    const gastosPorCategoria = Object.values(gastosPorCategoriaMap)
+      .sort((a, b) => b.total - a.total);
+
+    // ── 3. Cálculos de rentabilidad ──────────────────────────────
+    const utilidadBruta = totalPeriodo - totalGastos;
+    const margenPct = totalPeriodo > 0 ? Math.round((utilidadBruta / totalPeriodo) * 100) : 0;
+
     res.json({
       chartData,
       kpis: {
         facturadoHoy,
         promedioDiarioHistorico,
-        totalPeriodo
-      }
+        totalPeriodo,
+        totalGastos,
+        utilidadBruta,
+        margenPct,
+      },
+      gastosPorCategoria,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 export const getReportesOperaciones = async (req: Request, res: Response): Promise<void> => {
   try {

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2 } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useState, useRef, useEffect } from 'react';
@@ -18,6 +18,7 @@ import Kiosco from './pages/Kiosco';
 import ReporteLiquidaciones from './pages/ReporteLiquidaciones';
 import CRM from './pages/CRM';
 import Configuracion from './pages/Configuracion';
+import Gastos from './pages/Gastos';
 import { AIChatDrawer } from './components/AIChatDrawer';
 
 // ─── Profile Dropdown ──────────────────────────────────────────────────────────
@@ -209,6 +210,13 @@ const Navbar = () => {
               <Coins size={16} />
               <span className="hidden lg:inline">{t('navbar.liquidaciones')}</span>
             </Link>
+            <Link
+              to={`/${slug}/gastos`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/gastos') ? 'bg-red-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+            >
+              <Receipt size={16} />
+              <span className="hidden lg:inline">{t('navbar.gastos')}</span>
+            </Link>
           </div>
 
           {/* Profile menu — always visible, never overflows */}
@@ -285,6 +293,7 @@ function App() {
             <Route path="liquidaciones" element={<ReporteLiquidaciones />} />
             <Route path="crm" element={<CRM />} />
             <Route path="configuracion" element={<Configuracion />} />
+            <Route path="gastos" element={<Gastos />} />
           </Route>
         </Routes>
       </BrowserRouter>
