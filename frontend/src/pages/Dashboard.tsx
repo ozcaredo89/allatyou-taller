@@ -25,6 +25,7 @@ interface Vehiculo {
 
 interface Ingreso {
   id: string;
+  vehiculo_id: string;
   fecha_ingreso: string;
   estado: string;
   estado_desde?: string;

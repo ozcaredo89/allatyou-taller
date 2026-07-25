@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  X, Car, CheckCircle2, Wrench, FileSearch, Receipt, XCircle,
+  X, Car, CheckCircle2, FileSearch, Receipt, XCircle,
   RotateCcw, Clock, ClipboardList, Users, Loader2, ChevronDown,
   ChevronUp, AlertCircle
 } from 'lucide-react';
@@ -139,11 +139,6 @@ const renderMetadata = (evento: Evento) => {
 const EventoCard: React.FC<{ evento: Evento; isLast: boolean }> = ({ evento, isLast }) => {
   const [expandido, setExpandido] = useState(false);
   const cfg = EVENTO_CONFIG[evento.tipo_evento] || defaultConfig;
-
-  // Metadata relevante a mostrar (excluye campos internos)
-  const metaEntries = Object.entries(evento.metadata || {}).filter(
-    ([k]) => !['estado_anterior', 'estado_nuevo'].includes(k)
-  );
 
   const descLarga = evento.descripcion && evento.descripcion.length > 100;
 
