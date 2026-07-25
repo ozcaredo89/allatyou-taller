@@ -1,6 +1,32 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 
+// ─── Helper: Registrar evento en la bitácora ─────────────────────────────────
+// El cambio de ESTADO queda cubierto por el Trigger SQL (fn_bitacora_cambio_estado).
+// Este helper se usa para eventos que el trigger no puede capturar (asignaciones, notas, etc.)
+async function registrarEventoBitacora(
+  empresa_id: string,
+  ingreso_id: string,
+  tipo_evento: string,
+  titulo: string,
+  descripcion?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  const { error } = await supabase
+    .from('taller_ingresos_bitacora')
+    .insert({
+      empresa_id,
+      ingreso_id,
+      tipo_evento,
+      titulo,
+      descripcion: descripcion || null,
+      metadata: metadata || {},
+    });
+  if (error) {
+    console.error(`[bitacora] Error registrando evento '${tipo_evento}':`, error.message);
+  }
+}
+
 // Obtiene todos los ingresos que actualmente están en el taller activos
 // Incluye estado_desde y promedios históricos de SLA por empresa
 export const getIngresosActivos = async (req: Request, res: Response): Promise<void> => {
@@ -84,6 +110,17 @@ export const createIngreso = async (req: Request, res: Response): Promise<void> 
       .single();
 
     if (error) throw error;
+
+    // Registrar evento de creación en la bitácora
+    await registrarEventoBitacora(
+      req.empresa_id!,
+      data.id,
+      'creacion',
+      'Vehículo Recibido en Taller',
+      `Motivo de visita: ${motivo_visita || 'No especificado'}`,
+      { kilometraje, nivel_gasolina, motivo_visita }
+    );
+
     res.status(201).json(data);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -436,7 +473,7 @@ export const asignarTecnicos = async (req: Request, res: Response): Promise<void
 
     // Insertar nuevas asignaciones si hay
     if (tecnicos_ids.length > 0) {
-      const inserts = tecnicos_ids.map(tecnicoId => ({
+      const inserts = tecnicos_ids.map((tecnicoId: string) => ({
         ingreso_id: id,
         tecnico_id: tecnicoId
       }));
@@ -446,6 +483,33 @@ export const asignarTecnicos = async (req: Request, res: Response): Promise<void
         .insert(inserts);
 
       if (insertError) throw insertError;
+
+      // Obtener nombres de los técnicos para la bitácora
+      const { data: tecnicosData } = await supabase
+        .from('taller_tecnicos')
+        .select('nombre')
+        .in('id', tecnicos_ids);
+
+      const nombresTecnicos = (tecnicosData || []).map((t: any) => t.nombre).join(', ');
+
+      await registrarEventoBitacora(
+        req.empresa_id!,
+        id as string,
+        'asignacion_tecnicos',
+        'Técnicos Asignados',
+        `Asignado a: ${nombresTecnicos || 'Sin nombre'}`,
+        { tecnicos_ids, nombres: nombresTecnicos }
+      );
+    } else {
+      // Si vaciaron la asignación
+      await registrarEventoBitacora(
+        req.empresa_id!,
+        id as string,
+        'asignacion_tecnicos',
+        'Técnicos Desasignados',
+        'Se removieron todos los técnicos de esta orden.',
+        { tecnicos_ids: [] }
+      );
     }
 
     res.json({ success: true, message: 'Técnicos asignados correctamente.' });
@@ -507,9 +571,55 @@ export const rediagnosticarIngreso = async (req: Request, res: Response): Promis
 
     if (updateError) throw updateError;
 
+    // Registrar rediagnóstico en la bitácora
+    await registrarEventoBitacora(
+      req.empresa_id!,
+      id as string,
+      'rediagnostico',
+      'Rediagnóstico Iniciado 🔄',
+      `El vehículo volvió a diagnóstico desde reparación. Tiempo previo en reparación: ${duracionMinutos} min.`,
+      { duracion_minutos_reparacion: duracionMinutos }
+    );
+
     res.json({ success: true, ingreso: data });
   } catch (error: any) {
     console.error('[rediagnosticar] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ─── GET /api/ingresos/:id/bitacora ───────────────────────────────────────────
+export const getBitacora = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const limit  = Math.min(parseInt(req.query.limit  as string || '50', 10), 100);
+    const offset = parseInt(req.query.offset as string || '0',  10);
+
+    // Verify the ingreso belongs to this empresa (strict tenant isolation)
+    const { data: ingreso, error: ingresoError } = await supabase
+      .from('taller_ingresos')
+      .select('id, empresa_id')
+      .eq('empresa_id', req.empresa_id)
+      .eq('id', id)
+      .single();
+
+    if (ingresoError || !ingreso) {
+      res.status(404).json({ error: 'Ingreso no encontrado.' });
+      return;
+    }
+
+    const { data, error, count } = await supabase
+      .from('taller_ingresos_bitacora')
+      .select('*', { count: 'exact' })
+      .eq('empresa_id', req.empresa_id)
+      .eq('ingreso_id', id)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    res.json({ eventos: data || [], total: count || 0, limit, offset });
+  } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };

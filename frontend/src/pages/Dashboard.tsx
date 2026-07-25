@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare } from 'lucide-react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, ChevronRight } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
 import CronometroInteligente from '../components/CronometroInteligente';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
+import TimelineDrawer from '../components/TimelineDrawer';
 
 interface Cliente {
   id: string;
@@ -73,6 +74,9 @@ const Dashboard: React.FC = () => {
   // Entregar Vehículo state
   const [entregarTarget, setEntregarTarget] = useState<Ingreso | null>(null);
   const [entregando, setEntregando] = useState(false);
+
+  // Timeline Drawer state
+  const [ingresoParaTimeline, setIngresoParaTimeline] = useState<Ingreso | null>(null);
 
   useEffect(() => { fetchIngresos(); }, []);
 
@@ -366,13 +370,24 @@ const Dashboard: React.FC = () => {
               <div key={ingreso.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
                 <div className="p-6 flex-1">
                   <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-slate-100 p-3 rounded-xl text-slate-700"><Car size={24} /></div>
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900 leading-tight">{ingreso.taller_vehiculos?.placa}</h3>
-                        <p className="text-sm text-slate-500">{ingreso.taller_vehiculos?.marca} {ingreso.taller_vehiculos?.linea}</p>
-                      </div>
+                  {/* Clickeable: clic abre el Timeline Drawer */}
+                  <button
+                    onClick={() => setIngresoParaTimeline(ingreso)}
+                    className="flex items-center gap-3 text-left group w-full hover:opacity-80 transition-opacity rounded-xl p-1 -m-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    title="Ver detalle de la visita"
+                    aria-label={`Ver bitácora de ${ingreso.taller_vehiculos?.placa}`}
+                  >
+                    <div className="bg-slate-100 p-3 rounded-xl text-slate-700 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                      <Car size={24} />
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xl font-bold text-slate-900 leading-tight group-hover:text-indigo-700 transition-colors">
+                        {ingreso.taller_vehiculos?.placa}
+                      </h3>
+                      <p className="text-sm text-slate-500">{ingreso.taller_vehiculos?.marca} {ingreso.taller_vehiculos?.linea}</p>
+                    </div>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-400 transition-colors shrink-0" />
+                  </button>
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${estadoColors[ingreso.estado] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
                       {t(`estado.${ingreso.estado}`)}
                     </span>
@@ -484,6 +499,21 @@ const Dashboard: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {/* ── Timeline Drawer ── */}
+      {ingresoParaTimeline && (
+        <TimelineDrawer
+          ingresoId={ingresoParaTimeline.id}
+          vehiculoInfo={{
+            placa:   ingresoParaTimeline.taller_vehiculos?.placa || '',
+            marca:   ingresoParaTimeline.taller_vehiculos?.marca || '',
+            linea:   ingresoParaTimeline.taller_vehiculos?.linea || '',
+            cliente: ingresoParaTimeline.taller_vehiculos?.taller_clientes?.nombre_completo || '',
+            estado:  ingresoParaTimeline.estado,
+          }}
+          onClose={() => setIngresoParaTimeline(null)}
+        />
       )}
     </div>
   );

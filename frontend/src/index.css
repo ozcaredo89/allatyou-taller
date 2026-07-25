@@ -9,3 +9,27 @@ body {
   background-color: #f3f4f6;
   font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
+
+/* ── TimelineDrawer animations ── */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes slide-left {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@media (min-width: 640px) {
+  .animate-slide-up {
+    animation: none;
+  }
+  .animate-slide-left {
+    animation: slide-left 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+}
