@@ -459,6 +459,11 @@ const Dashboard: React.FC = () => {
                     <MessageCircle size={15} />
                   </button>
 
+                  {/* Historial — siempre */}
+                  <button onClick={() => navigate(`/${slug}/historial?search=${ingreso.taller_vehiculos?.placa}`)} className="flex items-center justify-center gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium py-2 px-3 rounded-lg transition text-sm flex-none" title="Ver Historial del Vehículo">
+                    <History size={15} />
+                  </button>
+
                   {/* Botón principal por estado */}
                   {enDiagnostico ? (
                     <button onClick={() => navigate(`/${slug}/diagnostico/${ingreso.id}`)} className="flex-1 flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">

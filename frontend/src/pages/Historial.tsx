@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { History, Car, CalendarDays, CheckCircle2, XCircle, Loader2, ArrowLeft, ChevronRight, Receipt, Search, Filter } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
@@ -39,7 +39,8 @@ const Historial: React.FC = () => {
   const { t } = useTranslation();
   const [registros, setRegistros] = useState<HistorialIngreso[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [estadoFiltro, setEstadoFiltro] = useState('all');
 
   useEffect(() => {
