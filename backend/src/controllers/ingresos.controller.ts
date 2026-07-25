@@ -92,6 +92,31 @@ export const createIngreso = async (req: Request, res: Response): Promise<void> 
       observaciones_recepcion 
     } = req.body;
 
+    // VALIDACIÓN: Evitar ingresos duplicados para el mismo vehículo
+    const { data: ingresosActivos, error: chkError } = await supabase
+      .from('taller_ingresos')
+      .select('fecha_ingreso, taller_vehiculos(placa)')
+      .eq('empresa_id', req.empresa_id)
+      .eq('vehiculo_id', vehiculo_id)
+      .in('estado', ['recepcion', 'diagnostico', 'cotizacion', 'esperando_aprobacion', 'en_reparacion'])
+      .order('fecha_ingreso', { ascending: false })
+      .limit(1);
+
+    if (chkError) {
+      console.error('[createIngreso] Error verificando duplicados:', chkError);
+      throw chkError;
+    }
+
+    if (ingresosActivos && ingresosActivos.length > 0) {
+      const placa = (ingresosActivos[0].taller_vehiculos as any)?.placa || 'Desconocida';
+      const d = new Date(ingresosActivos[0].fecha_ingreso);
+      const fechaFormat = new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short' }).format(d);
+      res.status(400).json({ 
+        error: `El vehículo con placa ${placa} ya tiene un ingreso activo del día ${fechaFormat}. Por favor gestione esa salida o cancele el ingreso anterior antes de crear uno nuevo.`
+      });
+      return;
+    }
+
     const { data, error } = await supabase
       .from('taller_ingresos')
       .insert([{
