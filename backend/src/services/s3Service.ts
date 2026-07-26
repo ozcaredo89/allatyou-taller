@@ -31,8 +31,8 @@ export const uploadFileToR2 = async (fileBuffer: Buffer, fileName: string, conte
   try {
     await s3Client.send(new PutObjectCommand(uploadParams));
     
-    // Si el usuario configuró R2_PUBLIC_DOMAIN lo usa, si no, usa el genérico de S3 (podría no ser público sin configuración de policies en Cloudflare)
-    const baseUrl = process.env.R2_PUBLIC_DOMAIN || `${R2_ENDPOINT}/${BUCKET_NAME}`;
+    // Si el usuario configuró R2_PUBLIC_DOMAIN o R2_PUBLIC_URL lo usa, si no, usa el genérico de S3
+    const baseUrl = process.env.R2_PUBLIC_URL || process.env.R2_PUBLIC_DOMAIN || `${R2_ENDPOINT}/${BUCKET_NAME}`;
     const publicUrl = `${baseUrl}/${customFileName}`;
     
     return publicUrl;
