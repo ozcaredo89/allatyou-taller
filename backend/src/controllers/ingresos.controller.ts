@@ -401,6 +401,84 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
   }
 };
 
+export const getReportesFinanzasDetalle = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fecha } = req.query;
+
+    // Validar param
+    if (!fecha || typeof fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      res.status(400).json({ error: 'Se requiere el param fecha en formato YYYY-MM-DD' });
+      return;
+    }
+
+    // ── Timezone America/Bogota (UTC-5) ───────────────────────────
+    // El día local empieza 5 horas después de medianoche UTC
+    const OFFSET_MS = 5 * 60 * 60 * 1000;
+    const startOfDayUTC = new Date(fecha + 'T00:00:00.000Z').getTime() + OFFSET_MS;
+    const endOfDayUTC   = startOfDayUTC + 24 * 60 * 60 * 1000;
+    const startISO = new Date(startOfDayUTC).toISOString();
+    const endISO   = new Date(endOfDayUTC).toISOString();
+
+    // ── Paso 1: Buscar en la bitácora los ingresos entregados ESE día ──
+    // taller_ingresos_bitacora es la fuente de verdad para la fecha de
+    // entrega real — inmune a ediciones posteriores del registro.
+    const { data: bitacoraEntregas, error: bitError } = await supabase
+      .from('taller_ingresos_bitacora')
+      .select('ingreso_id')
+      .eq('empresa_id', req.empresa_id)
+      .eq('tipo_evento', 'entrega')
+      .gte('created_at', startISO)
+      .lt('created_at', endISO);
+
+    if (bitError) throw bitError;
+
+    // Deduplicar IDs: un ingreso puede tener múltiples eventos 'entrega'
+    // (ej: re-entrega por garantía). Usamos el ID único para no inflar el monto.
+    const ingresosEntregadosIds = [...new Set(
+      (bitacoraEntregas || []).map((b: any) => b.ingreso_id)
+    )];
+
+    if (ingresosEntregadosIds.length === 0) {
+      res.json({ fecha, totalDia: 0, detalle: [] });
+      return;
+    }
+
+    // ── Paso 2: Traer los datos de esos ingresos específicos ──────
+    const { data, error } = await supabase
+      .from('taller_ingresos')
+      .select('id, items_factura, taller_vehiculos(placa)')
+      .eq('empresa_id', req.empresa_id)
+      .in('id', ingresosEntregadosIds);
+
+    if (error) throw error; // Error real de DB → superficie como 500, no como empty state
+    const ingresos = data || [];
+
+    // ── Agrupar por placa, sumar montos ──────────────────────────
+    // Fallback usa el id del ingreso como clave para evitar fusionar
+    // vehículos huérfanos distintos (sin placa) bajo la misma entrada.
+    const byPlaca: Record<string, { placa: string; total: number }> = {};
+    let totalDia = 0;
+
+    ingresos.forEach((ing: any) => {
+      const placa = ing.taller_vehiculos?.placa || null;
+      const key   = placa ?? `sin-placa-${ing.id}`;
+      const label = placa ?? 'Vehículo no registrado';
+      const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
+
+      if (!byPlaca[key]) byPlaca[key] = { placa: label, total: 0 };
+      byPlaca[key].total += total;
+      totalDia += total;
+    });
+
+    const detalle = Object.values(byPlaca)
+      .sort((a, b) => b.total - a.total);
+
+    res.json({ fecha, totalDia, detalle });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 
 export const getReportesOperaciones = async (req: Request, res: Response): Promise<void> => {
   try {
