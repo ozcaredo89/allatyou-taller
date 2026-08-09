@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import {
@@ -47,8 +47,60 @@ const Reportes: React.FC = () => {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
+  // ── Drill-down Modal ──
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [detailData, setDetailData] = useState<{ placa: string; total: number }[]>([]);
+  const [detailTotal, setDetailTotal] = useState(0);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   useEffect(() => { cargarFinanciero(); }, [filtro, customStart, customEnd]);
   useEffect(() => { if (activeTab === 'operativo') cargarOperativo(); }, [activeTab, filtro, customStart, customEnd]);
+
+  // ── Drill-down: fetch separado para que el retry lo pueda llamar directo ──
+  const fetchDetalle = async (fecha: string) => {
+    // Cancelar petición anterior (race condition)
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setDetailData([]);
+    setDetailError(null);
+    setIsDetailLoading(true);
+
+    try {
+      const res = await api.get(`/ingresos/reportes/finanzas/detalle?fecha=${fecha}`, {
+        signal: controller.signal,
+      });
+      setDetailData(res.data.detalle || []);
+      setDetailTotal(res.data.totalDia || 0);
+    } catch (err: any) {
+      // Ignorar AbortError (clic rápido en otra barra o cierre de modal)
+      if (err?.code === 'ERR_CANCELED' || err?.name === 'AbortError' || err?.name === 'CanceledError') return;
+      setDetailError('No se pudo cargar el detalle. Intenta de nuevo.');
+    } finally {
+      setIsDetailLoading(false);
+    }
+  };
+
+  const handleBarClick = (data: any) => {
+    if (!data || !data.total || data.total === 0) return; // empty state: no abrir modal
+    setSelectedDate(data.fecha);
+    fetchDetalle(data.fecha);
+  };
+
+  const closeModal = () => {
+    abortControllerRef.current?.abort(); // cancelar fetch pendiente al cerrar
+    setSelectedDate(null);
+  };
+
+  // Cerrar modal con Esc (también cancela fetch pendiente vía closeModal)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const getFechaRango = () => {
     const hoy = new Date();
@@ -146,6 +198,7 @@ const Reportes: React.FC = () => {
   );
 
   return (
+    <>
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
@@ -265,7 +318,7 @@ const Reportes: React.FC = () => {
                           <XAxis dataKey="fecha" tick={{ fontSize: 11 }} stroke="#94a3b8" />
                           <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => `$${(v / 1000)}k`} />
                           <Tooltip cursor={{ fill: '#f1f5f9' }} formatter={(v: any) => [formatearDinero(v), t('reportes.grafico_tooltip')]} labelFormatter={(l) => `Fecha: ${l}`} />
-                          <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} onClick={handleBarClick} cursor="pointer" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -404,6 +457,92 @@ const Reportes: React.FC = () => {
         </>
       )}
     </div>
+
+      {/* ═══════ MODAL DRILL-DOWN ═══════ */}
+      {selectedDate && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+            style={{ maxHeight: '80vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
+              <div>
+                <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-0.5">Detalle del día</p>
+                <h2 className="text-xl font-bold text-slate-900">{selectedDate}</h2>
+              </div>
+              <button
+                onClick={closeModal}
+                className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 p-6">
+              {isDetailLoading && (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <Loader2 className="animate-spin mb-3" size={32} />
+                  <p className="text-sm">Cargando detalle...</p>
+                </div>
+              )}
+
+              {detailError && !isDetailLoading && (
+                <div className="flex flex-col items-center justify-center py-12 text-red-400 gap-3">
+                  <p className="text-sm text-center">{detailError}</p>
+                  <button
+                    onClick={() => selectedDate && fetchDetalle(selectedDate)}
+                    className="px-4 py-2 text-sm font-semibold bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
+                  >
+                    Intentar de nuevo
+                  </button>
+                </div>
+              )}
+
+              {!isDetailLoading && !detailError && detailData.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <BarChart3 className="opacity-20 mb-3" size={40} />
+                  <p className="text-sm">Sin datos para este día</p>
+                </div>
+              )}
+
+              {!isDetailLoading && !detailError && detailData.length > 0 && (
+                <ul className="space-y-2">
+                  {detailData.map((item, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-center justify-between py-3 px-4 rounded-xl bg-slate-50 hover:bg-indigo-50 transition group"
+                    >
+                      <span className="font-bold text-slate-700 tracking-wider group-hover:text-indigo-700 transition">
+                        {item.placa}
+                      </span>
+                      <span className="text-sm font-semibold text-indigo-600">
+                        {formatearDinero(item.total)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Footer con total */}
+            {!isDetailLoading && !detailError && detailData.length > 0 && (
+              <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between shrink-0 bg-slate-50 rounded-b-2xl">
+                <span className="text-sm font-bold text-slate-500 uppercase tracking-wider">Total del día</span>
+                <span className="text-lg font-bold text-indigo-700">
+                  {formatearDinero(detailTotal)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
