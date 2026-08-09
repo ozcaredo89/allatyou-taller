@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, ChevronRight } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, ChevronRight, Search, Phone, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
@@ -20,6 +20,7 @@ interface Vehiculo {
   placa: string;
   marca: string;
   linea: string;
+  modelo_anio?: number;
   taller_clientes: Cliente;
 }
 
@@ -45,10 +46,14 @@ const estadoColors: Record<string, string> = {
   en_reparacion: 'bg-purple-100 text-purple-800 border-purple-200',
 };
 
+const normalizeString = (s: string) => s ? s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
+
 const Dashboard: React.FC = () => {
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
   const [promediosSLA, setPromediosSLA] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const { t } = useTranslation();
@@ -78,6 +83,17 @@ const Dashboard: React.FC = () => {
 
   // Timeline Drawer state
   const [ingresoParaTimeline, setIngresoParaTimeline] = useState<Ingreso | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => { fetchIngresos(); }, []);
 
@@ -353,7 +369,7 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* ── Header ── */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
             {t('dashboard.title')}
@@ -365,9 +381,31 @@ const Dashboard: React.FC = () => {
           </h1>
           <p className="text-slate-500 mt-1">{t('dashboard.subtitle')}</p>
         </div>
-        <button onClick={() => navigate(`/${slug}/historial`)} className="flex items-center gap-2 border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-xl font-medium text-sm transition shadow-sm">
-          <History size={16} /> {t('dashboard.btn_historial')}
-        </button>
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              ref={searchInputRef}
+              type="text" 
+              placeholder="Buscar placa o cliente (Presiona '/')..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow shadow-sm"
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Limpiar búsqueda"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <button onClick={() => navigate(`/${slug}/historial`)} className="flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-xl font-medium text-sm transition shadow-sm w-full sm:w-auto">
+            <History size={16} /> {t('dashboard.btn_historial')}
+          </button>
+        </div>
       </div>
 
       {/* ── Alerta de Vehículos Duplicados ── */}
@@ -427,16 +465,43 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
+
       {/* ── Cards ── */}
-      {ingresos.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center flex flex-col items-center">
-          <div className="bg-slate-50 p-4 rounded-full mb-4"><CheckCircle2 size={48} className="text-slate-300" /></div>
-          <h3 className="text-xl font-medium text-slate-900">{t('dashboard.no_vehicles')}</h3>
-          <p className="text-slate-500 mt-2 max-w-md">{t('dashboard.no_vehicles_desc')}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {ingresos.map((ingreso) => {
+      {(() => {
+        const term = normalizeString(searchTerm);
+        const ingresosFiltrados = ingresos.filter(ing => {
+          const placa = normalizeString(ing.taller_vehiculos?.placa ?? '');
+          const cliente = normalizeString(ing.taller_vehiculos?.taller_clientes?.nombre_completo ?? '');
+          const marca = normalizeString(ing.taller_vehiculos?.marca ?? '');
+          return placa.includes(term) || cliente.includes(term) || marca.includes(term);
+        });
+
+        if (ingresos.length === 0) {
+          return (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center flex flex-col items-center">
+              <div className="bg-slate-50 p-4 rounded-full mb-4"><CheckCircle2 size={48} className="text-slate-300" /></div>
+              <h3 className="text-xl font-medium text-slate-900">{t('dashboard.no_vehicles')}</h3>
+              <p className="text-slate-500 mt-2 max-w-md">{t('dashboard.no_vehicles_desc')}</p>
+            </div>
+          );
+        }
+
+        if (ingresosFiltrados.length === 0) {
+          return (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center flex flex-col items-center">
+              <div className="bg-slate-50 p-4 rounded-full mb-4"><Search size={48} className="text-slate-300" /></div>
+              <h3 className="text-xl font-medium text-slate-900">No encontramos resultados para '{searchTerm}'</h3>
+              <p className="text-slate-500 mt-2 mb-4">Intenta con otro término de búsqueda.</p>
+              <button onClick={() => setSearchTerm('')} className="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition text-sm">
+                Limpiar búsqueda
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {ingresosFiltrados.map((ingreso) => {
             const enDiagnostico = ['recepcion', 'diagnostico'].includes(ingreso.estado);
             const enOrden = ['esperando_aprobacion', 'en_reparacion'].includes(ingreso.estado);
             const tieneOrden = enOrden && Array.isArray(ingreso.items_factura) && ingreso.items_factura.length > 0;
@@ -459,7 +524,9 @@ const Dashboard: React.FC = () => {
                       <h3 className="text-xl font-bold text-slate-900 leading-tight group-hover:text-indigo-700 transition-colors">
                         {ingreso.taller_vehiculos?.placa}
                       </h3>
-                      <p className="text-sm text-slate-500">{ingreso.taller_vehiculos?.marca} {ingreso.taller_vehiculos?.linea}</p>
+                      <p className="text-sm font-bold text-slate-800 bg-indigo-50 px-2 py-0.5 rounded inline-block mt-1 border border-indigo-100">
+                        {ingreso.taller_vehiculos?.marca} {ingreso.taller_vehiculos?.linea} {ingreso.taller_vehiculos?.modelo_anio ? ` - ${ingreso.taller_vehiculos.modelo_anio}` : ''}
+                      </p>
                     </div>
                     <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-400 transition-colors shrink-0" />
                   </button>
@@ -481,12 +548,17 @@ const Dashboard: React.FC = () => {
                         <span className="font-medium text-slate-900 mr-1">{t('card.motivo')}</span>{ingreso.motivo_visita}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-slate-600 text-sm">
-                      <Key size={15} className="text-slate-400 shrink-0" />
-                      <span>
-                        <span className="font-medium text-slate-900 mr-1">{t('card.cliente')}</span>
-                        {ingreso.taller_vehiculos?.taller_clientes?.nombre_completo}
-                      </span>
+                    <div className="flex items-start gap-3 text-slate-600 text-sm">
+                      <Key size={15} className="text-slate-400 shrink-0 mt-0.5" />
+                      <div className="flex flex-col">
+                        <span>
+                          <span className="font-medium text-slate-900 mr-1">{t('card.cliente')}</span>
+                          {ingreso.taller_vehiculos?.taller_clientes?.nombre_completo}
+                        </span>
+                        <span className="text-slate-500 text-xs mt-1 flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 self-start">
+                          <Phone size={12} className="text-slate-400" /> {ingreso.taller_vehiculos?.taller_clientes?.telefono || 'Sin teléfono'}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3 text-slate-600 text-sm">
                       <CalendarDays size={15} className="text-slate-400 shrink-0" />
@@ -574,7 +646,8 @@ const Dashboard: React.FC = () => {
             );
           })}
         </div>
-      )}
+      );
+      })()}
 
       {/* ── Timeline Drawer ── */}
       {ingresoParaTimeline && (

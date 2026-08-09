@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X } from 'lucide-react';
+import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -413,17 +413,23 @@ const Checkout: React.FC = () => {
         </div>
 
         {/* Cliente y Vehículo */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-200">
           <div>
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('checkout.facturado_a')}</h3>
-            <p className="font-bold text-slate-800 text-lg">{cliente?.nombre_completo}</p>
-            <p className="text-slate-600 text-sm">Doc: {cliente?.documento}</p>
-            <p className="text-slate-600 text-sm">Tel: {cliente?.telefono}</p>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{t('checkout.facturado_a')}</h3>
+            <p className="font-bold text-slate-800 text-lg flex items-center gap-2">{cliente?.nombre_completo}</p>
+            <div className="flex items-center gap-4 mt-1 text-slate-600 text-sm">
+              <span className="flex items-center gap-1"><FileText size={14} className="text-slate-400" /> {cliente?.documento || 'N/A'}</span>
+              <span className="flex items-center gap-1"><Phone size={14} className="text-slate-400" /> {cliente?.telefono || 'N/A'}</span>
+            </div>
           </div>
-          <div className="text-right">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('checkout.vehiculo')}</h3>
-            <p className="font-bold text-slate-800 text-2xl tracking-widest">{vehiculo?.placa}</p>
-            <p className="text-slate-600 text-sm">{vehiculo?.marca} {vehiculo?.linea}</p>
+          <div className="text-left md:text-right">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{t('checkout.vehiculo')}</h3>
+            <p className="font-black text-slate-900 text-3xl tracking-widest flex items-center md:justify-end gap-2">
+              <Car size={24} className="text-indigo-600 hidden md:block" /> {vehiculo?.placa}
+            </p>
+            <p className="font-bold text-indigo-700 bg-indigo-100 px-3 py-1 rounded-lg inline-block mt-2 text-sm border border-indigo-200 shadow-sm">
+              {vehiculo?.marca} {vehiculo?.linea} {vehiculo?.modelo_anio ? ` - ${vehiculo?.modelo_anio}` : ''}
+            </p>
           </div>
         </div>
 
