@@ -5,7 +5,17 @@
       "has": [
         {
           "type": "host",
-          "value": "^([a-z0-9-]+\\.)?eurofrenos\\.lat$"
+          "value": "eurofrenos.lat"
+        }
+      ],
+      "destination": "/landing/eurofrenos/index.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.eurofrenos.lat"
         }
       ],
       "destination": "/landing/eurofrenos/index.html"
