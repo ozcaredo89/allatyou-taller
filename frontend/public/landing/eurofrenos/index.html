@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eurofrenos — Mecánica General | Cali</title>
+  <meta name="description" content="Eurofrenos: taller especializado en frenos, mecánica general, aire acondicionado y servicio eléctrico automotriz en Cali. Diagnóstico preciso, presupuesto claro, garantía total." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://taller.allatyou.com/eurofrenos" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Eurofrenos — Mecánica General | Cali" />
+  <meta property="og:description" content="Especialistas en frenos, mecánica general, aire acondicionado y servicio eléctrico. Diagnóstico con tecnología, presupuesto transparente." />
+  <meta property="og:type" content="website" />
+
+  <!-- Schema.org AutoRepair (SEO Local) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "AutoRepair",
+    "name": "Eurofrenos Mecánica General",
+    "description": "Taller especializado en frenos, mecánica general, aire acondicionado y servicio eléctrico automotriz.",
+    "url": "https://taller.allatyou.com/eurofrenos",
+    "telephone": ["+573103793785", "+573332216847"],
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Carrera 49a # 13a 43",
+      "addressLocality": "Cali",
+      "addressRegion": "Valle del Cauca",
+      "addressCountry": "CO"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 3.4516,
+      "longitude": -76.5320
+    },
+    "openingHoursSpecification": [
+      { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"], "opens": "07:00", "closes": "18:00" },
+      { "@type": "OpeningHoursSpecification", "dayOfWeek": "Saturday", "opens": "07:00", "closes": "14:00" }
+    ],
+    "priceRange": "$$",
+    "currenciesAccepted": "COP",
+    "paymentAccepted": "Cash, Credit Card"
+  }
+  </script>
+
+  <!-- Swiper CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
+  <!-- Fonts: Clash Display (Fontshare) + Inter (Google) -->
+  <link rel="preconnect" href="https://api.fontshare.com" />
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ═══════════════════════════════════════════
+       TOKENS & RESET
+    ═══════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red:        #da291c;
+      --red-lt:     #ef4444;
+      --red-dk:     #991b1b;
+      --green:      #10b981;
+      --black:      #0f0f0f;
+      --slate-900:  #0f172a;
+      --slate-800:  #1e293b;
+      --slate-600:  #475569;
+      --slate-400:  #94a3b8;
+      --slate-200:  #e2e8f0;
+      --slate-100:  #f1f5f9;
+      --white:      #ffffff;
+      --surface:    #f8fafc;
+      --r-sm:       8px;
+      --r-md:       16px;
+      --r-lg:       24px;
+      --r-xl:       40px;
+
+      --font-display: 'Clash Display', sans-serif;
+      --font-body:    'Inter', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-body);
+      background: var(--surface);
+      color: var(--slate-800);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    img { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+
+    /* ═══════════════════════════════════════════
+       PROGRESSIVE ENHANCEMENT: Reveal on scroll
+       Elements only hidden when JS has run (body.js-loaded)
+    ═══════════════════════════════════════════ */
+    body.js-loaded .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+                  transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    body.js-loaded .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Stagger delays for groups */
+    .reveal-group .reveal:nth-child(1) { transition-delay: 0ms; }
+    .reveal-group .reveal:nth-child(2) { transition-delay: 80ms; }
+    .reveal-group .reveal:nth-child(3) { transition-delay: 160ms; }
+    .reveal-group .reveal:nth-child(4) { transition-delay: 240ms; }
+    .reveal-group .reveal:nth-child(5) { transition-delay: 320ms; }
+
+    /* ═══════════════════════════════════════════
+       NAV
+    ═══════════════════════════════════════════ */
+    nav {
+      position: fixed; top: 0; width: 100%; z-index: 1000;
+      background: rgba(248, 250, 252, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--slate-200);
+      transition: box-shadow 0.3s;
+    }
+    nav.scrolled { box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+
+    .nav-inner {
+      max-width: 1280px; margin: 0 auto;
+      padding: 0 32px;
+      height: 72px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; }
+    .nav-logo-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--green);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-logo-icon svg { width: 20px; height: 20px; fill: white; }
+    .nav-logo-name {
+      font-family: var(--font-display);
+      font-size: 1.2rem; font-weight: 700;
+      color: var(--slate-900);
+      letter-spacing: -0.5px;
+    }
+    .nav-logo-name span { color: var(--red); }
+    .nav-logo-sub { font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--slate-400); line-height: 1; }
+
+    .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+    .nav-links a {
+      font-size: 0.875rem; font-weight: 600;
+      color: var(--slate-600);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--slate-900); }
+    .nav-cta {
+      background: var(--red); color: var(--white) !important;
+      padding: 10px 24px; border-radius: var(--r-sm);
+      font-weight: 700; font-size: 0.875rem;
+      transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 16px rgba(218,41,28,0.3);
+    }
+    .nav-cta:hover { background: var(--red-lt) !important; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(218,41,28,0.4); }
+
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; background: none; border: none; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--slate-800); border-radius: 2px; transition: 0.3s; }
+
+    /* ═══════════════════════════════════════════
+       HERO — SPLIT DIAGONAL
+    ═══════════════════════════════════════════ */
+    #hero {
+      min-height: 100svh;
+      display: grid;
+      /* text | image, diagonal clip applied to image column */
+      grid-template-columns: 1fr 1fr;
+      padding-top: 72px; /* nav height */
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero-text-col {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 80px 64px 80px 80px;
+      position: relative; z-index: 2;
+      background: var(--surface);
+    }
+
+    /* Subtle hex/dot texture in text column */
+    .hero-text-col::before {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background-image: radial-gradient(circle, rgba(218,41,28,0.06) 1.5px, transparent 1.5px);
+      background-size: 24px 24px;
+      z-index: 0;
+    }
+    .hero-text-col > * { position: relative; z-index: 1; }
+
+    .hero-kicker {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--red);
+      margin-bottom: 24px;
+    }
+    .hero-kicker::before {
+      content: '';
+      display: block; width: 32px; height: 2px;
+      background: var(--red);
+    }
+
+    .hero-headline {
+      font-family: var(--font-display);
+      font-size: clamp(3rem, 5vw, 5.5rem);
+      font-weight: 700;
+      line-height: 0.95;
+      letter-spacing: -3px;
+      text-transform: uppercase;
+      color: var(--slate-900);
+      margin-bottom: 12px;
+    }
+    .hero-headline em {
+      font-style: normal;
+      color: var(--red);
+      display: block;
+    }
+
+    .hero-sub {
+      font-family: var(--font-display);
+      font-size: clamp(1rem, 1.5vw, 1.3rem);
+      font-weight: 500;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--slate-600);
+      margin-bottom: 32px;
+      border-left: 3px solid var(--red);
+      padding-left: 16px;
+    }
+
+    .hero-desc {
+      font-size: 1.1rem;
+      color: var(--slate-600);
+      line-height: 1.8;
+      max-width: 440px;
+      margin-bottom: 48px;
+      font-weight: 500;
+    }
+
+    .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--red); color: var(--white);
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 1rem;
+      padding: 18px 36px; border-radius: var(--r-sm);
+      text-decoration: none;
+      transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 8px 32px rgba(218,41,28,0.35);
+    }
+    .btn-primary:hover { background: var(--red-lt); transform: translateY(-2px); box-shadow: 0 16px 40px rgba(218,41,28,0.5); }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 10px;
+      border: 2px solid var(--slate-200);
+      background: var(--white);
+      color: var(--slate-800);
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 1rem;
+      padding: 16px 32px; border-radius: var(--r-sm);
+      text-decoration: none;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+    }
+    .btn-ghost:hover { border-color: var(--slate-400); background: var(--slate-100); transform: translateY(-1px); }
+
+    .hero-stats {
+      display: flex; gap: 40px; margin-top: 56px;
+      padding-top: 40px;
+      border-top: 1px solid var(--slate-200);
+    }
+    .hero-stat-num {
+      font-family: var(--font-display);
+      font-size: 2rem; font-weight: 700;
+      color: var(--slate-900); line-height: 1;
+    }
+    .hero-stat-lbl {
+      font-size: 0.75rem; font-weight: 600;
+      color: var(--slate-400);
+      text-transform: uppercase; letter-spacing: 1px; margin-top: 4px;
+    }
+
+    /* Image column with diagonal clip */
+    .hero-img-col {
+      position: relative; overflow: hidden;
+    }
+    .hero-img-col img {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center;
+      /* Duotone-ish: darken shadows toward red brand */
+      filter: brightness(0.9) saturate(1.1);
+    }
+    /* Diagonal cut from left side */
+    .hero-img-col::before {
+      content: '';
+      position: absolute; left: -1px; top: 0; bottom: 0;
+      width: 80px; z-index: 1;
+      background: var(--surface);
+      clip-path: polygon(0 0, 100% 20%, 100% 80%, 0 100%);
+    }
+    /* Red accent bar */
+    .hero-img-col::after {
+      content: '';
+      position: absolute; top: 0; bottom: 0; left: 0;
+      width: 6px; background: var(--red); z-index: 2;
+    }
+
+    /* ═══════════════════════════════════════════
+       TRUST STRIP
+    ═══════════════════════════════════════════ */
+    .trust-strip {
+      background: var(--black);
+      padding: 20px 32px;
+      display: flex; align-items: center; justify-content: center; gap: 48px;
+      flex-wrap: wrap;
+    }
+    .trust-item {
+      display: flex; align-items: center; gap: 10px;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.875rem; font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .trust-item-icon { color: var(--red); font-size: 1rem; }
+
+    /* ═══════════════════════════════════════════
+       SECTION COMMONS
+    ═══════════════════════════════════════════ */
+    .section-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 100px 32px;
+    }
+    .section-label {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--red);
+      margin-bottom: 16px;
+    }
+    .section-label::after {
+      content: '';
+      display: block; height: 1px; width: 32px; background: var(--red);
+    }
+    h2.section-heading {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 3.5vw, 3.5rem);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -2px;
+      text-transform: uppercase;
+      color: var(--slate-900);
+      margin-bottom: 16px;
+    }
+    h2.section-heading span { color: var(--red); }
+    .section-sub {
+      font-size: 1.1rem;
+      color: var(--slate-600);
+      max-width: 560px;
+      line-height: 1.8;
+      margin-bottom: 64px;
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════════
+       BENTO GRID — SERVICES
+       Desktop: complex bento
+       Tablet (768-1024): 2-column
+       Mobile: 1-column
+    ═══════════════════════════════════════════ */
+    #servicios { background: var(--white); }
+    #servicios .section-inner { padding-top: 100px; padding-bottom: 100px; }
+
+    .bento {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: auto auto;
+      gap: 20px;
+    }
+
+    /* FEATURED — Frenos (large, left) */
+    .bento-featured {
+      grid-column: 1 / 8;
+      grid-row: 1 / 3;
+      background: var(--red);
+      color: var(--white);
+      border-radius: var(--r-lg);
+      padding: 56px 48px;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      min-height: 360px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s;
+    }
+    .bento-featured:hover { transform: translateY(-4px); box-shadow: 0 24px 64px rgba(218,41,28,0.35); }
+
+    /* Decorative disc rings in featured card */
+    .bento-featured::before {
+      content: '';
+      position: absolute;
+      right: -60px; top: 50%;
+      transform: translateY(-50%);
+      width: 340px; height: 340px;
+      border-radius: 50%;
+      border: 48px solid rgba(255,255,255,0.08);
+    }
+    .bento-featured::after {
+      content: '';
+      position: absolute;
+      right: 30px; top: 50%;
+      transform: translateY(-50%);
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      border: 24px solid rgba(255,255,255,0.12);
+    }
+
+    .bento-featured .b-num {
+      font-family: var(--font-display);
+      font-size: 6rem; font-weight: 700; line-height: 1;
+      opacity: 0.15; position: absolute; top: 32px; right: 48px;
+      letter-spacing: -4px;
+    }
+    .bento-featured .b-icon { font-size: 3.5rem; margin-bottom: 24px; position: relative; z-index: 1; }
+    .bento-featured h3 {
+      font-family: var(--font-display);
+      font-size: 2.2rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: -1px;
+      margin-bottom: 12px; position: relative; z-index: 1;
+    }
+    .bento-featured p { font-size: 1rem; opacity: 0.85; line-height: 1.7; max-width: 360px; position: relative; z-index: 1; }
+    .bento-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.18); backdrop-filter: blur(4px);
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      padding: 6px 14px; border-radius: 100px;
+      margin-bottom: 20px; position: relative; z-index: 1; width: fit-content;
+    }
+
+    /* Regular bento cards */
+    .bento-card {
+      background: var(--surface);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--r-md);
+      padding: 36px 32px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      transition: border-color 0.3s, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s;
+      cursor: default;
+    }
+    .bento-card:hover { border-color: rgba(218,41,28,0.3); transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); }
+
+    .bento-card-2 { grid-column: 8 / 13; grid-row: 1 / 2; }
+    .bento-card-3 { grid-column: 8 / 10; grid-row: 2 / 3; }
+    .bento-card-4 { grid-column: 10 / 13; grid-row: 2 / 3; }
+
+    .bento-card .b-icon { font-size: 2.5rem; margin-bottom: 20px; }
+    .bento-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.3rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: -0.5px;
+      color: var(--slate-900); margin-bottom: 10px;
+    }
+    .bento-card p { font-size: 0.9rem; color: var(--slate-600); line-height: 1.65; }
+    .bento-card .b-num {
+      font-family: var(--font-display);
+      font-size: 2.5rem; font-weight: 700;
+      color: var(--slate-200); align-self: flex-end; line-height: 1;
+    }
+
+    /* ═══════════════════════════════════════════
+       BRAND SELECTOR (Mini-tool)
+    ═══════════════════════════════════════════ */
+    #marcas { background: var(--slate-900); }
+    #marcas .section-inner { padding-top: 80px; padding-bottom: 80px; }
+    #marcas .section-label { color: var(--green); }
+    #marcas .section-label::after { background: var(--green); }
+    #marcas h2.section-heading { color: var(--white); }
+    #marcas h2.section-heading span { color: var(--green); }
+    #marcas .section-sub { color: var(--slate-400); }
+
+    .brand-tool-label {
+      font-size: 0.8rem; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--slate-400);
+      margin-bottom: 20px;
+    }
+    .brands-grid {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      margin-bottom: 32px;
+    }
+    .brand-btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.6);
+      font-family: var(--font-display);
+      font-weight: 600; font-size: 0.875rem;
+      letter-spacing: 1px; text-transform: uppercase;
+      padding: 10px 20px; border-radius: var(--r-sm);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+    }
+    .brand-btn:hover,
+    .brand-btn.active {
+      background: var(--red);
+      border-color: var(--red);
+      color: var(--white);
+      transform: translateY(-2px);
+    }
+    .brand-cta-row {
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    #wa-brand-link {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: #22c55e; color: var(--white);
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 1rem;
+      padding: 16px 32px; border-radius: var(--r-sm);
+      transition: background 0.2s, transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+      box-shadow: 0 8px 24px rgba(34,197,94,0.35);
+      pointer-events: none; opacity: 0.5;
+    }
+    #wa-brand-link.enabled {
+      pointer-events: auto; opacity: 1;
+    }
+    #wa-brand-link.enabled:hover { background: #16a34a; transform: translateY(-2px); }
+    .brand-selected-label {
+      font-size: 0.875rem; color: var(--slate-400); font-weight: 500;
+    }
+    #selected-brand-text { color: var(--green); font-weight: 700; }
+
+    /* Fallback phones */
+    .fallback-phones {
+      margin-top: 24px;
+      display: flex; gap: 24px; flex-wrap: wrap;
+      align-items: center;
+    }
+    .fallback-phones a {
+      display: flex; align-items: center; gap: 8px;
+      color: var(--slate-400); font-size: 0.9rem; font-weight: 600;
+      transition: color 0.2s;
+    }
+    .fallback-phones a:hover { color: var(--white); }
+    .fallback-phones span { color: var(--green); }
+
+    /* ═══════════════════════════════════════════
+       TALLER (Real Photo section)
+    ═══════════════════════════════════════════ */
+    #taller { background: var(--white); overflow: hidden; }
+    #taller .section-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .taller-img-col { position: relative; }
+    .taller-img-wrap {
+      border-radius: var(--r-xl) 0 var(--r-xl) 0; /* Asymmetric corners */
+      overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.12);
+    }
+    .taller-img-wrap img { width: 100%; height: 480px; object-fit: cover; }
+    .taller-badge {
+      position: absolute; bottom: -20px; right: -20px;
+      background: var(--red);
+      color: var(--white);
+      border-radius: var(--r-md);
+      padding: 24px 28px;
+      box-shadow: 0 16px 48px rgba(218,41,28,0.4);
+    }
+    .taller-badge .big {
+      font-family: var(--font-display);
+      font-size: 2.5rem; font-weight: 700; line-height: 1;
+    }
+    .taller-badge .lbl {
+      font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-top: 4px;
+    }
+
+    .taller-text-col {}
+    .features-list { display: flex; flex-direction: column; gap: 24px; margin-top: 40px; }
+    .feature-row {
+      display: flex; gap: 18px; align-items: flex-start;
+      padding: 20px; border-radius: var(--r-sm);
+      transition: background 0.2s;
+    }
+    .feature-row:hover { background: var(--surface); }
+    .feature-check {
+      min-width: 32px; height: 32px;
+      background: rgba(218,41,28,0.1);
+      border-radius: var(--r-sm);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--red); font-weight: 700; font-size: 1rem;
+      margin-top: 2px;
+    }
+    .feature-row h4 {
+      font-family: var(--font-display);
+      font-size: 1.05rem; font-weight: 600;
+      color: var(--slate-900); margin-bottom: 4px;
+    }
+    .feature-row p { font-size: 0.9rem; color: var(--slate-600); line-height: 1.65; }
+
+    /* ═══════════════════════════════════════════
+       TESTIMONIALS — SWIPER
+    ═══════════════════════════════════════════ */
+    #testimonios { background: var(--surface); }
+    .swiper { padding-bottom: 56px !important; }
+    .swiper-pagination-bullet { background: var(--slate-400); }
+    .swiper-pagination-bullet-active { background: var(--red); }
+
+    .testimonial-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--r-md);
+      padding: 40px 36px;
+    }
+    .testimonial-stars { color: #facc15; font-size: 1.1rem; margin-bottom: 20px; }
+    .testimonial-text {
+      font-size: 1rem; color: var(--slate-600);
+      line-height: 1.75; margin-bottom: 28px;
+      font-style: italic;
+    }
+    .testimonial-author { display: flex; align-items: center; gap: 14px; }
+    .author-avatar {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--red); color: var(--white);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 1rem;
+    }
+    .author-name { font-size: 0.95rem; font-weight: 700; color: var(--slate-900); }
+    .author-vehicle { font-size: 0.8rem; color: var(--red); font-weight: 600; margin-top: 2px; }
+
+    /* ═══════════════════════════════════════════
+       PROCESO (Steps)
+    ═══════════════════════════════════════════ */
+    #proceso { background: var(--white); }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      position: relative;
+    }
+    .steps-grid::before {
+      content: '';
+      position: absolute; top: 22px; left: 11%; right: 11%; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--slate-200) 20%, var(--slate-200) 80%, transparent);
+    }
+    .step { text-align: center; padding: 0 24px; }
+    .step-num {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--red); color: var(--white);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      font-size: 1rem; font-weight: 700;
+      margin: 0 auto 24px;
+      box-shadow: 0 8px 24px rgba(218,41,28,0.3);
+      position: relative; z-index: 1;
+    }
+    .step h3 {
+      font-family: var(--font-display);
+      font-size: 1rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: -0.3px;
+      color: var(--slate-900); margin-bottom: 10px;
+    }
+    .step p { font-size: 0.875rem; color: var(--slate-600); line-height: 1.65; }
+
+    /* ═══════════════════════════════════════════
+       CTA BANNER
+    ═══════════════════════════════════════════ */
+    #cta-banner {
+      background: var(--red);
+      padding: 100px 32px;
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    #cta-banner::before {
+      content: '';
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 800px; height: 800px; border-radius: 50%;
+      border: 80px solid rgba(255,255,255,0.05);
+      pointer-events: none;
+    }
+    #cta-banner::after {
+      content: '';
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 500px; height: 500px; border-radius: 50%;
+      border: 40px solid rgba(255,255,255,0.06);
+      pointer-events: none;
+    }
+    .cta-inner { position: relative; z-index: 1; max-width: 680px; margin: 0 auto; }
+    #cta-banner .section-label { color: rgba(255,255,255,0.7); justify-content: center; }
+    #cta-banner .section-label::after { background: rgba(255,255,255,0.4); }
+    #cta-banner h2 {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 4vw, 4rem);
+      font-weight: 700; text-transform: uppercase; letter-spacing: -2px;
+      color: var(--white); margin-bottom: 16px;
+    }
+    #cta-banner p { font-size: 1.1rem; color: rgba(255,255,255,0.8); margin-bottom: 48px; font-weight: 500; }
+    .cta-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn-wa {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--white); color: var(--red);
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 1rem;
+      padding: 18px 36px; border-radius: var(--r-sm);
+      transition: background 0.2s, transform 0.2s;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .btn-wa:hover { background: var(--surface); transform: translateY(-2px); }
+    .btn-white-ghost {
+      display: inline-flex; align-items: center; gap: 10px;
+      border: 2px solid rgba(255,255,255,0.4);
+      color: var(--white);
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 1rem;
+      padding: 16px 32px; border-radius: var(--r-sm);
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-white-ghost:hover { border-color: var(--white); background: rgba(255,255,255,0.1); }
+
+    /* ═══════════════════════════════════════════
+       UBICACIÓN
+    ═══════════════════════════════════════════ */
+    #ubicacion { background: var(--surface); }
+    .location-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+    .location-info { display: flex; flex-direction: column; gap: 28px; }
+    .info-item { display: flex; gap: 18px; align-items: flex-start; }
+    .info-icon {
+      min-width: 48px; height: 48px; border-radius: var(--r-sm);
+      background: rgba(218,41,28,0.08);
+      border: 1px solid rgba(218,41,28,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+    }
+    .info-item h4 {
+      font-size: 0.75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--slate-400); margin-bottom: 4px;
+    }
+    .info-item p { font-size: 1rem; color: var(--slate-900); font-weight: 600; }
+    .info-item a { color: var(--red); }
+    .info-item a:hover { text-decoration: underline; }
+    .map-embed {
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      height: 340px;
+      background: var(--slate-200);
+      border: 1px solid var(--slate-200);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--slate-400); font-size: 0.95rem; text-align: center;
+    }
+
+    /* ═══════════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════════ */
+    footer {
+      background: var(--slate-900);
+      border-top: 4px solid var(--red);
+      padding: 64px 32px 32px;
+    }
+    .footer-inner { max-width: 1280px; margin: 0 auto; }
+    .footer-top {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 56px;
+    }
+    .footer-brand p {
+      color: var(--slate-400); font-size: 0.9rem;
+      max-width: 300px; line-height: 1.75; margin-top: 16px;
+    }
+    .footer-col h5 {
+      font-family: var(--font-display);
+      font-size: 0.8rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px;
+      color: var(--white); margin-bottom: 20px;
+    }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+    .footer-col a {
+      color: var(--slate-400); font-size: 0.9rem; font-weight: 500;
+      transition: color 0.2s;
+    }
+    .footer-col a:hover { color: var(--white); }
+    .footer-bottom {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px;
+      color: var(--slate-600); font-size: 0.85rem; font-weight: 500;
+    }
+    .allatyou-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 8px 16px; border-radius: 100px;
+      color: var(--white); font-size: 0.85rem; font-weight: 600;
+    }
+    .allatyou-badge .allatyou-logo {
+      width: 20px; height: 20px; border-radius: 4px;
+      background: var(--green);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .allatyou-badge .allatyou-logo svg { width: 12px; height: 12px; fill: white; }
+
+    /* ═══════════════════════════════════════════
+       WA FLOAT
+    ═══════════════════════════════════════════ */
+    .wa-float {
+      position: fixed; bottom: 28px; right: 28px; z-index: 999;
+      background: #22c55e;
+      width: 60px; height: 60px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 32px rgba(34,197,94,0.5);
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+      animation: float-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both;
+    }
+    .wa-float:hover { transform: scale(1.1); box-shadow: 0 12px 40px rgba(34,197,94,0.6); }
+    .wa-float svg { width: 28px; height: 28px; fill: white; }
+    @keyframes float-in { from { opacity:0; transform: scale(0.4); } to { opacity:1; transform: scale(1); } }
+
+    /* ═══════════════════════════════════════════
+       PREFERS-REDUCED-MOTION — ACCESSIBILITY
+    ═══════════════════════════════════════════ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      body.js-loaded .reveal {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+      }
+      .wa-float { animation: none; }
+    }
+
+    /* ═══════════════════════════════════════════
+       RESPONSIVE — TABLET (768-1024px)
+    ═══════════════════════════════════════════ */
+    @media (max-width: 1024px) {
+      /* Hero: stack (image top, text below) */
+      #hero {
+        grid-template-columns: 1fr;
+        grid-template-rows: 50vh auto;
+      }
+      .hero-text-col { padding: 64px 32px; order: 2; }
+      .hero-img-col { order: 1; }
+      .hero-img-col::before { display: none; }
+      .hero-stats { gap: 24px; }
+
+      /* Bento: 2-column intermediate */
+      .bento { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto; }
+      .bento-featured { grid-column: 1 / 3; grid-row: 1 / 2; min-height: 260px; }
+      .bento-card-2 { grid-column: 1 / 2; grid-row: 2 / 3; }
+      .bento-card-3 { grid-column: 2 / 3; grid-row: 2 / 3; }
+      .bento-card-4 { grid-column: 1 / 3; grid-row: 3 / 4; }
+
+      /* Taller: stack */
+      #taller .section-inner { grid-template-columns: 1fr; gap: 48px; }
+      .taller-badge { bottom: 16px; right: 16px; }
+
+      /* Proceso: 2-col */
+      .steps-grid { grid-template-columns: 1fr 1fr; gap: 40px; }
+      .steps-grid::before { display: none; }
+
+      /* Location: stack */
+      .location-grid { grid-template-columns: 1fr; }
+
+      /* Footer: 2-col grid */
+      .footer-top { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ═══════════════════════════════════════════
+       RESPONSIVE — MOBILE (< 768px)
+    ═══════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-links.open {
+        display: flex; flex-direction: column;
+        position: fixed; top: 72px; left: 0; right: 0;
+        background: rgba(248,250,252,0.97);
+        backdrop-filter: blur(12px);
+        padding: 24px 24px 32px;
+        border-bottom: 2px solid var(--red);
+        box-shadow: 0 16px 48px rgba(0,0,0,0.1);
+        gap: 16px;
+      }
+      .hamburger { display: flex; }
+
+      #hero { grid-template-rows: 45vh auto; }
+      .hero-text-col { padding: 40px 24px; }
+
+      /* Bento: single column */
+      .bento { grid-template-columns: 1fr; }
+      .bento-featured,
+      .bento-card-2,
+      .bento-card-3,
+      .bento-card-4 { grid-column: 1; grid-row: auto; }
+
+      /* Proceso: 1-col */
+      .steps-grid { grid-template-columns: 1fr; gap: 40px; }
+
+      .trust-strip { gap: 16px; flex-direction: column; align-items: flex-start; padding: 20px 24px; }
+      .section-inner { padding: 64px 24px; }
+      .footer-top { grid-template-columns: 1fr; }
+
+      .hero-stats { flex-direction: column; gap: 20px; }
+      .location-grid { gap: 40px; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ═══ NAV ════════════════════════════════════ -->
+  <nav id="main-nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <div class="nav-logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 3L22 19H2L12 3Z" fill="white"/>
+          </svg>
+        </div>
+        <div>
+          <div class="nav-logo-name">EURO<span>FRENOS</span></div>
+          <div class="nav-logo-sub">Mecánica General</div>
+        </div>
+      </a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#servicios">Servicios</a></li>
+        <li><a href="#proceso">¿Cómo funciona?</a></li>
+        <li><a href="#testimonios">Clientes</a></li>
+        <li><a href="#ubicacion">Ubicación</a></li>
+        <li><a href="/login" className="nav-login-link" style="color:var(--slate-600);font-weight:700;">Portal Taller</a></li>
+        <li><a href="https://wa.me/573103793785?text=Hola%2C%20quiero%20agendar%20una%20cita%20en%20Eurofrenos" target="_blank" class="nav-cta">Agendar cita</a></li>
+      </ul>
+      <button class="hamburger" id="hamburger" aria-label="Menú" onclick="toggleMenu()">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ═══ HERO — SPLIT DIAGONAL ══════════════════ -->
+  <section id="hero">
+    <div class="hero-text-col">
+      <div class="hero-kicker">Carrera 49a # 13a 43 · Cali</div>
+      <h1 class="hero-headline">
+        EURO<em>FRENOS</em>
+      </h1>
+      <p class="hero-sub">Mecánica General</p>
+      <p class="hero-desc">
+        Especialistas en diagnóstico preciso, sistemas de frenos y mantenimiento integral. Tu vehículo en manos expertas, con transparencia total.
+      </p>
+      <div class="hero-actions">
+        <a href="https://wa.me/573103793785?text=Hola%2C%20quiero%20agendar%20una%20cita%20en%20Eurofrenos" target="_blank" class="btn-primary">
+          Agendar revisión
+        </a>
+        <a href="#servicios" class="btn-ghost">Nuestros servicios</a>
+      </div>
+      <div class="hero-stats">
+        <div>
+          <div class="hero-stat-num">+1.200</div>
+          <div class="hero-stat-lbl">Vehículos atendidos</div>
+        </div>
+        <div>
+          <div class="hero-stat-num">10 años</div>
+          <div class="hero-stat-lbl">De experiencia</div>
+        </div>
+        <div>
+          <div class="hero-stat-num">4.9 ★</div>
+          <div class="hero-stat-lbl">Calificación promedio</div>
+        </div>
+      </div>
+    </div>
+    <div class="hero-img-col">
+      <picture>
+        <source srcset="img/hero.webp" type="image/webp" />
+        <img src="img/hero.jpg" alt="Vehículo en taller Eurofrenos, Bogotá" loading="eager" />
+      </picture>
+    </div>
+  </section>
+
+  <!-- ═══ TRUST STRIP ═══════════════════════════ -->
+  <div class="trust-strip">
+    <div class="trust-item">
+      <span class="trust-item-icon">📍</span>
+      Carrera 49a # 13a 43, Bogotá
+    </div>
+    <div class="trust-item">
+      <span class="trust-item-icon">📞</span>
+      310 3793785 &nbsp;·&nbsp; 333 2216847
+    </div>
+    <div class="trust-item">
+      <span class="trust-item-icon">✔</span>
+      Trabajamos con todas las marcas
+    </div>
+    <div class="trust-item">
+      <span class="trust-item-icon">🏆</span>
+      Garantía en todos los servicios
+    </div>
+  </div>
+
+  <!-- ═══ SERVICIOS — BENTO GRID ════════════════ -->
+  <section id="servicios">
+    <div class="section-inner">
+      <div class="reveal">
+        <div class="section-label">Especialidades</div>
+        <h2 class="section-heading">Todo lo que tu auto <span>necesita</span></h2>
+        <p class="section-sub">Mantenimiento especializado con tecnología de diagnóstico de última generación.</p>
+      </div>
+
+      <div class="bento reveal-group">
+        <!-- Featured: Frenos -->
+        <div class="bento-featured reveal">
+          <span class="bento-tag">⭐ Servicio estrella</span>
+          <div class="b-num">01</div>
+          <div class="b-icon">🛞</div>
+          <h3>Frenos</h3>
+          <p>Diagnóstico completo, cambio de pastillas, discos, calibradores y líquido. Revisión del sistema ABS. Tu seguridad es nuestra prioridad número uno en la vía.</p>
+        </div>
+        <!-- Card 2 -->
+        <div class="bento-card bento-card-2 reveal">
+          <div>
+            <div class="b-icon">⚙️</div>
+            <h3>Mecánica General</h3>
+            <p>Motor, suspensión, afinaciones y mantenimiento preventivo para prolongar la vida útil de tu vehículo.</p>
+          </div>
+          <div class="b-num">02</div>
+        </div>
+        <!-- Card 3 -->
+        <div class="bento-card bento-card-3 reveal">
+          <div>
+            <div class="b-icon">❄️</div>
+            <h3>Aire Acondicionado</h3>
+            <p>Carga de gas, fugas y mantenimiento del sistema de enfriamiento automotriz.</p>
+          </div>
+          <div class="b-num">03</div>
+        </div>
+        <!-- Card 4 -->
+        <div class="bento-card bento-card-4 reveal">
+          <div>
+            <div class="b-icon">⚡</div>
+            <h3>Servicio Eléctrico</h3>
+            <p>Diagnóstico por escáner, baterías, alternadores y revisión del sistema eléctrico.</p>
+          </div>
+          <div class="b-num">04</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ BRAND SELECTOR (Mini-herramienta) ═════ -->
+  <section id="marcas">
+    <div class="section-inner">
+      <div class="reveal">
+        <div class="section-label">Compatibilidad</div>
+        <h2 class="section-heading">Selecciona tu <span>marca</span></h2>
+        <p class="section-sub">Trabajamos con cualquier marca. Elige la tuya y agenda tu cita directamente por WhatsApp con el mensaje ya listo.</p>
+      </div>
+
+      <div class="reveal">
+        <p class="brand-tool-label">Toca tu marca para activar el link de WhatsApp:</p>
+        <div class="brands-grid" id="brandsGrid">
+          <!-- Dynamically rendered by JS below -->
+        </div>
+        <div class="brand-cta-row">
+          <a id="wa-brand-link" href="#" target="_blank">
+            <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            Agendar por WhatsApp
+          </a>
+          <span class="brand-selected-label">
+            Marca seleccionada: <span id="selected-brand-text">ninguna</span>
+          </span>
+        </div>
+        <div class="fallback-phones">
+          <span style="font-size:0.8rem;color:var(--slate-400);text-transform:uppercase;letter-spacing:1px;font-weight:700;">O llámanos:</span>
+          <a href="tel:+573103793785"><span>📞</span> 310 3793785</a>
+          <a href="tel:+573332216847"><span>📞</span> 333 2216847</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ TALLER (Real photo) ════════════════════ -->
+  <section id="taller">
+    <div class="section-inner">
+      <div class="taller-img-col reveal">
+        <div class="taller-img-wrap">
+          <picture>
+            <source srcset="img/taller.webp" type="image/webp" />
+            <img src="img/taller.jpg" alt="Instalaciones de Eurofrenos AllAtYou, Cali" />
+          </picture>
+        </div>
+        <div class="taller-badge">
+          <div class="big">100%</div>
+          <div class="lbl">Transparencia</div>
+        </div>
+      </div>
+      <div class="taller-text-col reveal">
+        <div class="section-label">Nuestras instalaciones</div>
+        <h2 class="section-heading">Tecnología y <span>experiencia</span></h2>
+        <p style="color:var(--slate-600);font-size:1.05rem;line-height:1.8;font-weight:500;">No somos un taller donde llegas sin saber qué van a hacer. Con Eurofrenos tienes seguimiento en tiempo real, fotos del proceso y el historial completo de tu vehículo siempre disponible.</p>
+        <div class="features-list reveal-group">
+          <div class="feature-row reveal">
+            <div class="feature-check">✔</div>
+            <div>
+              <h4>Diagnóstico fotográfico</h4>
+              <p>Cada falla documentada con fotos antes y después del trabajo.</p>
+            </div>
+          </div>
+          <div class="feature-row reveal">
+            <div class="feature-check">✔</div>
+            <div>
+              <h4>Presupuesto en tiempo real</h4>
+              <p>Cotización por WhatsApp antes de autorizar cualquier trabajo. Sin sorpresas.</p>
+            </div>
+          </div>
+          <div class="feature-row reveal">
+            <div class="feature-check">✔</div>
+            <div>
+              <h4>Historial digital de tu vehículo</h4>
+              <p>Registro completo de cada servicio, accesible en cualquier momento.</p>
+            </div>
+          </div>
+          <div class="feature-row reveal">
+            <div class="feature-check">✔</div>
+            <div>
+              <h4>Garantía en todos los servicios</h4>
+              <p>Respaldamos nuestro trabajo. Si algo falla, volvemos a revisarlo sin costo.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ TESTIMONIOS — SWIPER ═══════════════════ -->
+  <section id="testimonios">
+    <div class="section-inner" style="padding-bottom: 40px;">
+      <div class="reveal">
+        <div class="section-label">Lo que dicen</div>
+        <h2 class="section-heading">Clientes que <span>confían</span></h2>
+      </div>
+    </div>
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px 80px;">
+      <div class="swiper reveal">
+        <div class="swiper-wrapper">
+          <div class="swiper-slide">
+            <div class="testimonial-card">
+              <div class="testimonial-stars">★★★★★</div>
+              <p class="testimonial-text">"Llevé mi Mazda con vibración al frenar. Me mostraron fotos de los discos rayados, me dieron el presupuesto antes de tocar nada y en 2 horas ya estaba listo. Increíble la transparencia."</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">CR</div>
+                <div>
+                  <div class="author-name">Carlos R.</div>
+                  <div class="author-vehicle">Mazda 3 · 2019</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="swiper-slide">
+            <div class="testimonial-card">
+              <div class="testimonial-stars">★★★★★</div>
+              <p class="testimonial-text">"Por fin un taller donde te explican todo. Me mandaron el diagnóstico por WhatsApp con fotos, aprobé el trabajo desde la oficina y cuando llegué el carro ya estaba. Así debería ser siempre."</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">LP</div>
+                <div>
+                  <div class="author-name">Laura P.</div>
+                  <div class="author-vehicle">Toyota Corolla · 2021</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="swiper-slide">
+            <div class="testimonial-card">
+              <div class="testimonial-stars">★★★★★</div>
+              <p class="testimonial-text">"Fui por ruido en suspensión, encontraron 3 problemas adicionales y me dieron opciones sin presión. Ya llevo 3 años yendo con toda la familia. El mejor taller del sector."</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">AM</div>
+                <div>
+                  <div class="author-name">Andrés M.</div>
+                  <div class="author-vehicle">Kia Sportage · 2018</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="swiper-slide">
+            <div class="testimonial-card">
+              <div class="testimonial-stars">★★★★★</div>
+              <p class="testimonial-text">"El sistema de seguimiento online es lo mejor. Puedo ver el estado de mi carro en tiempo real desde el trabajo. Nunca más llevaré mi carro a otro taller."</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">SG</div>
+                <div>
+                  <div class="author-name">Sandra G.</div>
+                  <div class="author-vehicle">Chevrolet Spark · 2020</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="swiper-pagination"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ PROCESO ════════════════════════════════ -->
+  <section id="proceso">
+    <div class="section-inner">
+      <div class="reveal" style="text-align:center;margin-bottom:64px;">
+        <div class="section-label" style="justify-content:center;">Transparencia total</div>
+        <h2 class="section-heading" style="margin:0 auto 16px;">Tu cita en <span>4 pasos</span></h2>
+        <p class="section-sub" style="margin: 0 auto;">Hemos digitalizado el proceso para que tengas claridad y cero sorpresas.</p>
+      </div>
+      <div class="steps-grid reveal-group">
+        <div class="step reveal">
+          <div class="step-num">1</div>
+          <h3>Agenda tu cita</h3>
+          <p>Contáctanos por WhatsApp o llega directamente. Te registramos y asignamos un técnico.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">2</div>
+          <h3>Diagnóstico digital</h3>
+          <p>Revisión con equipo especializado, documentada con fotos. Sabemos exactamente qué tiene tu carro.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">3</div>
+          <h3>Presupuesto claro</h3>
+          <p>Recibes la cotización por WhatsApp antes de autorizar. Sin letra menuda, sin sorpresas.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">4</div>
+          <h3>Recoge tu vehículo</h3>
+          <p>Te avisamos cuando está listo. Garantía incluida y historial guardado permanentemente.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CTA BANNER ═════════════════════════════ -->
+  <section id="cta-banner">
+    <div class="cta-inner reveal">
+      <div class="section-label">¿Listo para agendar?</div>
+      <h2>¿Tu vehículo necesita revisión?</h2>
+      <p>Atendemos de lunes a viernes 7am–6pm y sábados 7am–2pm. Escríbenos ahora.</p>
+      <div class="cta-actions">
+        <a href="https://wa.me/573103793785?text=Hola%2C%20quiero%20agendar%20una%20cita%20en%20Eurofrenos" target="_blank" class="btn-wa">
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:var(--red)"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Escribir por WhatsApp
+        </a>
+        <a href="tel:+573103793785" class="btn-white-ghost">📞 Llamar ahora</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ UBICACIÓN ══════════════════════════════ -->
+  <section id="ubicacion">
+    <div class="section-inner">
+      <div class="reveal">
+        <div class="section-label">Encuéntranos</div>
+        <h2 class="section-heading">Estamos en <span>Cali</span></h2>
+      </div>
+      <div class="location-grid" style="margin-top:48px;">
+        <div class="location-info reveal-group">
+          <div class="info-item reveal">
+            <div class="info-icon">📍</div>
+            <div>
+              <h4>Dirección</h4>
+              <p>Carrera 49a # 13a 43</p>
+            </div>
+          </div>
+          <div class="info-item reveal">
+            <div class="info-icon">🕐</div>
+            <div>
+              <h4>Horario de atención</h4>
+              <p>Lunes a Viernes: 7:00am – 6:00pm<br />Sábados: 7:00am – 2:00pm</p>
+            </div>
+          </div>
+          <div class="info-item reveal">
+            <div class="info-icon">📱</div>
+            <div>
+              <h4>Teléfonos</h4>
+              <p><a href="tel:+573103793785">310 3793785</a> &nbsp;·&nbsp; <a href="tel:+573332216847">333 2216847</a></p>
+            </div>
+          </div>
+          <div class="info-item reveal">
+            <div class="info-icon">💬</div>
+            <div>
+              <h4>WhatsApp</h4>
+              <p><a href="https://wa.me/573103793785" target="_blank">Escribir ahora →</a></p>
+            </div>
+          </div>
+        </div>
+        <div class="map-embed reveal">
+          <div>
+            🗺️<br /><br />
+            <strong style="color:var(--slate-800)">Mapa interactivo</strong><br />
+            <span style="font-size:.875rem;color:var(--slate-600)">Inserta aquí tu Google Maps embed<br />con las coordenadas reales del taller</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FOOTER ═════════════════════════════════ -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <a href="#" class="nav-logo">
+            <div class="nav-logo-icon">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3L22 19H2L12 3Z" fill="white"/></svg>
+            </div>
+            <div>
+              <div class="nav-logo-name" style="color:white;">EURO<span>FRENOS</span></div>
+              <div class="nav-logo-sub">Mecánica General</div>
+            </div>
+          </a>
+          <p>Taller especializado en frenos, mecánica general, aire acondicionado y servicio eléctrico en Cali. Tecnología, transparencia y garantía.</p>
+        </div>
+        <div class="footer-col">
+          <h5>Servicios</h5>
+          <ul>
+            <li><a href="#servicios">Frenos</a></li>
+            <li><a href="#servicios">Mecánica General</a></li>
+            <li><a href="#servicios">Aire Acondicionado</a></li>
+            <li><a href="#servicios">Servicio Eléctrico</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Empresa</h5>
+          <ul>
+            <li><a href="#proceso">¿Cómo funciona?</a></li>
+            <li><a href="#testimonios">Testimonios</a></li>
+            <li><a href="#ubicacion">Ubicación</a></li>
+            <li><a href="https://taller.allatyou.com/eurofrenos/login" target="_blank">Portal de clientes</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Contacto</h5>
+          <ul>
+            <li><a href="https://wa.me/573103793785" target="_blank">WhatsApp</a></li>
+            <li><a href="tel:+573103793785">310 3793785</a></li>
+            <li><a href="tel:+573332216847">333 2216847</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2026 Eurofrenos · Todos los derechos reservados</span>
+        <div class="allatyou-badge">
+          Powered by
+          <div class="allatyou-logo">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3L22 19H2L12 3Z" fill="white"/></svg>
+          </div>
+          AllAtYou
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══ WA FLOAT ═══════════════════════════════ -->
+  <a href="https://wa.me/573103793785?text=Hola%2C%20quiero%20agendar%20una%20cita%20en%20Eurofrenos" target="_blank" class="wa-float" title="Escríbenos por WhatsApp">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
+
+  <!-- ═══ SCRIPTS (defer, non-blocking) ═════════ -->
+  <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/bundled/lenis.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js" defer></script>
+
+  <script>
+    // ─── Progressive Enhancement: only hide elements when JS is live ───
+    document.body.classList.add('js-loaded');
+
+    // ─── Hamburger menu ───────────────────────────────────────────────
+    function toggleMenu() {
+      const nav = document.getElementById('navLinks');
+      nav.classList.toggle('open');
+    }
+    document.querySelectorAll('.nav-links a').forEach(a =>
+      a.addEventListener('click', () => document.getElementById('navLinks').classList.remove('open'))
+    );
+
+    // ─── Nav scroll effect ────────────────────────────────────────────
+    window.addEventListener('scroll', () => {
+      document.getElementById('main-nav').classList.toggle('scrolled', window.scrollY > 40);
+    }, { passive: true });
+
+    // ─── IntersectionObserver: stagger reveal ─────────────────────────
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+    // ─── Brand selector mini-tool ──────────────────────────────────────
+    const BRANDS = ['TOYOTA', 'CHEVROLET', 'FORD', 'KIA', 'MAZDA', 'HYUNDAI',
+                    'NISSAN', 'VW', 'SUBARU', 'MITSUBISHI', 'HONDA', 'JAC',
+                    'DODGE', 'JEEP', 'RENAULT', 'SUZUKI'];
+    const BASE_WA = '573103793785';
+    const brandsGrid = document.getElementById('brandsGrid');
+    const waLink = document.getElementById('wa-brand-link');
+    const selectedLabel = document.getElementById('selected-brand-text');
+
+    BRANDS.forEach(brand => {
+      const btn = document.createElement('button');
+      btn.className = 'brand-btn';
+      btn.textContent = brand;
+      btn.addEventListener('click', () => {
+        // Deselect others
+        brandsGrid.querySelectorAll('.brand-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        // Build safe WA URL
+        const msg = encodeURIComponent(`Hola, necesito revisión para mi ${brand}. ¿Cuándo tienen disponibilidad?`);
+        waLink.href = `https://wa.me/${BASE_WA}?text=${msg}`;
+        waLink.classList.add('enabled');
+        selectedLabel.textContent = brand;
+      });
+      brandsGrid.appendChild(btn);
+    });
+
+    // ─── Init scripts after they load (using window.onload as fallback) ─
+    window.addEventListener('load', () => {
+      // Lenis smooth scroll — ONLY if user has no reduce-motion preference
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!prefersReduced && window.Lenis) {
+        const lenis = new Lenis({ lerp: 0.08, smoothWheel: true });
+        function rafLenis(time) {
+          lenis.raf(time);
+          requestAnimationFrame(rafLenis);
+        }
+        requestAnimationFrame(rafLenis);
+      }
+
+      // Swiper testimonials
+      if (window.Swiper) {
+        new Swiper('.swiper', {
+          slidesPerView: 1,
+          spaceBetween: 24,
+          loop: true,
+          pagination: { el: '.swiper-pagination', clickable: true },
+          autoplay: { delay: 5000, disableOnInteraction: false, pauseOnMouseEnter: true },
+          breakpoints: {
+            640: { slidesPerView: 1.5 },
+            900: { slidesPerView: 2 },
+            1200: { slidesPerView: 3 }
+          }
+        });
+      }
+    });
+  </script>
+
+</body>
+</html>
