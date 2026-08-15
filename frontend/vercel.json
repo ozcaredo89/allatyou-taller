@@ -1,16 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.eurofrenos.lat"
-        }
-      ],
-      "destination": "/landing/eurofrenos/index.html"
-    },
-    {
       "source": "/((?!landing/).*)",
       "destination": "/index.html"
     }

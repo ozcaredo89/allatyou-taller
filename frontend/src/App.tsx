@@ -270,27 +270,13 @@ const ProtectedLayout = () => {
   );
 };
 
-const RootRoute = () => {
-  useEffect(() => {
-    if (window.location.hostname.includes('eurofrenos.lat')) {
-      window.location.replace('/landing/eurofrenos/index.html');
-    }
-  }, []);
-
-  if (typeof window !== 'undefined' && window.location.hostname.includes('eurofrenos.lat')) {
-    return null;
-  }
-
-  return <Navigate to="/login" replace />;
-};
-
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
           {/* Global entry point */}
-          <Route path="/" element={<RootRoute />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Registro />} />
           <Route path="/kiosco/:slug" element={<Kiosco />} />
