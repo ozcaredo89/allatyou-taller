@@ -5,16 +5,6 @@
       "has": [
         {
           "type": "host",
-          "value": "eurofrenos.lat"
-        }
-      ],
-      "destination": "/landing/eurofrenos/index.html"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "host",
           "value": "www.eurofrenos.lat"
         }
       ],
