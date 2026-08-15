@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Smartphone, Monitor, Trash2, Loader2, ShieldCheck, AlertCircle, RefreshCw, Laptop, Tablet } from 'lucide-react';
+import { Smartphone, Monitor, Trash2, Loader2, ShieldCheck, AlertCircle, RefreshCw, Laptop, Tablet, Bot, ToggleLeft, ToggleRight, Users, Zap, Phone, Mail, DollarSign } from 'lucide-react';
 import api from '../services/api';
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -48,6 +48,43 @@ const formatRelative = (dateStr: string, t: (k: string) => string): string => {
   return `${t('configuracion.hace')} ${days} ${t('configuracion.dias')}`;
 };
 
+// ─── Types: Módulo IA ────────────────────────────────────────────────────
+interface ConfigAI {
+  activo: boolean;
+  modo_precios: 'rangos' | 'exacto';
+  presupuesto_diario_usd: number;
+  telefono_leads: string | null;
+  email_notificaciones: string | null;
+}
+
+interface LeadIA {
+  id: string;
+  nombre: string | null;
+  telefono: string;
+  vehiculo_marca: string | null;
+  vehiculo_linea: string | null;
+  motivo_consulta: string | null;
+  cotizacion_estimada: string | null;
+  estado: 'nuevo' | 'contactado' | 'agendado' | 'descartado';
+  created_at: string;
+}
+
+interface UsageIA {
+  fecha: string;
+  presupuesto_diario_usd: number;
+  consumido_usd: number;
+  porcentaje: number;
+  por_proveedor: { proveedor: string; costo_estimado_usd: number; requests_count: number }[];
+}
+
+const ESTADOS_LEAD: LeadIA['estado'][] = ['nuevo', 'contactado', 'agendado', 'descartado'];
+const ESTADO_COLORS: Record<string, string> = {
+  nuevo: 'bg-blue-100 text-blue-700',
+  contactado: 'bg-yellow-100 text-yellow-700',
+  agendado: 'bg-green-100 text-green-700',
+  descartado: 'bg-slate-100 text-slate-500',
+};
+
 // ─── Component ───────────────────────────────────────────────────────────
 const Configuracion: React.FC = () => {
   const { t } = useTranslation();
@@ -56,6 +93,15 @@ const Configuracion: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [revoking, setRevoking] = useState<string | null>(null);
+
+  // ─── Estado: Módulo IA ──────────────────────────────────────────────────
+  const [configAI, setConfigAI] = useState<ConfigAI | null>(null);
+  const [loadingAI, setLoadingAI] = useState(true);
+  const [savingAI, setSavingAI] = useState(false);
+  const [leads, setLeads] = useState<LeadIA[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(true);
+  const [usage, setUsage] = useState<UsageIA | null>(null);
+  const [tabIA, setTabIA] = useState<'config' | 'leads'>('config');
 
   const currentDeviceId = getDeviceIdFromToken();
 
@@ -78,9 +124,46 @@ const Configuracion: React.FC = () => {
     }
   }, [t, currentDeviceId]);
 
+  // ─── Cargar datos del módulo IA ────────────────────────────────────────
+  const cargarDatosIA = useCallback(async () => {
+    setLoadingAI(true);
+    setLoadingLeads(true);
+    try {
+      const [configRes, leadsRes, usageRes] = await Promise.allSettled([
+        api.get<ConfigAI>('/ai/admin/config'),
+        api.get<LeadIA[]>('/ai/admin/leads'),
+        api.get<UsageIA>('/ai/admin/usage'),
+      ]);
+      if (configRes.status === 'fulfilled') setConfigAI(configRes.value.data);
+      if (leadsRes.status === 'fulfilled') setLeads(leadsRes.value.data);
+      if (usageRes.status === 'fulfilled') setUsage(usageRes.value.data);
+    } catch { /* silencioso */ } finally {
+      setLoadingAI(false);
+      setLoadingLeads(false);
+    }
+  }, []);
+
+  const handleGuardarConfigAI = async () => {
+    if (!configAI) return;
+    setSavingAI(true);
+    try {
+      await api.put('/ai/admin/config', configAI);
+    } catch { /* silencioso */ } finally {
+      setSavingAI(false);
+    }
+  };
+
+  const handleEstadoLead = async (id: string, estado: LeadIA['estado']) => {
+    try {
+      await api.put(`/ai/admin/leads/${id}`, { estado });
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, estado } : l));
+    } catch { /* silencioso */ }
+  };
+
   useEffect(() => {
     cargarDispositivos();
-  }, [cargarDispositivos]);
+    cargarDatosIA();
+  }, [cargarDispositivos, cargarDatosIA]);
 
   const handleRevocar = async (id: string, name: string | null) => {
     const isCurrentDevice = id === currentDeviceId;
@@ -257,6 +340,236 @@ const Configuracion: React.FC = () => {
           }
         </p>
       )}
+
+      {/* ─── Sección: Asistente Virtual IA ─────────────────────────────── */}
+      <div className="mt-12">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-violet-100 rounded-xl">
+            <Bot className="h-6 w-6 text-violet-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-slate-800 tracking-tight">Asistente Virtual Público</h2>
+            <p className="text-slate-500 text-sm">Chatbot de cotizaciones para tu Landing Page</p>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+          {(['config', 'leads'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setTabIA(tab)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                tabIA === tab ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {tab === 'config' ? '⚙️ Configuración' : `📋 Prospectos (${leads.filter(l => l.estado === 'nuevo').length})`}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab: Configuración */}
+        {tabIA === 'config' && (
+          <div className="space-y-5">
+            {/* Monitor de Consumo */}
+            {usage && (
+              <div className="bg-white border border-slate-100 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap size={15} className="text-violet-500" />
+                  <span className="text-sm font-semibold text-slate-700">Consumo de hoy ({usage.fecha})</span>
+                </div>
+                <div className="flex items-end justify-between mb-2">
+                  <span className="text-2xl font-black text-slate-800">${usage.consumido_usd.toFixed(4)}</span>
+                  <span className="text-sm text-slate-400">de ${usage.presupuesto_diario_usd.toFixed(2)} USD</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2.5 mb-2">
+                  <div
+                    className={`h-2.5 rounded-full transition-all ${
+                      usage.porcentaje >= 100 ? 'bg-red-500' :
+                      usage.porcentaje >= 70 ? 'bg-amber-500' : 'bg-violet-500'
+                    }`}
+                    style={{ width: `${Math.min(100, usage.porcentaje)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>{usage.porcentaje}% utilizado</span>
+                  <span>{usage.por_proveedor.reduce((a, b) => a + b.requests_count, 0)} conversaciones hoy</span>
+                </div>
+              </div>
+            )}
+
+            {loadingAI ? (
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 animate-pulse h-56" />
+            ) : configAI ? (
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 space-y-5">
+                {/* Activar / Pausar chatbot */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-slate-800 text-sm">Estado del Chatbot</p>
+                    <p className="text-slate-500 text-xs mt-0.5">{configAI.activo ? 'Visible en tu Landing Page' : 'Oculto — no responde solicitudes'}</p>
+                  </div>
+                  <button
+                    onClick={() => setConfigAI(p => p ? { ...p, activo: !p.activo } : p)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all ${
+                      configAI.activo
+                        ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {configAI.activo ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                    {configAI.activo ? 'Activo' : 'Pausado'}
+                  </button>
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* Modo de Precios */}
+                <div>
+                  <p className="font-semibold text-slate-800 text-sm mb-1">Modo de Cotización</p>
+                  <p className="text-slate-500 text-xs mb-3">"Rangos" oculta tus precios exactos para protegerlos de la competencia.</p>
+                  <div className="flex gap-2">
+                    {(['rangos', 'exacto'] as const).map(modo => (
+                      <button
+                        key={modo}
+                        onClick={() => setConfigAI(p => p ? { ...p, modo_precios: modo } : p)}
+                        className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-all ${
+                          configAI.modo_precios === modo
+                            ? 'bg-violet-600 text-white border-violet-600'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
+                        }`}
+                      >
+                        {modo === 'rangos' ? '🔒 Rangos de Seguridad' : '🏷️ Precios Exactos'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* Teléfono y Email */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 mb-1.5">
+                      <Phone size={12} /> WhatsApp de contacto
+                    </label>
+                    <input
+                      type="tel"
+                      value={configAI.telefono_leads ?? ''}
+                      onChange={e => setConfigAI(p => p ? { ...p, telefono_leads: e.target.value } : p)}
+                      placeholder="3001234567"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-violet-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 mb-1.5">
+                      <Mail size={12} /> Email de notificaciones de leads
+                    </label>
+                    <input
+                      type="email"
+                      value={configAI.email_notificaciones ?? ''}
+                      onChange={e => setConfigAI(p => p ? { ...p, email_notificaciones: e.target.value } : p)}
+                      placeholder="taller@ejemplo.com"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-violet-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Presupuesto Diario */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 mb-1.5">
+                    <DollarSign size={12} /> Tope de gasto diario (USD)
+                  </label>
+                  <input
+                    type="number"
+                    min="0.10"
+                    max="10"
+                    step="0.10"
+                    value={configAI.presupuesto_diario_usd}
+                    onChange={e => setConfigAI(p => p ? { ...p, presupuesto_diario_usd: parseFloat(e.target.value) } : p)}
+                    className="w-32 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-violet-400"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">El chatbot se pausa automáticamente si supera este monto en el día.</p>
+                </div>
+
+                {/* Guardar */}
+                <button
+                  onClick={handleGuardarConfigAI}
+                  disabled={savingAI}
+                  className="w-full py-2.5 bg-violet-600 text-white font-bold rounded-xl text-sm hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingAI ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {savingAI ? 'Guardando...' : '💾 Guardar Configuración'}
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-10 text-slate-400 text-sm bg-white border border-dashed border-slate-200 rounded-2xl">
+                No se pudo cargar la configuración del Asistente Virtual.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Prospectos / Leads */}
+        {tabIA === 'leads' && (
+          <div>
+            {loadingLeads ? (
+              <div className="space-y-3">
+                {[1,2,3].map(i => <div key={i} className="bg-white border border-slate-100 rounded-2xl p-5 animate-pulse h-20" />)}
+              </div>
+            ) : leads.length === 0 ? (
+              <div className="text-center py-20 bg-white border border-dashed border-slate-200 rounded-2xl">
+                <Users className="mx-auto text-slate-300 mb-3" size={40} />
+                <p className="text-slate-500 font-medium">Aún no hay prospectos</p>
+                <p className="text-slate-400 text-sm mt-1">Los clientes que dejen sus datos en el chatbot aparecerán aquí.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {leads.map(lead => (
+                  <div key={lead.id} className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-semibold text-slate-800 text-sm">{lead.nombre ?? 'Sin nombre'}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ESTADO_COLORS[lead.estado]}`}>
+                          {lead.estado}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 text-xs">
+                        📞 {lead.telefono}
+                        {lead.vehiculo_marca && ` · ${lead.vehiculo_marca} ${lead.vehiculo_linea ?? ''}`}
+                      </p>
+                      {lead.motivo_consulta && (
+                        <p className="text-slate-400 text-xs mt-0.5 truncate">{lead.motivo_consulta}</p>
+                      )}
+                      <p className="text-slate-300 text-xs mt-0.5">{new Date(lead.created_at).toLocaleString('es-CO')}</p>
+                    </div>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {/* Botón de contacto por WhatsApp */}
+                      <a
+                        href={`https://wa.me/57${lead.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${lead.nombre ?? ''}, te contactamos desde ${configAI?.telefono_leads ? 'el taller' : 'nuestro equipo'} por tu consulta sobre tu vehículo.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors text-center"
+                      >
+                        💬 WA
+                      </a>
+                      {/* Cambiar estado */}
+                      <select
+                        value={lead.estado}
+                        onChange={e => handleEstadoLead(lead.id, e.target.value as LeadIA['estado'])}
+                        className="text-xs border border-slate-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-violet-400 bg-white"
+                      >
+                        {ESTADOS_LEAD.map(est => (
+                          <option key={est} value={est}>{est}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

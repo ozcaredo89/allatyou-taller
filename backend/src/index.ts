@@ -17,6 +17,11 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Confiar en el proxy de Railway/Vercel para obtener la IP real del cliente.
+// Sin esto, req.ip devuelve la IP del load balancer y el rate limiter
+// trataría a todos los usuarios como si fueran el mismo origen.
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
