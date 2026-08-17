@@ -11,7 +11,10 @@
   <!-- Open Graph -->
   <meta property="og:title" content="Eurofrenos — Mecánica General | Cali" />
   <meta property="og:description" content="Especialistas en frenos, mecánica general, aire acondicionado y servicio eléctrico. Diagnóstico con tecnología, presupuesto transparente." />
+  <meta property="og:image" content="https://taller.allatyou.com/eurofrenos/img/front_taller.jpg" />
   <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://taller.allatyou.com/eurofrenos/img/front_taller.jpg" />
 
   <!-- Schema.org AutoRepair (SEO Local) -->
   <script type="application/ld+json">
@@ -298,9 +301,8 @@
     }
     .hero-img-col img {
       width: 100%; height: 100%;
-      object-fit: cover; object-position: center;
-      /* Duotone-ish: darken shadows toward red brand */
-      filter: brightness(0.9) saturate(1.1);
+      object-fit: cover; object-position: center 60%;
+      filter: brightness(0.96) saturate(1.08);
     }
     /* Diagonal cut from left side */
     .hero-img-col::before {
@@ -567,7 +569,7 @@
       overflow: hidden;
       box-shadow: 0 40px 80px rgba(0,0,0,0.12);
     }
-    .taller-img-wrap img { width: 100%; height: 480px; object-fit: cover; }
+    .taller-img-wrap img { width: 100%; height: 480px; object-fit: cover; object-position: center 30%; display: block; }
     .taller-badge {
       position: absolute; bottom: -20px; right: -20px;
       background: var(--red);
@@ -754,10 +756,16 @@
       border-radius: var(--r-lg);
       overflow: hidden;
       height: 340px;
-      background: var(--slate-200);
+      position: relative;
       border: 1px solid var(--slate-200);
-      display: flex; align-items: center; justify-content: center;
-      color: var(--slate-400); font-size: 0.95rem; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    }
+    .map-embed iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
     }
 
     /* ═══════════════════════════════════════════
@@ -987,8 +995,8 @@
     </div>
     <div class="hero-img-col">
       <picture>
-        <source srcset="img/hero.webp" type="image/webp" />
-        <img src="img/hero.jpg" alt="Vehículo en taller Eurofrenos, Cali" loading="eager" />
+        <source srcset="img/Auto.jpg" type="image/jpeg" />
+        <img src="img/Auto.jpg" alt="Diagnóstico y servicio de frenos en Eurofrenos AllAtYou, Cali" loading="eager" />
       </picture>
     </div>
   </section>
@@ -1100,8 +1108,8 @@
       <div class="taller-img-col reveal">
         <div class="taller-img-wrap">
           <picture>
-            <source srcset="img/taller.webp" type="image/webp" />
-            <img src="img/taller.jpg" alt="Instalaciones de Eurofrenos AllAtYou, Cali" />
+            <source srcset="img/front_taller.jpg" type="image/jpeg" />
+            <img src="img/front_taller.jpg" alt="Instalaciones y equipo de Eurofrenos Mecánica General, Cali" loading="lazy" />
           </picture>
         </div>
         <div class="taller-badge">
@@ -1304,12 +1312,41 @@
           </div>
         </div>
         <div class="map-embed reveal">
-          <div>
-            🗺️<br /><br />
-            <strong style="color:var(--slate-800)">Mapa interactivo</strong><br />
-            <span style="font-size:.875rem;color:var(--slate-600)">Inserta aquí tu Google Maps embed<br />con las coordenadas reales del taller</span>
-          </div>
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3987.9439331316094!2d-76.5326946!3d3.409068999999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8e30a751b2190fd9%3A0xe2effdc5f0b186e!2sEurofrenos%20AllAtYou!5e1!3m2!1sen!2sco!4v1786932473954!5m2!1sen!2sco"
+            width="100%"
+            height="100%"
+            style="border:0; display:block;"
+            allowfullscreen=""
+            loading="lazy"
+            referrerpolicy="strict-origin-when-cross-origin"
+            title="Ubicación de Eurofrenos AllAtYou en Cali"
+          ></iframe>
         </div>
+      </div>
+
+      <!-- Botones de navegación rápida -->
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:32px;" class="reveal">
+        <a
+          href="https://www.google.com/maps/dir/?api=1&destination=Eurofrenos+AllAtYou,+Carrera+49a+%23+13a+43,+Cali"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="display:inline-flex;align-items:center;gap:10px;background:var(--red);color:white;font-family:var(--font-display);font-weight:700;font-size:0.9rem;padding:14px 24px;border-radius:var(--r-sm);text-decoration:none;transition:opacity 0.2s;"
+          onmouseover="this.style.opacity='0.85'"
+          onmouseout="this.style.opacity='1'"
+        >
+          🗺️ Cómo llegar por Google Maps
+        </a>
+        <a
+          href="https://waze.com/ul?q=Eurofrenos+AllAtYou+Cali&ll=3.409069,-76.532695&navigate=yes"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="display:inline-flex;align-items:center;gap:10px;background:white;color:var(--slate-800);border:2px solid var(--slate-200);font-family:var(--font-display);font-weight:700;font-size:0.9rem;padding:14px 24px;border-radius:var(--r-sm);text-decoration:none;transition:border-color 0.2s;"
+          onmouseover="this.style.borderColor='var(--red)'"
+          onmouseout="this.style.borderColor='var(--slate-200)'"
+        >
+          🚗 Abrir en Waze
+        </a>
       </div>
     </div>
   </section>
