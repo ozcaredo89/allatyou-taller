@@ -2,9 +2,12 @@ import React, { useEffect, useState } from 'react';
 import {
   X, Car, CheckCircle2, FileSearch, Receipt, XCircle,
   RotateCcw, Clock, ClipboardList, Users, Loader2, ChevronDown,
-  ChevronUp, AlertCircle
+  ChevronUp, AlertCircle, History
 } from 'lucide-react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import { trackEvent } from '../utils/analytics';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Evento {
@@ -187,6 +190,10 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
+  const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const fetchBitacora = async () => {
@@ -309,12 +316,24 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
           )}
         </div>
 
-        {/* ── Footer con total de eventos ── */}
-        {!loading && eventos.length > 0 && (
-          <div className="shrink-0 px-5 py-3 border-t border-slate-100 text-xs text-slate-400 text-center">
-            {eventos.length} evento{eventos.length !== 1 ? 's' : ''} registrado{eventos.length !== 1 ? 's' : ''} en esta visita
-          </div>
-        )}
+        {/* ── Footer: total de eventos + acceso a historial anterior ── */}
+        <div className="shrink-0 px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-3">
+          <span className="text-xs text-slate-400">
+            {!loading && eventos.length > 0
+              ? `${eventos.length} evento${eventos.length !== 1 ? 's' : ''} en esta visita`
+              : ''}
+          </span>
+          <button
+            onClick={() => {
+              trackEvent('timeline.click_historial_anterior', { estado: vehiculoInfo.estado, from_path: location.pathname });
+              onClose();
+              navigate(`/${slug}/historial?search=${vehiculoInfo.placa}`);
+            }}
+            className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition whitespace-nowrap"
+          >
+            <History size={14} /> {t('timeline.ver_historial_anterior')}
+          </button>
+        </div>
       </div>
     </>
   );
