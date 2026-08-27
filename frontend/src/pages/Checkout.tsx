@@ -4,7 +4,6 @@ import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { generarLinkWhatsApp } from '../utils/whatsapp';
 
 interface ItemFactura {
   id: string;
@@ -254,18 +253,18 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // Notifica al cliente: popup seguro (abre primero, asigna URL después)
+  // Notifica al cliente por WhatsApp con cotización detallada y enriquecida
   const handleNotificarCliente = async () => {
-    // 1. Abrir pestaña inmediatamente (garantiza evitar el bloqueador de popups)
+    // 1. Abrir pestaña inmediatamente para prevenir el bloqueo de popups del navegador
     const newWindow = window.open('about:blank', '_blank');
 
     try {
       setNotificando(true);
       setError('');
 
-      const vehiculo = ingreso.taller_vehiculos;
+      const vehiculo = ingreso?.taller_vehiculos;
       const cliente = vehiculo?.taller_clientes;
-      const telefono = cliente?.telefono || '';
+      const telefono = cliente?.telefono?.replace(/[\s-]/g, '') || '';
 
       if (!telefono) {
         if (newWindow) newWindow.close();
@@ -273,31 +272,88 @@ const Checkout: React.FC = () => {
         return;
       }
 
-      const waUrl = generarLinkWhatsApp(
-        telefono,
-        t('whatsapp.msg_cotizacion', {
-          nombre: cliente?.nombre_completo,
-          taller: empresaNombre || 'TallerPro',
-          placa: vehiculo?.placa
-        })
-      );
+      // Normalizar al formato internacional sin '+' para wa.me
+      // Strips all non-digits, then prepends 57 (Colombia) only if the number
+      // doesn't already carry the country code (12+ digits starting with 57).
+      const soloDigitos = telefono.replace(/\D/g, '');
+      const telefonoLimpio = soloDigitos.startsWith('57') && soloDigitos.length >= 12
+        ? soloDigitos
+        : `57${soloDigitos}`;
 
-      // 2. Asignar la URL a la pestaña que ya abrimos
+      const formatCOP = (valor: number) =>
+        `$${Math.round(valor).toLocaleString('es-CO')}`;
+
+      // 2. Resumen de diagnóstico mecánico relevante
+      const diagnosticoMecanico = ingreso?.diagnostico_mecanico || {};
+      const fallasDiagnostico = Object.entries(diagnosticoMecanico)
+        .filter(([, val]: any) => val && (val.estado === 'danado' || val.estado === 'revisar' || val.notas))
+        .map(([key, val]: any) => {
+          const sistema = key.replace(/_/g, ' ');
+          const estado = val.estado === 'danado' ? '⚠️ Requiere cambio' : '🔍 Revisión sugerida';
+          const detalle = val.notas ? ` - ${val.notas}` : '';
+          return `  • *${sistema.toUpperCase()}*: ${estado}${detalle}`;
+        });
+
+      const seccionDiagnostico = fallasDiagnostico.length > 0
+        ? `📋 *Diagnóstico Principal:*\n${fallasDiagnostico.join('\n')}\n\n`
+        : '';
+
+      // 3. Desglose de ítems con justificaciones IA en cursiva
+      const desgloseItems = items
+        .map((item, idx) => {
+          const lineaItem = `${idx + 1}. *${item.descripcion}* (Cant: ${item.cantidad}) - ${formatCOP(item.total)}`;
+          const lineaJustificacion = item.justificacion?.trim()
+            ? `\n   _${item.justificacion.trim()}_`
+            : '';
+          return `${lineaItem}${lineaJustificacion}`;
+        })
+        .join('\n\n');
+
+      // 4. Mensaje completo con formato WhatsApp Markdown
+      const mensajeWhatsApp = [
+        `👋 ¡Hola *${cliente?.nombre_completo || 'Estimado(a) Cliente'}*!`,
+        `Le saludamos de *${empresaNombre || 'TallerPro'}*. A continuación le compartimos el detalle y cotización del servicio para su vehículo:\n`,
+        `🚗 *Vehículo:* ${vehiculo?.marca || ''} ${vehiculo?.linea || ''} ${vehiculo?.modelo_anio ? `(${vehiculo.modelo_anio})` : ''}`.trim(),
+        `🏷️ *Placa:* *${vehiculo?.placa || 'N/A'}*\n`,
+        seccionDiagnostico,
+        `🛠️ *Desglose de Servicios y Repuestos:*`,
+        desgloseItems,
+        `\n--------------------------------`,
+        `*Subtotal:* ${formatCOP(subtotal)}`,
+        iva > 0 ? `*IVA (19%):* ${formatCOP(iva)}` : '',
+        `*TOTAL:* *${formatCOP(total)}*`,
+        `--------------------------------\n`,
+        `¿Nos confirma si aprueba estos trabajos para proceder? ¡Quedamos muy atentos!`,
+      ]
+        .filter(line => line !== '')
+        .join('\n');
+
+      // 5. Guard de longitud: wa.me trunca silenciosamente mensajes muy largos
+      const WA_MAX_CHARS = 3000;
+      const mensajeFinal = mensajeWhatsApp.length > WA_MAX_CHARS
+        ? `${mensajeWhatsApp.slice(0, WA_MAX_CHARS)}...\n_(Mensaje recortado por longitud)_`
+        : mensajeWhatsApp;
+
+      const waUrl = `https://wa.me/${telefonoLimpio}?text=${encodeURIComponent(mensajeFinal)}`;
+
       if (newWindow) newWindow.location.href = waUrl;
 
-      // Luego guardar y avanzar estado si corresponde
+      // 6. Guardar y avanzar estado de la orden
       const nuevoEstado = ['esperando_aprobacion', 'en_reparacion', 'entregado'].includes(ingreso.estado)
         ? undefined
         : 'esperando_aprobacion';
+
       const { data } = await api.put(`/ingresos/${id}`, {
         items_factura: items,
         notas_factura: notasFactura,
         iva_incluido: ivaIncluido,
         ...(nuevoEstado ? { estado: nuevoEstado } : {}),
       });
+
       setIngreso((prev: any) => ({ ...prev, ...data }));
     } catch {
-      setError('Error al notificar al cliente.');
+      if (newWindow) newWindow.close();
+      setError('Error al notificar al cliente por WhatsApp.');
     } finally {
       setNotificando(false);
     }
