@@ -3,6 +3,7 @@ import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3,
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useState, useRef, useEffect } from 'react';
+import { trackEvent } from './utils/analytics';
 
 import Dashboard from './pages/Dashboard';
 import NuevoIngreso from './pages/NuevoIngreso';
@@ -177,6 +178,7 @@ const Navbar = () => {
             </Link>
             <Link
               to={`/${slug}/historial`}
+              onClick={() => trackEvent('navbar.click_historial', { from_path: location.pathname })}
               className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/historial') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
               <History size={16} />

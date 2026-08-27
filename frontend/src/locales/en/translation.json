@@ -8,7 +8,9 @@
     "reportes": "Reports",
     "equipo": "Team",
     "liquidaciones": "Commissions",
-    "configuracion": "Settings"
+    "configuracion": "Settings",
+    "gastos": "Expenses",
+    "crm": "CRM"
   },
   "dashboard": {
     "title": "Control Dashboard",
@@ -39,7 +41,11 @@
     "ingreso": "Date:",
     "tecnico": "Technician:",
     "btn_diagnostico": "Diagnostic",
-    "btn_checkout": "Generate Service Order"
+    "btn_checkout": "Generate Service Order",
+    "btn_bitacora": "View visit timeline"
+  },
+  "timeline": {
+    "ver_historial_anterior": "View previous visits for this plate"
   },
   "cancel_modal": {
     "title": "Cancel Process",
@@ -192,8 +198,14 @@
     "filtro_mes": "This Month",
     "filtro_rango": "Custom Range",
     "ingresos_totales": "Period Revenue",
+    "ingresos_periodo": "Daily Revenue",
     "promedio_diario": "Historical Daily Avg",
     "hoy": "Billed Today",
+    "total_gastos": "Total Expenses",
+    "utilidad_bruta": "Gross Profit",
+    "margen": "Margin",
+    "gastos_categoria": "Expenses by Category",
+    "sin_gastos": "No expenses recorded for this period.",
     "grafico_tooltip": "Revenue",
     "sin_datos": "No data for this date range.",
     "alerta_termometro": "⚠️ Attention: It's past 3:00 PM and today's revenue (${{hoy}}) is well below your daily average (${{promedio}}). Have you registered all delivered orders?",
@@ -206,7 +218,15 @@
     "op_tiempo_promedio": "Average Time",
     "op_estado": "Status",
     "op_duracion": "Duration",
-    "op_placa": "Plate"
+    "op_placa": "Plate",
+    "filtro_ayer": "Yesterday",
+    "desde": "From",
+    "hasta": "To",
+    "detalle_dia": "Day Detail",
+    "cargando_detalle": "Loading detail...",
+    "sin_datos_dia": "No data for this day",
+    "total_dia": "Day total",
+    "reintentar": "Try again"
   },
   "login": {
     "email": "Email",
@@ -369,6 +389,40 @@
     "label_fecha_inicio": "Start Date",
     "placeholder_descripcion": "E.g: Oil purchase, Rent, Payroll...",
     "placeholder_proveedor": "E.g: AutoParts Distributor",
-    "placeholder_notas": "Additional notes..."
+    "placeholder_notas": "Additional notes...",
+    "placeholder_nombre_rec": "E.g: Warehouse rent, Mechanic payroll...",
+    "placeholder_dia_mes": "E.g: 1, 15, 30",
+    "badge_recurrente": "Recurring",
+    "ver_recibo": "View receipt",
+    "ver_archivo": "View uploaded file",
+    "subiendo": "Uploading...",
+    "ajustar_monto": "You can adjust the amount if it changed",
+    "desc_plantilla": "Recurring Template: Define an expense that repeats. The system will alert you when it needs to be recorded and you can confirm it (adjusting the amount if needed).",
+    "frecuencia_diario": "Daily",
+    "frecuencia_semanal": "Weekly",
+    "frecuencia_quincenal": "Biweekly",
+    "frecuencia_mensual": "Monthly",
+    "frecuencia_anual": "Annual",
+    "confirm_eliminar": "Delete this expense from history?",
+    "error_descripcion": "Description is required.",
+    "error_monto": "Amount must be greater than zero.",
+    "error_monto_estimado": "Estimated amount must be greater than zero.",
+    "error_nombre": "Name is required.",
+    "error_eliminar": "Error deleting expense."
+  },
+  "checkout": {
+    "banner_esperando": "The quote was sent to the client. Once they approve, press <strong>\"Approve Order\"</strong> to start the repair.",
+    "btn_actualizar": "Update Order",
+    "crm_categoria_label": "CRM Category (Optional)",
+    "crm_cat_placeholder": "Cat...",
+    "crm_aceite": "Oil",
+    "crm_frenos": "Brakes",
+    "crm_aire": "A/C",
+    "crm_general": "General",
+    "ia_justificacion_titulo": "✨ AI Justification",
+    "ia_regenerar": "↺ Regenerate",
+    "ia_regenerando": "⏳ Regenerating...",
+    "ia_generando": "Generating...",
+    "ingreso_no_encontrado": "Entry not found."
   }
 }
