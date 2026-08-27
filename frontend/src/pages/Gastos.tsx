@@ -5,6 +5,7 @@ import {
   Repeat, Upload, Tag, CalendarClock
 } from 'lucide-react';
 import api from '../services/api';
+import { getBogotaRange, bogotaToday } from '../utils/dateUtils';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 interface Categoria {
@@ -38,13 +39,7 @@ interface Recurrente {
   taller_categorias_gastos?: Categoria;
 }
 
-const FRECUENCIAS = [
-  { value: 'diario', label: 'Diario' },
-  { value: 'semanal', label: 'Semanal' },
-  { value: 'quincenal', label: 'Quincenal' },
-  { value: 'mensual', label: 'Mensual' },
-  { value: 'anual', label: 'Anual' },
-];
+const FRECUENCIA_VALUES = ['diario', 'semanal', 'quincenal', 'mensual', 'anual'];
 
 const formatearDinero = (monto: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(monto);
@@ -68,8 +63,10 @@ const Gastos: React.FC = () => {
 
   // ── Filtros ──
   const [filtroCategoria, setFiltroCategoria] = useState('');
-  const [filtroDesde, setFiltroDesde] = useState('');
-  const [filtroHasta, setFiltroHasta] = useState('');
+  const [filtroPreset, setFiltroPreset] = useState<'30dias' | 'este_mes' | 'todos' | 'personalizado'>('30dias');
+  const [filtroDesde, setFiltroDesde] = useState(() => getBogotaRange('mes').start);
+  const [filtroHasta, setFiltroHasta] = useState(() => getBogotaRange('mes').end);
+  const [totalMonto, setTotalMonto] = useState(0);
 
   // ── Modal nuevo gasto ──
   const [modalOpen, setModalOpen] = useState(false);
@@ -78,7 +75,7 @@ const Gastos: React.FC = () => {
 
   // Campos del formulario (gasto único)
   const [form, setForm] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: bogotaToday(),
     categoria_id: '',
     descripcion: '',
     monto: '',
@@ -94,7 +91,7 @@ const Gastos: React.FC = () => {
     monto_estimado: '',
     frecuencia: 'mensual',
     dia_del_mes: '',
-    fecha_inicio: new Date().toISOString().split('T')[0],
+    fecha_inicio: bogotaToday(),
     notas: '',
   });
 
@@ -147,8 +144,30 @@ const Gastos: React.FC = () => {
       if (filtroHasta) params.set('hasta', filtroHasta);
       const res = await api.get(`/gastos?${params.toString()}`);
       setGastos(res.data.gastos || []);
+      setTotalMonto(
+        res.data.totalMonto !== undefined
+          ? Number(res.data.totalMonto)
+          : (res.data.gastos || []).reduce((acc: number, g: any) => acc + Number(g.monto || 0), 0)
+      );
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const aplicarPreset = (preset: '30dias' | 'este_mes' | 'todos') => {
+    setFiltroPreset(preset);
+    if (preset === '30dias') {
+      const { start, end } = getBogotaRange('mes');
+      setFiltroDesde(start);
+      setFiltroHasta(end);
+    } else if (preset === 'este_mes') {
+      const hoy = bogotaToday();
+      const [y, m] = hoy.split('-');
+      setFiltroDesde(`${y}-${m}-01`);
+      setFiltroHasta(hoy);
+    } else if (preset === 'todos') {
+      setFiltroDesde('');
+      setFiltroHasta('');
     }
   };
 
@@ -171,9 +190,9 @@ const Gastos: React.FC = () => {
 
   // ── Guardar gasto único ──
   const handleGuardar = async () => {
-    if (!form.descripcion.trim()) { setError('La descripción es obligatoria.'); return; }
+    if (!form.descripcion.trim()) { setError(t('gastos.error_descripcion')); return; }
     const monto = parseInt(form.monto.replace(/\D/g, ''), 10);
-    if (!monto || monto <= 0) { setError('El monto debe ser mayor a cero.'); return; }
+    if (!monto || monto <= 0) { setError(t('gastos.error_monto')); return; }
     try {
       setSaving(true);
       setError('');
@@ -182,7 +201,7 @@ const Gastos: React.FC = () => {
       resetForm();
       await cargarGastos();
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Error guardando gasto.');
+      setError(err?.response?.data?.error || t('gastos.error_monto'));
     } finally {
       setSaving(false);
     }
@@ -190,9 +209,9 @@ const Gastos: React.FC = () => {
 
   // ── Guardar plantilla recurrente ──
   const handleGuardarRecurrente = async () => {
-    if (!formRec.nombre.trim()) { setError('El nombre es obligatorio.'); return; }
+    if (!formRec.nombre.trim()) { setError(t('gastos.error_nombre')); return; }
     const monto = parseInt(formRec.monto_estimado.replace(/\D/g, ''), 10);
-    if (!monto || monto <= 0) { setError('El monto estimado debe ser mayor a cero.'); return; }
+    if (!monto || monto <= 0) { setError(t('gastos.error_monto_estimado')); return; }
     try {
       setSaving(true);
       setError('');
@@ -201,7 +220,7 @@ const Gastos: React.FC = () => {
       resetForm();
       await cargarTodo();
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Error guardando plantilla.');
+      setError(err?.response?.data?.error || t('gastos.error_monto'));
     } finally {
       setSaving(false);
     }
@@ -211,12 +230,12 @@ const Gastos: React.FC = () => {
   const handleConfirmarRecurrente = async () => {
     if (!confirmRecurrente) return;
     const monto = parseInt(montoConfirm.replace(/\D/g, ''), 10);
-    if (!monto || monto <= 0) { setError('Ingresa un monto válido.'); return; }
+    if (!monto || monto <= 0) { setError(t('gastos.error_monto')); return; }
     try {
       setSaving(true);
       setError('');
       await api.post('/gastos', {
-        fecha: confirmRecurrente.proxima_fecha || new Date().toISOString().split('T')[0],
+        fecha: confirmRecurrente.proxima_fecha || bogotaToday(),
         categoria_id: confirmRecurrente.taller_categorias_gastos?.id || null,
         descripcion: confirmRecurrente.nombre,
         monto,
@@ -235,23 +254,21 @@ const Gastos: React.FC = () => {
 
   // ── Eliminar gasto ──
   const handleEliminar = async (id: string) => {
-    if (!window.confirm('¿Eliminar este gasto del historial?')) return;
+    if (!window.confirm(t('gastos.confirm_eliminar'))) return;
     try {
       await api.delete(`/gastos/${id}`);
       setGastos(g => g.filter(x => x.id !== id));
+      await cargarGastos();
     } catch {
-      setError('Error eliminando gasto.');
+      setError(t('gastos.error_eliminar'));
     }
   };
 
   const resetForm = () => {
-    setForm({ fecha: new Date().toISOString().split('T')[0], categoria_id: '', descripcion: '', monto: '', proveedor: '', notas: '', comprobante_url: '' });
-    setFormRec({ nombre: '', categoria_id: '', monto_estimado: '', frecuencia: 'mensual', dia_del_mes: '', fecha_inicio: new Date().toISOString().split('T')[0], notas: '' });
+    setForm({ fecha: bogotaToday(), categoria_id: '', descripcion: '', monto: '', proveedor: '', notas: '', comprobante_url: '' });
+    setFormRec({ nombre: '', categoria_id: '', monto_estimado: '', frecuencia: 'mensual', dia_del_mes: '', fecha_inicio: bogotaToday(), notas: '' });
     setError('');
   };
-
-  // ── Resumen financiero ──
-  const totalGastos = gastos.reduce((acc, g) => acc + g.monto, 0);
 
   if (loading) {
     return (
@@ -319,30 +336,96 @@ const Gastos: React.FC = () => {
       )}
 
       {/* ── Filtros + Resumen ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col sm:flex-row sm:items-end gap-4">
-        <div className="flex-1">
-          <label className="block text-xs font-bold text-slate-400 uppercase mb-1">{t('gastos.filtro_categoria')}</label>
-          <select
-            value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-          >
-            <option value="">{t('gastos.todas')}</option>
-            {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-          </select>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        {/* Presets rápidos */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => aplicarPreset('30dias')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                filtroPreset === '30dias' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              30 Días
+            </button>
+            <button
+              onClick={() => aplicarPreset('este_mes')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                filtroPreset === 'este_mes' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Este Mes
+            </button>
+            <button
+              onClick={() => aplicarPreset('todos')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                filtroPreset === 'todos' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Todos
+            </button>
+          </div>
+          <span className="text-xs text-slate-400 font-medium">
+            {filtroPreset === '30dias'
+              ? 'Últimos 30 días'
+              : filtroPreset === 'este_mes'
+              ? 'Mes en curso'
+              : filtroPreset === 'todos'
+              ? 'Todo el historial'
+              : 'Rango personalizado'}
+          </span>
         </div>
-        <div className="flex-1">
-          <label className="block text-xs font-bold text-slate-400 uppercase mb-1">{t('gastos.desde')}</label>
-          <input type="date" value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-        </div>
-        <div className="flex-1">
-          <label className="block text-xs font-bold text-slate-400 uppercase mb-1">{t('gastos.hasta')}</label>
-          <input type="date" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-        </div>
-        <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-3 text-center shrink-0">
-          <p className="text-xs font-bold text-red-400 uppercase">{t('gastos.total_periodo')}</p>
-          <p className="text-xl font-black text-red-600">{formatearDinero(totalGastos)}</p>
+
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+          <div className="flex-1">
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">{t('gastos.filtro_categoria')}</label>
+            <select
+              value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+              <option value="">{t('gastos.todas')}</option>
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">{t('gastos.desde')}</label>
+            <input
+              type="date"
+              value={filtroDesde}
+              onChange={e => {
+                setFiltroDesde(e.target.value);
+                setFiltroPreset('personalizado');
+              }}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">{t('gastos.hasta')}</label>
+            <input
+              type="date"
+              value={filtroHasta}
+              onChange={e => {
+                setFiltroHasta(e.target.value);
+                setFiltroPreset('personalizado');
+              }}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+          </div>
+          <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-3 text-center shrink-0">
+            <div className="flex items-center justify-center gap-1.5">
+              <p className="text-xs font-bold text-red-400 uppercase">{t('gastos.total_periodo')}</p>
+              <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">
+                {filtroPreset === '30dias'
+                  ? '30 Días'
+                  : filtroPreset === 'este_mes'
+                  ? 'Este Mes'
+                  : filtroPreset === 'todos'
+                  ? 'Total'
+                  : 'Rango'}
+              </span>
+            </div>
+            <p className="text-xl font-black text-red-600">{formatearDinero(totalMonto)}</p>
+          </div>
         </div>
       </div>
 
@@ -369,12 +452,12 @@ const Gastos: React.FC = () => {
                       {g.proveedor && <p className="text-xs text-slate-400">{g.proveedor}</p>}
                       {g.tipo === 'recurrente' && (
                         <span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded mt-0.5 font-bold uppercase">
-                          <Repeat size={9} /> Recurrente
+                          <Repeat size={9} /> {t('gastos.badge_recurrente')}
                         </span>
                       )}
                       {g.comprobante_url && (
                         <a href={g.comprobante_url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 underline block mt-0.5">
-                          Ver recibo
+                          {t('gastos.ver_recibo')}
                         </a>
                       )}
                     </td>
@@ -497,7 +580,7 @@ const Gastos: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_comprobante')}</label>
                     {form.comprobante_url ? (
                       <div className="flex items-center gap-2 text-sm">
-                        <a href={form.comprobante_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline truncate">Ver archivo subido</a>
+                        <a href={form.comprobante_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline truncate">{t('gastos.ver_archivo')}</a>
                         <button onClick={() => setForm(f => ({ ...f, comprobante_url: '' }))} className="text-red-400 hover:text-red-600 transition"><X size={14} /></button>
                       </div>
                     ) : (
@@ -508,7 +591,7 @@ const Gastos: React.FC = () => {
                         className="flex items-center gap-2 border-2 border-dashed border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition w-full justify-center"
                       >
                         {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                        {uploading ? 'Subiendo...' : t('gastos.btn_adjuntar')}
+                        {uploading ? t('gastos.subiendo') : t('gastos.btn_adjuntar')}
                       </button>
                     )}
                     <input ref={fileInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleUpload} />
@@ -520,12 +603,12 @@ const Gastos: React.FC = () => {
               {modalTab === 'recurrente' && (
                 <>
                   <p className="text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg p-3">
-                    <strong>Plantilla Recurrente:</strong> Define un gasto que se repite. El sistema te avisará cuando deba registrarse y tú lo confirmarás (pudiendo ajustar el monto).
+                    {t('gastos.desc_plantilla')}
                   </p>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_nombre_rec')} *</label>
                     <input type="text" value={formRec.nombre} onChange={e => setFormRec(f => ({ ...f, nombre: e.target.value }))}
-                      placeholder="Ej: Arriendo bodega, Nómina mecánicos..."
+                      placeholder={t('gastos.placeholder_nombre_rec')}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -549,14 +632,16 @@ const Gastos: React.FC = () => {
                       <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_frecuencia')} *</label>
                       <select value={formRec.frecuencia} onChange={e => setFormRec(f => ({ ...f, frecuencia: e.target.value }))}
                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                        {FRECUENCIAS.map(fr => <option key={fr.value} value={fr.value}>{fr.label}</option>)}
+                        {FRECUENCIA_VALUES.map(val => (
+                          <option key={val} value={val}>{t(`gastos.frecuencia_${val}`)}</option>
+                        ))}
                       </select>
                     </div>
                     {formRec.frecuencia === 'mensual' && (
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_dia_mes')}</label>
                         <input type="number" min={1} max={31} value={formRec.dia_del_mes} onChange={e => setFormRec(f => ({ ...f, dia_del_mes: e.target.value }))}
-                          placeholder="Ej: 1, 15, 30"
+                          placeholder={t('gastos.placeholder_dia_mes')}
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                       </div>
                     )}
@@ -569,7 +654,7 @@ const Gastos: React.FC = () => {
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_notas')}</label>
                     <textarea value={formRec.notas} onChange={e => setFormRec(f => ({ ...f, notas: e.target.value }))}
-                      rows={2} placeholder="Notas opcionales..."
+                      rows={2} placeholder={t('gastos.placeholder_notas')}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
                   </div>
                 </>
@@ -618,7 +703,7 @@ const Gastos: React.FC = () => {
                 onChange={e => setMontoConfirm(formatearMonto(e.target.value))}
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-400 outline-none text-center"
               />
-              <p className="text-xs text-slate-400 mt-1 text-center">Puedes ajustar el monto si cambió</p>
+              <p className="text-xs text-slate-400 mt-1 text-center">{t('gastos.ajustar_monto')}</p>
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex gap-3">

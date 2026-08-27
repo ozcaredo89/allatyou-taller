@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import { toBogotaDateStr, bogotaToday, getBogotaRange } from '../utils/dateUtils';
 
 // ─── Helper: Registrar evento en la bitácora ─────────────────────────────────
 // El cambio de ESTADO queda cubierto por el Trigger SQL (fn_bitacora_cambio_estado).
@@ -284,65 +285,96 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
   try {
     const { start, end } = req.query;
 
-    // ── Determinar rango de fechas ──────────────────────────────
+    // ── Determinar rango de fechas en zona America/Bogota ──────────
     let startStr: string;
     let endStr: string;
     if (start && end) {
       startStr = start as string;
       endStr = end as string;
     } else {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      startStr = thirtyDaysAgo.toISOString().split('T')[0];
-      endStr = new Date().toISOString().split('T')[0];
+      // Fallback: últimos 30 días calculados en zona Bogotá
+      const range = getBogotaRange('mes');
+      startStr = range.startStr;
+      endStr = range.endStr;
     }
 
-    // ── 1. Ingresos entregados (histórico completo para promedios) ──
+    const hoyStr = bogotaToday();
+
+    // ── 1. Obtener todos los ingresos entregados ─────────────────
+    // Traemos también el id para cruzar con la bitácora.
     const { data: todos, error } = await supabase
       .from('taller_ingresos')
-      .select('updated_at, items_factura')
+      .select('id, updated_at, items_factura')
       .eq('empresa_id', req.empresa_id)
       .eq('estado', 'entregado');
     if (error) throw error;
 
     const ingresos = todos || [];
+    const ingresoIds = ingresos.map((i: any) => i.id);
+
+    // ── 2. Obtener fechas reales de entrega desde la bitácora ────
+    // taller_ingresos_bitacora (evento 'entrega') es la fuente de
+    // verdad: inmune a ediciones posteriores del registro.
+    // Fallback: si un ingreso no tiene evento en bitácora (registros
+    // anteriores a la implementación), usaremos su updated_at.
+    let bitacoraMap: Record<string, string> = {};
+
+    if (ingresoIds.length > 0) {
+      const { data: bitRows } = await supabase
+        .from('taller_ingresos_bitacora')
+        .select('ingreso_id, created_at')
+        .eq('empresa_id', req.empresa_id)
+        .eq('tipo_evento', 'entrega')
+        .in('ingreso_id', ingresoIds)
+        .order('created_at', { ascending: true }); // primera entrega por ingreso
+
+      (bitRows || []).forEach((b: any) => {
+        // Solo guarda la primera entrega por ingreso (por si hay re-entregas)
+        if (!bitacoraMap[b.ingreso_id]) {
+          bitacoraMap[b.ingreso_id] = toBogotaDateStr(b.created_at);
+        }
+      });
+    }
+
+    // ── 3. Calcular métricas históricas y del período ────────────
     let totalHistorico = 0;
     const diasUnicos = new Set<string>();
-    const hoyStr = new Date().toISOString().split('T')[0];
     let facturadoHoy = 0;
-
-    ingresos.forEach(ing => {
-      const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-      if (total > 0) {
-        totalHistorico += total;
-        const dia = new Date(ing.updated_at).toISOString().split('T')[0];
-        diasUnicos.add(dia);
-        if (dia === hoyStr) facturadoHoy += total;
-      }
-    });
-    const promedioDiarioHistorico = diasUnicos.size > 0 ? totalHistorico / diasUnicos.size : 0;
-
-    // Filtrar por rango para gráfico y totalPeriodo
-    const filtered = ingresos.filter(ing => {
-      const d = new Date(ing.updated_at).toISOString().split('T')[0];
-      return d >= startStr && d <= endStr;
-    });
 
     const chartDataMap: Record<string, number> = {};
     let totalPeriodo = 0;
-    filtered.forEach(ing => {
-      const d = new Date(ing.updated_at).toISOString().split('T')[0];
-      const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-      chartDataMap[d] = (chartDataMap[d] || 0) + total;
-      totalPeriodo += total;
+
+    ingresos.forEach((ing: any) => {
+      const total = (ing.items_factura || []).reduce(
+        (acc: number, item: any) => acc + (item.total || 0), 0
+      );
+      if (total <= 0) return;
+
+      // Fecha de entrega: bitácora con fallback a updated_at
+      const dia = bitacoraMap[ing.id] ?? toBogotaDateStr(ing.updated_at);
+
+      totalHistorico += total;
+      diasUnicos.add(dia);
+      if (dia === hoyStr) facturadoHoy += total;
+
+      // Filtrar para el período y gráfico
+      if (dia >= startStr && dia <= endStr) {
+        chartDataMap[dia] = (chartDataMap[dia] || 0) + total;
+        totalPeriodo += total;
+      }
     });
+
+    const promedioDiarioHistorico =
+      diasUnicos.size > 0 ? totalHistorico / diasUnicos.size : 0;
 
     const chartData = Object.keys(chartDataMap).sort().map(fecha => ({
       fecha,
-      total: chartDataMap[fecha]
+      total: chartDataMap[fecha],
     }));
 
-    // ── 2. Gastos ejecutados en el mismo período ─────────────────
+    // ── 4. Gastos ejecutados en el mismo período ─────────────────
+    // taller_gastos.fecha es una columna DATE explícita (YYYY-MM-DD),
+    // por lo que no tiene issues de timezone.
     const { data: gastosData, error: gastosError } = await supabase
       .from('taller_gastos')
       .select(`
@@ -380,11 +412,12 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
     const gastosPorCategoria = Object.values(gastosPorCategoriaMap)
       .sort((a, b) => b.total - a.total);
 
-    // ── 3. Cálculos de rentabilidad ──────────────────────────────
+    // ── 5. Cálculos de rentabilidad ──────────────────────────────
     const utilidadBruta = totalPeriodo - totalGastos;
     const margenPct = totalPeriodo > 0 ? Math.round((utilidadBruta / totalPeriodo) * 100) : 0;
 
     res.json({
+      rangoEfectivo: { start: startStr, end: endStr },
       chartData,
       kpis: {
         facturadoHoy,
@@ -401,6 +434,7 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
   }
 };
 
+
 export const getReportesFinanzasDetalle = async (req: Request, res: Response): Promise<void> => {
   try {
     const { fecha } = req.query;
@@ -411,13 +445,13 @@ export const getReportesFinanzasDetalle = async (req: Request, res: Response): P
       return;
     }
 
-    // ── Timezone America/Bogota (UTC-5) ───────────────────────────
-    // El día local empieza 5 horas después de medianoche UTC
-    const OFFSET_MS = 5 * 60 * 60 * 1000;
-    const startOfDayUTC = new Date(fecha + 'T00:00:00.000Z').getTime() + OFFSET_MS;
-    const endOfDayUTC   = startOfDayUTC + 24 * 60 * 60 * 1000;
-    const startISO = new Date(startOfDayUTC).toISOString();
-    const endISO   = new Date(endOfDayUTC).toISOString();
+    // ── Timezone America/Bogota (UTC-5, sin DST) ─────────────────
+    // "fecha 00:00:00 COT" = "fecha 05:00:00 UTC"
+    // "fecha 24:00:00 COT" = "(fecha+1) 05:00:00 UTC"
+    const startDate = new Date(fecha + 'T05:00:00.000Z');
+    const endDate   = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+    const startISO  = startDate.toISOString();
+    const endISOStr = endDate.toISOString();
 
     // ── Paso 1: Buscar en la bitácora los ingresos entregados ESE día ──
     // taller_ingresos_bitacora es la fuente de verdad para la fecha de
@@ -428,7 +462,7 @@ export const getReportesFinanzasDetalle = async (req: Request, res: Response): P
       .eq('empresa_id', req.empresa_id)
       .eq('tipo_evento', 'entrega')
       .gte('created_at', startISO)
-      .lt('created_at', endISO);
+      .lt('created_at', endISOStr);
 
     if (bitError) throw bitError;
 
