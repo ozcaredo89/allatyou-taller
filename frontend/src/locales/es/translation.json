@@ -9,7 +9,8 @@
     "equipo": "Equipo",
     "liquidaciones": "Liquidaciones",
     "configuracion": "Config.",
-    "gastos": "Gastos"
+    "gastos": "Gastos",
+    "crm": "CRM"
   },
   "dashboard": {
     "title": "Tablero de Control",
@@ -40,7 +41,11 @@
     "ingreso": "Ingreso:",
     "tecnico": "Técnico:",
     "btn_diagnostico": "Diagnóstico",
-    "btn_checkout": "Generar Orden de Servicio"
+    "btn_checkout": "Generar Orden de Servicio",
+    "btn_bitacora": "Ver bitácora de la visita"
+  },
+  "timeline": {
+    "ver_historial_anterior": "Ver visitas anteriores de esta placa"
   },
   "cancel_modal": {
     "title": "Cancelar Proceso",
@@ -213,7 +218,15 @@
     "op_tiempo_promedio": "Tiempo Promedio",
     "op_estado": "Estado",
     "op_duracion": "Duración",
-    "op_placa": "Placa"
+    "op_placa": "Placa",
+    "filtro_ayer": "Ayer",
+    "desde": "Desde",
+    "hasta": "Hasta",
+    "detalle_dia": "Detalle del día",
+    "cargando_detalle": "Cargando detalle...",
+    "sin_datos_dia": "Sin datos para este día",
+    "total_dia": "Total del día",
+    "reintentar": "Intentar de nuevo"
   },
   "login": {
     "email": "Correo Electrónico",
@@ -376,6 +389,40 @@
     "label_fecha_inicio": "Fecha de Inicio",
     "placeholder_descripcion": "Ej: Compra aceite, Arriendo, Nómina...",
     "placeholder_proveedor": "Ej: Distribuidora AutoParts",
-    "placeholder_notas": "Observaciones adicionales..."
+    "placeholder_notas": "Observaciones adicionales...",
+    "placeholder_nombre_rec": "Ej: Arriendo bodega, Nómina mecánicos...",
+    "placeholder_dia_mes": "Ej: 1, 15, 30",
+    "badge_recurrente": "Recurrente",
+    "ver_recibo": "Ver recibo",
+    "ver_archivo": "Ver archivo subido",
+    "subiendo": "Subiendo...",
+    "ajustar_monto": "Puedes ajustar el monto si cambió",
+    "desc_plantilla": "Plantilla Recurrente: Define un gasto que se repite. El sistema te avisará cuando deba registrarse y tú lo confirmarás (pudiendo ajustar el monto).",
+    "frecuencia_diario": "Diario",
+    "frecuencia_semanal": "Semanal",
+    "frecuencia_quincenal": "Quincenal",
+    "frecuencia_mensual": "Mensual",
+    "frecuencia_anual": "Anual",
+    "confirm_eliminar": "¿Eliminar este gasto del historial?",
+    "error_descripcion": "La descripción es obligatoria.",
+    "error_monto": "El monto debe ser mayor a cero.",
+    "error_monto_estimado": "El monto estimado debe ser mayor a cero.",
+    "error_nombre": "El nombre es obligatorio.",
+    "error_eliminar": "Error al eliminar el gasto."
+  },
+  "checkout": {
+    "banner_esperando": "La cotización fue enviada al cliente. En cuanto apruebe, presiona <strong>\"Aprobar Orden\"</strong> para iniciar la reparación.",
+    "btn_actualizar": "Actualizar Orden",
+    "crm_categoria_label": "Categoría CRM (Opcional)",
+    "crm_cat_placeholder": "Cat...",
+    "crm_aceite": "Aceite",
+    "crm_frenos": "Frenos",
+    "crm_aire": "Aire Acond.",
+    "crm_general": "General",
+    "ia_justificacion_titulo": "✨ Justificación IA",
+    "ia_regenerar": "↺ Regenerar",
+    "ia_regenerando": "⏳ Regenerando...",
+    "ia_generando": "Generando...",
+    "ingreso_no_encontrado": "Ingreso no encontrado."
   }
 }

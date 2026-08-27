@@ -119,6 +119,23 @@ export const getGastos = async (req: Request, res: Response): Promise<void> => {
     const { desde, hasta, categoria_id, page = '1', limit = '50' } = req.query;
     const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
 
+    // ── Query base (sin paginación) para obtener el total monetario real ──
+    // Así el totalMonto siempre refleja el período completo, no solo la página actual.
+    let baseQuery = supabase
+      .from('taller_gastos')
+      .select('monto', { count: 'exact' })
+      .eq('empresa_id', req.empresa_id);
+
+    if (desde) baseQuery = baseQuery.gte('fecha', desde as string);
+    if (hasta) baseQuery = baseQuery.lte('fecha', hasta as string);
+    if (categoria_id) baseQuery = baseQuery.eq('categoria_id', categoria_id as string);
+
+    const { data: allMontos, count } = await baseQuery;
+    const totalMonto = (allMontos || []).reduce(
+      (acc: number, g: any) => acc + Number(g.monto || 0), 0
+    );
+
+    // ── Query paginada para la tabla ──────────────────────────────
     let query = supabase
       .from('taller_gastos')
       .select(`
@@ -126,7 +143,7 @@ export const getGastos = async (req: Request, res: Response): Promise<void> => {
         tipo, notas, created_at,
         taller_categorias_gastos(id, nombre, color, icono),
         taller_gastos_recurrentes(id, nombre)
-      `, { count: 'exact' })
+      `)
       .eq('empresa_id', req.empresa_id)
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false })
@@ -136,10 +153,10 @@ export const getGastos = async (req: Request, res: Response): Promise<void> => {
     if (hasta) query = query.lte('fecha', hasta as string);
     if (categoria_id) query = query.eq('categoria_id', categoria_id as string);
 
-    const { data, error, count } = await query;
+    const { data, error } = await query;
     if (error) throw error;
 
-    res.json({ gastos: data || [], total: count || 0 });
+    res.json({ gastos: data || [], total: count || 0, totalMonto });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
