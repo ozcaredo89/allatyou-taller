@@ -397,7 +397,7 @@ const Checkout: React.FC = () => {
   };
 
   if (loading) return <div className="p-8 flex items-center justify-center"><Loader2 className="animate-spin text-blue-500 w-8 h-8" /></div>;
-  if (!ingreso) return <div className="p-8 text-center text-red-500">Ingreso no encontrado.</div>;
+  if (!ingreso) return <div className="p-8 text-center text-red-500">{t('checkout.ingreso_no_encontrado')}</div>;
 
   const vehiculo = ingreso.taller_vehiculos;
   const cliente = vehiculo?.taller_clientes;
@@ -478,7 +478,7 @@ const Checkout: React.FC = () => {
             className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2"
           >
             {saving ? <Loader2 className="animate-spin" size={16} /> : <CheckSquare size={16} />}
-            {isEditMode ? 'Actualizar Orden' : t('checkout.btn_guardar_orden')}
+            {isEditMode ? t('checkout.btn_actualizar') : t('checkout.btn_guardar_orden')}
           </button>
 
         </div>
@@ -488,9 +488,7 @@ const Checkout: React.FC = () => {
       {estadoActual === 'esperando_aprobacion' && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3 print:hidden">
           <MessageCircle size={18} className="text-amber-600 shrink-0" />
-          <p className="text-sm text-amber-800 font-medium">
-            La cotización fue enviada al cliente. En cuanto apruebe, presiona <strong>"Aprobar Orden"</strong> para iniciar la reparación.
-          </p>
+          <p className="text-sm text-amber-800 font-medium" dangerouslySetInnerHTML={{ __html: t('checkout.banner_esperando') }} />
         </div>
       )}
 
@@ -575,11 +573,11 @@ const Checkout: React.FC = () => {
               <div className="flex gap-2">
                 <input type="text" placeholder={t('checkout.desc_placeholder')} value={nuevoDesc} onChange={handleDescChange} className="flex-[2] border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                 <select value={nuevoCategoria || ''} onChange={e => setNuevoCategoria((e.target.value as any) || null)} className="flex-1 border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                  <option value="">Categoría CRM (Opcional)</option>
-                  <option value="aceite">Aceite</option>
-                  <option value="frenos">Frenos</option>
-                  <option value="aire">Aire Acond.</option>
-                  <option value="general">General</option>
+                  <option value="">{t('checkout.crm_categoria_label')}</option>
+                  <option value="aceite">{t('checkout.crm_aceite')}</option>
+                  <option value="frenos">{t('checkout.crm_frenos')}</option>
+                  <option value="aire">{t('checkout.crm_aire')}</option>
+                  <option value="general">{t('checkout.crm_general')}</option>
                 </select>
               </div>
               <div className="flex gap-2">
@@ -644,11 +642,11 @@ const Checkout: React.FC = () => {
                               onChange={e => setEditCategoria((e.target.value as any) || null)} 
                               className="w-24 border border-indigo-200 bg-white rounded px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
                             >
-                              <option value="">Cat...</option>
-                              <option value="aceite">Aceite</option>
-                              <option value="frenos">Frenos</option>
-                              <option value="aire">Aire</option>
-                              <option value="general">General</option>
+                              <option value="">{t('checkout.crm_cat_placeholder')}</option>
+                              <option value="aceite">{t('checkout.crm_aceite')}</option>
+                              <option value="frenos">{t('checkout.crm_frenos')}</option>
+                              <option value="aire">{t('checkout.crm_aire')}</option>
+                              <option value="general">{t('checkout.crm_general')}</option>
                             </select>
                           </div>
                         </td>
@@ -717,7 +715,7 @@ const Checkout: React.FC = () => {
                                         onMouseDown={e => e.stopPropagation()}
                                       >
                                         <div className="flex items-start justify-between gap-2 mb-1">
-                                          <span className="font-bold text-indigo-700 text-[11px] uppercase tracking-wide">✨ Justificación IA</span>
+                                          <span className="font-bold text-indigo-700 text-[11px] uppercase tracking-wide">{t('checkout.ia_justificacion_titulo')}</span>
                                           <button onClick={() => setPopoverItemId(null)} className="text-slate-400 hover:text-slate-600 transition shrink-0">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                           </button>
@@ -728,7 +726,7 @@ const Checkout: React.FC = () => {
                                           disabled={justificandoItemId === item.id}
                                           className="mt-2 text-indigo-500 hover:text-indigo-700 transition text-[11px] font-medium disabled:opacity-50"
                                         >
-                                          {justificandoItemId === item.id ? '⏳ Regenerando...' : '↺ Regenerar'}
+                                          {justificandoItemId === item.id ? t('checkout.ia_regenerando') : t('checkout.ia_regenerar')}
                                         </button>
                                       </div>
                                     )}
@@ -742,7 +740,7 @@ const Checkout: React.FC = () => {
                                     className="flex items-center gap-0.5 text-[11px] font-medium text-slate-400 hover:text-indigo-500 transition disabled:opacity-50 ml-0.5"
                                   >
                                     {justificandoItemId === item.id
-                                      ? <><Loader2 size={11} className="animate-spin" /><span>Generando...</span></>
+                                      ? <><Loader2 size={11} className="animate-spin" /><span>{t('checkout.ia_generando')}</span></>
                                       : <span>✨</span>
                                     }
                                   </button>
