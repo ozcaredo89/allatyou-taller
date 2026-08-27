@@ -8,6 +8,7 @@ import {
   getLeadsIA,
   updateEstadoLead,
   getUsageIA,
+  justificarRepuesto,
 } from '../controllers/ai.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 import { turnstileGuard } from '../middlewares/turnstile.middleware';
@@ -19,6 +20,7 @@ const router = Router();
 
 // ─── Rutas Privadas (Administrador Interno — requiere JWT) ────────────────────
 router.post('/chat', requireAuth, chatConAsistente);
+router.post('/justificar-repuesto', requireAuth, distributedRateLimiter, justificarRepuesto);
 
 // ─── Rutas Públicas (Chatbot de Cotizaciones — sin JWT) ───────────────────────
 // Pipeline de seguridad: Turnstile → Rate Limiter → Tenant Guard → Budget Guard → Controlador

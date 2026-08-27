@@ -559,3 +559,90 @@ Al final de tu respuesta, DEBES proporcionar siempre 3 opciones de preguntas de 
     res.status(500).json({ error: error.message });
   }
 };
+
+// ============================================================
+// CONTROLADOR INTERNO: Justificación Comercial de Repuestos
+// ============================================================
+
+/**
+ * POST /api/ai/justificar-repuesto
+ * Requiere JWT. Genera una justificación persuasiva de 2 líneas para
+ * explicarle al cliente por qué un repuesto es crucial.
+ */
+export const justificarRepuesto = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { empresa_id } = req;
+    const { descripcion_repuesto, diagnostico_general } = req.body;
+
+    if (!descripcion_repuesto || typeof descripcion_repuesto !== 'string') {
+      res.status(400).json({ error: 'descripcion_repuesto es requerido.' });
+      return;
+    }
+
+    // Fix #3: Explicit length guard before any processing
+    if (descripcion_repuesto.length > 500) {
+      res.status(400).json({ error: 'descripcion_repuesto demasiado larga (máx. 500 caracteres).' });
+      return;
+    }
+
+    if (!genAI) {
+      res.status(503).json({ error: 'Servicio de IA no disponible (GEMINI_API_KEY no configurado).' });
+      return;
+    }
+
+    // Fix #1: Fetch empresa slug for cost tracking
+    const { data: empresa } = await supabase
+      .from('taller_empresas')
+      .select('slug')
+      .eq('id', empresa_id)
+      .single();
+
+    const systemPrompt =
+      'Eres un mecánico experto y asesor de servicio. ' +
+      'Explícale a un cliente sin conocimientos técnicos, en máximo 2 líneas persuasivas, ' +
+      'por qué es crucial este repuesto/servicio para su seguridad o el rendimiento de su vehículo. ' +
+      'Sé directo y empático. No uses tecnicismos. Responde SOLO la justificación, sin saludos ni explicaciones adicionales.';
+
+    const contexto = diagnostico_general
+      ? `Diagnóstico del vehículo: ${String(diagnostico_general).slice(0, 300)}\n\nRepuesto/servicio: ${descripcion_repuesto.slice(0, 200)}`
+      : `Repuesto/servicio: ${descripcion_repuesto.slice(0, 200)}`;
+
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      systemInstruction: systemPrompt,
+    });
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: contexto }] }],
+      generationConfig: {
+        maxOutputTokens: 120,
+        temperature: 0.7,
+      },
+    });
+
+    const justificacion = result.response.text().trim();
+
+    // Fix #1: Track cost — same pricing constants as aiProvider.adapter.ts
+    if (empresa?.slug) {
+      const usage = result.response.usageMetadata;
+      const tokensIn = usage?.promptTokenCount ?? 0;
+      const tokensOut = usage?.candidatesTokenCount ?? 0;
+      const costoUsd = parseFloat(((tokensIn / 1_000_000) * 0.075 + (tokensOut / 1_000_000) * 0.300).toFixed(6));
+
+      supabase.rpc('acumular_costo_diario', {
+        p_proveedor: 'gemini',
+        p_empresa_slug: empresa.slug,
+        p_costo: costoUsd,
+        p_tokens_in: tokensIn,
+        p_tokens_out: tokensOut,
+      }).then(({ error }) => {
+        if (error) console.error('[AI] Error acumulando costo justificarRepuesto:', error);
+      });
+    }
+
+    res.json({ justificacion });
+  } catch (error: any) {
+    console.error('[AI] Error en justificarRepuesto:', error);
+    res.status(500).json({ error: 'Error al generar la justificación.' });
+  }
+};

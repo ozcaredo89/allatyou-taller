@@ -14,6 +14,7 @@ interface ItemFactura {
   precio_unitario: number;
   total: number;
   categoria_crm?: 'aceite' | 'frenos' | 'aire' | 'general' | null;
+  justificacion?: string;
 }
 
 const Checkout: React.FC = () => {
@@ -52,6 +53,18 @@ const Checkout: React.FC = () => {
   const [editCant, setEditCant] = useState(1);
   const [editPrecio, setEditPrecio] = useState<string>('');
   const [editCategoria, setEditCategoria] = useState<ItemFactura['categoria_crm']>(null);
+
+  // Justificación IA por ítem
+  const [justificandoItemId, setJustificandoItemId] = useState<string | null>(null);
+  const [popoverItemId, setPopoverItemId] = useState<string | null>(null);
+
+  // Fix #5: Close popover on outside click
+  useEffect(() => {
+    if (!popoverItemId) return;
+    const handler = () => setPopoverItemId(null);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [popoverItemId]);
 
   useEffect(() => { cargarIngreso(); }, [id]);
 
@@ -125,6 +138,34 @@ const Checkout: React.FC = () => {
 
   const cancelEdit = () => {
     setEditingItemId(null);
+  };
+
+  const handleJustificarRepuesto = async (item: ItemFactura) => {
+    setJustificandoItemId(item.id);
+    try {
+      const diagnosticoTexto = ingreso?.diagnostico_mecanico
+        ? Object.entries(ingreso.diagnostico_mecanico)
+            .filter(([, v]: any) => v && v.estado !== 'buen_estado')
+            .map(([k, v]: any) => `${k}: ${v.estado}${v.notas ? ` (${v.notas})` : ''}`)
+            .join(', ')
+        : '';
+
+      const { data } = await api.post('/ai/justificar-repuesto', {
+        descripcion_repuesto: item.descripcion,
+        diagnostico_general: diagnosticoTexto || undefined,
+      });
+
+      setItems(prev =>
+        prev.map(i =>
+          i.id === item.id ? { ...i, justificacion: data.justificacion } : i
+        )
+      );
+      setPopoverItemId(item.id);
+    } catch {
+      // Silencioso: el usuario puede reintentar
+    } finally {
+      setJustificandoItemId(null);
+    }
   };
 
   const handleEditPrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -593,12 +634,66 @@ const Checkout: React.FC = () => {
                     ) : (
                       <>
                         <td className="py-2.5 text-slate-800 font-medium px-2">
-                          {item.descripcion}
-                          {item.categoria_crm && (
-                            <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
-                              {item.categoria_crm}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            <span>{item.descripcion}</span>
+                            {item.categoria_crm && (
+                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                                {item.categoria_crm}
+                              </span>
+                            )}
+                            {/* Fix #6: Zona de justificación IA — solo repuestos, solo en pantalla */}
+                            {item.tipo === 'repuesto' && (
+                              <span className="print:hidden relative inline-flex items-center">
+                                {item.justificacion ? (
+                                  // Ítem con justificación: mostrar ℹ️ + popover al hacer clic
+                                  <>
+                                    <button
+                                      onClick={() => setPopoverItemId(popoverItemId === item.id ? null : item.id)}
+                                      className="text-indigo-400 hover:text-indigo-600 transition p-0.5 rounded"
+                                      title="Ver justificación"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    </button>
+                                    {popoverItemId === item.id && (
+                                      <div
+                                        className="absolute left-5 top-0 z-50 w-64 bg-white border border-indigo-200 rounded-xl shadow-xl p-3 text-xs text-slate-700 leading-relaxed"
+                                        onClick={e => e.stopPropagation()}
+                                        onMouseDown={e => e.stopPropagation()}
+                                      >
+                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                          <span className="font-bold text-indigo-700 text-[11px] uppercase tracking-wide">✨ Justificación IA</span>
+                                          <button onClick={() => setPopoverItemId(null)} className="text-slate-400 hover:text-slate-600 transition shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                          </button>
+                                        </div>
+                                        <p>{item.justificacion}</p>
+                                        <button
+                                          onClick={() => handleJustificarRepuesto(item)}
+                                          disabled={justificandoItemId === item.id}
+                                          className="mt-2 text-indigo-500 hover:text-indigo-700 transition text-[11px] font-medium disabled:opacity-50"
+                                        >
+                                          {justificandoItemId === item.id ? '⏳ Regenerando...' : '↺ Regenerar'}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  // Sin justificación: botón ✨ para generar
+                                  <button
+                                    onClick={() => handleJustificarRepuesto(item)}
+                                    disabled={justificandoItemId === item.id}
+                                    title="Generar justificación con IA"
+                                    className="flex items-center gap-0.5 text-[11px] font-medium text-slate-400 hover:text-indigo-500 transition disabled:opacity-50 ml-0.5"
+                                  >
+                                    {justificandoItemId === item.id
+                                      ? <><Loader2 size={11} className="animate-spin" /><span>Generando...</span></>
+                                      : <span>✨</span>
+                                    }
+                                  </button>
+                                )}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-2.5 text-center">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{item.tipo === 'repuesto' ? t('checkout.repuesto') : t('checkout.mano_obra')}</span>
