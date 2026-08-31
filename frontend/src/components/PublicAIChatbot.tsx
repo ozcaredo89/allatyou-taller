@@ -273,6 +273,7 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const turnstileRef = useRef<any>(null);
 
   const scrollBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -369,6 +370,8 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
       ]);
     } finally {
       setCargando(false);
+      setTurnstileToken(null);
+      try { turnstileRef.current?.reset(); } catch {}
     }
   }, [mensajes, cargando, turnstileToken, apiUrl, empresaSlug, fallback, telefonoTaller, leadExito]);
 
@@ -832,6 +835,7 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
       {/* ── Turnstile invisible (se renderiza oculto para obtener el token) ── */}
       {turnstileSiteKey && (
         <Turnstile
+          ref={turnstileRef}
           siteKey={turnstileSiteKey}
           onSuccess={token => setTurnstileToken(token)}
           onError={() => setTurnstileToken(null)}

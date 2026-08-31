@@ -836,7 +836,7 @@
        WA FLOAT
     ═══════════════════════════════════════════ */
     .wa-float {
-      position: fixed; bottom: 28px; right: 28px; z-index: 999;
+      position: fixed; bottom: 104px; right: 28px; z-index: 999;
       background: #22c55e;
       width: 60px; height: 60px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
@@ -988,6 +988,9 @@
         <a href="https://wa.me/573103793785?text=Hola%2C%20quiero%20agendar%20una%20cita%20en%20Eurofrenos" target="_blank" class="btn-primary">
           Agendar revisión
         </a>
+        <button type="button" class="btn-ai-hero" onclick="window.abrirChatbotIA && window.abrirChatbotIA()">
+          🤖 Cotizar con Asesor IA
+        </button>
         <a href="#servicios" class="btn-ghost">Nuestros servicios</a>
       </div>
       <div class="hero-stats">
@@ -1514,6 +1517,16 @@
       }
     });
   </script>
+
+  <!-- ═══ CLOUDFLARE TURNSTILE & ASISTENTE VIRTUAL IA ═══════════════ -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>
+  <script src="chatbot.js"
+          data-empresa-slug="eurofrenos"
+          data-workshop-name="Eurofrenos Cali"
+          data-phone="573103793785"
+          data-primary-color="#da291c"
+          data-turnstile-sitekey="0x4AAAAAADCege0vEJvwALkO"
+          defer></script>
 
 </body>
 </html>
