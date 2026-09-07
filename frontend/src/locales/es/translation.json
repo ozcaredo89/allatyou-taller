@@ -158,7 +158,20 @@
     "total": "Total",
     "iva_incluido": "Precios ya incluyen IVA",
     "footer_1": "Esta factura se asimila en todos sus efectos a una letra de cambio.",
-    "footer_2": "Gracias por confiar en "
+    "footer_2": "Gracias por confiar en ",
+    "banner_esperando": "La cotización fue enviada al cliente. En cuanto apruebe, presiona <strong>\"Aprobar Orden\"</strong> para iniciar la reparación.",
+    "btn_actualizar": "Actualizar Orden",
+    "crm_categoria_label": "Categoría CRM (Opcional)",
+    "crm_cat_placeholder": "Cat...",
+    "crm_aceite": "Aceite",
+    "crm_frenos": "Frenos",
+    "crm_aire": "Aire Acond.",
+    "crm_general": "General",
+    "ia_justificacion_titulo": "✨ Justificación IA",
+    "ia_regenerar": "↺ Regenerar",
+    "ia_regenerando": "⏳ Regenerando...",
+    "ia_generando": "Generando...",
+    "ingreso_no_encontrado": "Ingreso no encontrado."
   },
   "historial": {
     "title": "Historial de Servicios",
@@ -409,20 +422,5 @@
     "error_monto_estimado": "El monto estimado debe ser mayor a cero.",
     "error_nombre": "El nombre es obligatorio.",
     "error_eliminar": "Error al eliminar el gasto."
-  },
-  "checkout": {
-    "banner_esperando": "La cotización fue enviada al cliente. En cuanto apruebe, presiona <strong>\"Aprobar Orden\"</strong> para iniciar la reparación.",
-    "btn_actualizar": "Actualizar Orden",
-    "crm_categoria_label": "Categoría CRM (Opcional)",
-    "crm_cat_placeholder": "Cat...",
-    "crm_aceite": "Aceite",
-    "crm_frenos": "Frenos",
-    "crm_aire": "Aire Acond.",
-    "crm_general": "General",
-    "ia_justificacion_titulo": "✨ Justificación IA",
-    "ia_regenerar": "↺ Regenerar",
-    "ia_regenerando": "⏳ Regenerando...",
-    "ia_generando": "Generando...",
-    "ingreso_no_encontrado": "Ingreso no encontrado."
   }
 }

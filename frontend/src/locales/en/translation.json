@@ -158,7 +158,20 @@
     "total": "Total",
     "iva_incluido": "Prices include tax",
     "footer_1": "This invoice serves as a binding payment agreement.",
-    "footer_2": "Thank you for trusting "
+    "footer_2": "Thank you for trusting ",
+    "banner_esperando": "The quote was sent to the client. Once they approve, press <strong>\"Approve Order\"</strong> to start the repair.",
+    "btn_actualizar": "Update Order",
+    "crm_categoria_label": "CRM Category (Optional)",
+    "crm_cat_placeholder": "Cat...",
+    "crm_aceite": "Oil",
+    "crm_frenos": "Brakes",
+    "crm_aire": "A/C",
+    "crm_general": "General",
+    "ia_justificacion_titulo": "✨ AI Justification",
+    "ia_regenerar": "↺ Regenerate",
+    "ia_regenerando": "⏳ Regenerating...",
+    "ia_generando": "Generating...",
+    "ingreso_no_encontrado": "Entry not found."
   },
   "historial": {
     "title": "Service History",
@@ -409,20 +422,5 @@
     "error_monto_estimado": "Estimated amount must be greater than zero.",
     "error_nombre": "Name is required.",
     "error_eliminar": "Error deleting expense."
-  },
-  "checkout": {
-    "banner_esperando": "The quote was sent to the client. Once they approve, press <strong>\"Approve Order\"</strong> to start the repair.",
-    "btn_actualizar": "Update Order",
-    "crm_categoria_label": "CRM Category (Optional)",
-    "crm_cat_placeholder": "Cat...",
-    "crm_aceite": "Oil",
-    "crm_frenos": "Brakes",
-    "crm_aire": "A/C",
-    "crm_general": "General",
-    "ia_justificacion_titulo": "✨ AI Justification",
-    "ia_regenerar": "↺ Regenerate",
-    "ia_regenerando": "⏳ Regenerating...",
-    "ia_generando": "Generating...",
-    "ingreso_no_encontrado": "Entry not found."
   }
 }
