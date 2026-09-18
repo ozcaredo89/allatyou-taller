@@ -12,6 +12,7 @@ import liquidacionesRoutes from './routes/liquidaciones.routes';
 import crmRoutes from './routes/crm.routes';
 import aiRoutes from './routes/ai.routes';
 import gastosRoutes from './routes/gastos.routes';
+import preciosRoutes from './routes/precios.routes';
 dotenv.config();
 
 const app = express();
@@ -41,6 +42,7 @@ app.use('/api/liquidaciones', liquidacionesRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/gastos', gastosRoutes);
+app.use('/api/public/precios', preciosRoutes);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Taller Mecánico API' });
 });

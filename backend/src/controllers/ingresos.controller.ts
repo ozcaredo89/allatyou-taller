@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { toBogotaDateStr, bogotaToday, getBogotaRange } from '../utils/dateUtils';
+import {
+  sincronizarPreciosOrdenEntregada,
+  eliminarPreciosOrdenEntregada
+} from '../services/catalog.service';
 
 // ─── Helper: Registrar evento en la bitácora ─────────────────────────────────
 // El cambio de ESTADO queda cubierto por el Trigger SQL (fn_bitacora_cambio_estado).
@@ -180,7 +184,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     // 1. Obtener estado actual para SLA y comisiones
     const { data: current, error: fetchError } = await supabase
       .from('taller_ingresos')
-      .select('estado, estado_desde, items_factura')
+      .select('estado, estado_desde, items_factura, vehiculo_id, taller_vehiculos(marca, linea, modelo_anio, placa)')
       .eq('empresa_id', req.empresa_id)
       .eq('id', id)
       .single();
@@ -258,6 +262,24 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         }
       } catch (comisionError: any) {
         console.error('[updateIngreso] Error calculando comisiones:', comisionError.message);
+      }
+    }
+    // ───────────────────────────────────────────────────────────────────
+
+    // 4. ── SINCRONIZACIÓN AUTOMÁTICA DE MATRIZ DE PRECIOS ─────────────────
+    if (isTransitioningToEntregado || isAlreadyEntregadoAndEditingItems) {
+      const itemsFactura = body.items_factura ?? current?.items_factura ?? [];
+      const vehiculo = (current as any)?.taller_vehiculos;
+      if (req.empresa_id) {
+        sincronizarPreciosOrdenEntregada(req.empresa_id, id as string, vehiculo, itemsFactura).catch(err => {
+          console.error('[updateIngreso] Error sincronizando matriz de precios:', err);
+        });
+      }
+    } else if (body.estado === 'cancelado' && current?.estado === 'entregado') {
+      if (req.empresa_id) {
+        eliminarPreciosOrdenEntregada(req.empresa_id, id as string).catch(err => {
+          console.error('[updateIngreso] Error eliminando precios de orden cancelada:', err);
+        });
       }
     }
     // ───────────────────────────────────────────────────────────────────

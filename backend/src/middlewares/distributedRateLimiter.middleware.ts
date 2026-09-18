@@ -41,7 +41,12 @@ export async function distributedRateLimiter(
 ): Promise<void> {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
   const ipHash = hashearIdentificador(ip);
-  const empresaSlug = (req.body?.empresa_slug as string | undefined) || 'unknown';
+  // Soporta rutas GET con :slug en params, query params y el body original de POST
+  const empresaSlug =
+    (req.params?.slug as string | undefined) ||
+    (req.query?.empresa_slug as string | undefined) ||
+    (req.body?.empresa_slug as string | undefined) ||
+    'unknown';
   const desde = inicioVentana();
 
   try {

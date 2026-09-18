@@ -20,7 +20,7 @@ import { logearIntento } from './utils/logearIntento';
  * sin que el rate limiter lo detectara.
  *
  * Valida en orden:
- *  1. empresa_slug presente en el body.
+ *  1. empresa_slug presente en params (:slug), query o body.
  *  2. El slug existe en taller_empresas.
  *  3. config_ai.activo === true para este taller.
  *
@@ -36,7 +36,12 @@ export async function tenantGuard(
   const RESPUESTA_UNIFORME = { error: 'Servicio no disponible para este taller.' };
 
   const ipHash = (req as any).ipHash ?? 'unknown'; // adjuntado por distributedRateLimiter
-  const empresaSlug = (req.body?.empresa_slug as string | undefined)?.trim() ?? '';
+  // Soporta rutas GET con :slug en params, query params y el body original de POST
+  const empresaSlug = (
+    (req.params?.slug as string | undefined) ??
+    (req.query?.empresa_slug as string | undefined) ??
+    (req.body?.empresa_slug as string | undefined)
+  )?.trim() ?? '';
 
   if (!empresaSlug) {
     // No hay slug — ni siquiera consultamos la BD, pero sí contamos el intento

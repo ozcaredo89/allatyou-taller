@@ -16,6 +16,12 @@ export default function middleware(request) {
       return rewrite(url);
     }
 
+    // /precios → sirve precios.html manteniendo querystring (?ef_token=...)
+    if (url.pathname === '/precios' || url.pathname === '/precios.html') {
+      url.pathname = '/landing/eurofrenos/precios.html';
+      return rewrite(url);
+    }
+
     // Cualquier otro asset (img/, CSS, JS, fuentes, favicon...) →
     // reescribir bajo /landing/eurofrenos/ para que Vercel sirva el archivo real
     url.pathname = `/landing/eurofrenos${url.pathname}`;

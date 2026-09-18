@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Eurofrenos — Estimador de Precios</title>
+  <link rel="preconnect" href="https://api.fontshare.com" />
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --red: #da291c; --red-lt: #ef4444; --red-dk: #991b1b; --green: #10b981;
+      --black: #0f0f0f; --slate-900: #0f172a; --slate-800: #1e293b; --slate-700: #334155;
+      --slate-600: #475569; --slate-400: #94a3b8; --slate-200: #e2e8f0;
+      --white: #ffffff;
+      --font-display: 'Clash Display', sans-serif;
+      --font-body: 'Inter', sans-serif;
+    }
+    body { background: var(--slate-900); color: var(--white); font-family: var(--font-body); min-height: 100vh; }
+    .ef-header { background: var(--black); border-bottom: 1px solid var(--slate-800); padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    .ef-header a { color: var(--slate-400); text-decoration: none; font-size: 14px; }
+    .ef-header a:hover { color: var(--white); }
+    .ef-logo { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--red); }
+    .ef-badge { margin-left: auto; background: var(--slate-800); border: 1px solid var(--slate-700); color: var(--slate-400); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 100px; letter-spacing: 0.04em; text-transform: uppercase; }
+    .ef-container { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+    .ef-title { font-family: var(--font-display); font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+    .ef-subtitle { color: var(--slate-400); font-size: 15px; margin-bottom: 40px; line-height: 1.6; }
+    #screen-locked { text-align: center; padding: 80px 24px; display: none; }
+    #screen-locked .lock-icon { font-size: 48px; margin-bottom: 16px; }
+    #screen-locked h2 { font-family: var(--font-display); font-size: 24px; margin-bottom: 12px; }
+    #screen-locked p { color: var(--slate-400); max-width: 400px; margin: 0 auto 24px; line-height: 1.6; }
+    .btn-wa { display: inline-flex; align-items: center; gap: 8px; background: #25d366; color: #fff; font-weight: 600; font-size: 14px; padding: 12px 24px; border-radius: 8px; text-decoration: none; }
+    #screen-loading { text-align: center; padding: 80px 24px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid var(--slate-700); border-top-color: var(--red); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #screen-main { display: none; }
+    .ef-card { background: var(--slate-800); border: 1px solid var(--slate-700); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .ef-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--slate-400); margin-bottom: 8px; }
+    .ef-select { width: 100%; background: var(--slate-900); border: 1px solid var(--slate-700); color: var(--white); font-family: var(--font-body); font-size: 15px; padding: 10px 14px; border-radius: 8px; appearance: none; cursor: pointer; }
+    .ef-select:focus { outline: 2px solid var(--red); }
+    .ef-select:disabled { opacity: 0.4; cursor: not-allowed; }
+    .selectors-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 540px) { .selectors-row { grid-template-columns: 1fr; } }
+    .ef-section-title { font-family: var(--font-display); font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+    .ef-section-hint { font-size: 13px; color: var(--slate-400); margin-bottom: 20px; }
+    .ef-table { width: 100%; border-collapse: collapse; }
+    .ef-table th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--slate-400); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--slate-700); }
+    .ef-table td { padding: 14px 12px; font-size: 14px; border-bottom: 1px solid var(--slate-800); vertical-align: middle; }
+    .ef-table tr:last-child td { border-bottom: none; }
+    .ef-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .badge-tipo { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge-repuesto { background: rgba(16,185,129,0.15); color: #10b981; }
+    .badge-mano { background: rgba(218,41,28,0.15); color: var(--red-lt); }
+    .price-range { font-weight: 700; color: var(--white); }
+    .price-avg { font-size: 12px; color: var(--slate-400); margin-top: 2px; }
+    .ef-count { font-size: 11px; color: var(--slate-600); }
+    .btn-auditoria { background: none; border: 1px solid var(--slate-700); color: var(--slate-400); font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+    .btn-auditoria:hover { border-color: var(--red); color: var(--white); }
+    .btn-wapp { display: inline-flex; align-items: center; gap: 6px; background: #25d366; color: #fff; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; text-decoration: none; white-space: nowrap; }
+    .ef-empty { text-align: center; padding: 48px 24px; color: var(--slate-400); }
+    .ef-empty .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--slate-800); border: 1px solid var(--slate-700); border-radius: 16px; padding: 28px; max-width: 560px; width: 100%; max-height: 80vh; overflow-y: auto; position: relative; }
+    .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--slate-400); font-size: 20px; cursor: pointer; line-height: 1; }
+    .modal-close:hover { color: var(--white); }
+    .modal-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin-bottom: 4px; padding-right: 32px; }
+    .modal-subtitle { font-size: 13px; color: var(--slate-400); margin-bottom: 20px; }
+    .modal-loading { text-align: center; padding: 32px; color: var(--slate-400); }
+    .auditoria-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--slate-700); gap: 12px; }
+    .auditoria-row:last-child { border-bottom: none; }
+    .auditoria-meta { font-size: 13px; }
+    .auditoria-meta .fecha { color: var(--slate-400); font-size: 12px; }
+    .auditoria-meta .placa { font-size: 11px; color: var(--slate-600); font-family: monospace; margin-top: 2px; }
+    .auditoria-valor { font-weight: 700; font-size: 15px; color: var(--green); white-space: nowrap; }
+    .modal-disclaimer { font-size: 11px; color: var(--slate-600); margin-top: 16px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="ef-header">
+    <span class="ef-logo">Eurofrenos</span>
+    <a href="/">&larr; Volver al inicio</a>
+    <span class="ef-badge">Estimador Beta</span>
+  </div>
+  <div id="screen-locked">
+    <div class="lock-icon">&#128274;</div>
+    <h2>Acceso Restringido</h2>
+    <p>Esta secci&oacute;n est&aacute; disponible por invitaci&oacute;n durante la fase beta. Cont&aacute;ctanos para obtener acceso.</p>
+    <a class="btn-wa" href="https://wa.me/573103793785?text=Hola%20Eurofrenos%2C%20quisiera%20acceder%20al%20estimador%20de%20precios" target="_blank">&#128172; Solicitar acceso por WhatsApp</a>
+  </div>
+  <div id="screen-loading">
+    <div class="ef-container">
+      <div class="spinner"></div>
+      <p style="color:var(--slate-400)">Cargando estimador...</p>
+    </div>
+  </div>
+  <div id="screen-main">
+    <div class="ef-container">
+      <h1 class="ef-title">Estimador de Precios</h1>
+      <p class="ef-subtitle">Precios de referencia calculados sobre servicios reales realizados en Eurofrenos.<br>Selecciona tu veh&iacute;culo para ver los rangos hist&oacute;ricos.</p>
+      <div class="ef-card">
+        <div class="selectors-row">
+          <div>
+            <div class="ef-label">Marca</div>
+            <select id="sel-marca" class="ef-select"><option value="">— Selecciona una marca —</option></select>
+          </div>
+          <div>
+            <div class="ef-label">Modelo / L&iacute;nea</div>
+            <select id="sel-linea" class="ef-select" disabled><option value="">— Primero selecciona marca —</option></select>
+          </div>
+        </div>
+      </div>
+      <div id="precios-section" style="display:none;">
+        <div class="ef-section-title" id="precios-titulo">Servicios</div>
+        <p class="ef-section-hint">Valores orientativos en COP. Solo se muestran servicios con 3 o m&aacute;s registros hist&oacute;ricos. Haz clic en <em>Ver origen</em> para ver las &oacute;rdenes que componen el promedio.</p>
+        <div class="ef-card" style="padding:0; overflow:hidden;">
+          <table class="ef-table" id="precios-tabla">
+            <thead><tr><th>Servicio / Repuesto</th><th>Tipo</th><th>Rango estimado</th><th>Casos</th><th></th></tr></thead>
+            <tbody id="precios-tbody"></tbody>
+          </table>
+        </div>
+        <div class="ef-empty" id="precios-empty" style="display:none;">
+          <div class="empty-icon">&#128269;</div>
+          <p>A&uacute;n no hay suficientes datos para este veh&iacute;culo (m&iacute;nimo 3 servicios registrados).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="modal-auditoria">
+    <div class="modal-box">
+      <button class="modal-close" id="modal-close-btn">&#10005;</button>
+      <div class="modal-title" id="modal-title">Detalle del servicio</div>
+      <div class="modal-subtitle" id="modal-subtitle">&Oacute;rdenes reales que componen el promedio</div>
+      <div id="modal-body"><div class="modal-loading">Cargando...</div></div>
+      <p class="modal-disclaimer">&#128274; Por privacidad (Ley 1581 de 2012 &mdash; Habeas Data), las placas aparecen parcialmente enmascaradas y no se muestran nombres ni datos de contacto de los clientes.</p>
+    </div>
+  </div>
+  <script src="precios.js"></script>
+</body>
+</html>
