@@ -39,7 +39,7 @@
   function showScreen(name) {
     ['screen-locked', 'screen-loading', 'screen-main'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.style.display = (id === name) ? '' : 'none';
+      if (el) el.style.display = (id === name) ? 'block' : 'none';
     });
   }
 
