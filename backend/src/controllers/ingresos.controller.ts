@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
-import { toBogotaDateStr, bogotaToday, getBogotaRange } from '../utils/dateUtils';
+import { toBogotaDateStr, bogotaToday, getBogotaRange, bogotaDayBounds } from '../utils/dateUtils';
+import { sumarItemsFactura } from '../utils/facturaUtils';
 import {
   sincronizarPreciosOrdenEntregada,
   eliminarPreciosOrdenEntregada
@@ -539,78 +540,156 @@ export const getReportesFinanzasDetalle = async (req: Request, res: Response): P
 export const getReportesOperaciones = async (req: Request, res: Response): Promise<void> => {
   try {
     const { start, end } = req.query;
+    const startStr = (start as string) || bogotaToday();
+    const endStr   = (end   as string) || bogotaToday();
 
-    // Promedios globales por estado
-    let queryTiempos = supabase
+    // ── Validación de formato y valor de fechas ───────────────────────────────
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const isValidDate = (s: string) =>
+      dateRe.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+
+    if (!isValidDate(startStr) || !isValidDate(endStr)) {
+      res.status(400).json({ error: 'Los parámetros start y end deben tener formato YYYY-MM-DD con valores válidos' });
+      return;
+    }
+
+    // ── Zona horaria America/Bogota (UTC-5, sin DST) ─────────────────────────
+    const { startISO, endExclusiveISO } = bogotaDayBounds(startStr, endStr);
+
+    // ── 1. Query unificada a taller_ingresos_tiempos ──────────────────────────
+    // Una sola lectura sirve para armar promediosGlobales Y el detalle por ingreso.
+    const { data: tiemposRaw, error: tError } = await supabase
       .from('taller_ingresos_tiempos')
-      .select('estado, duracion_minutos')
-      .eq('empresa_id', req.empresa_id);
-
-    if (start) queryTiempos = queryTiempos.gte('created_at', `${start}T00:00:00.000Z`);
-    if (end) queryTiempos = queryTiempos.lte('created_at', `${end}T23:59:59.999Z`);
-
-    const { data: tiempos, error: tError } = await queryTiempos;
+      .select('ingreso_id, estado, duracion_minutos')
+      .eq('empresa_id', req.empresa_id)
+      .gte('created_at', startISO)
+      .lt('created_at', endExclusiveISO);
 
     if (tError) throw tError;
 
-    const agrupado: Record<string, number[]> = {};
-    (tiempos || []).forEach((t: any) => {
-      if (!agrupado[t.estado]) agrupado[t.estado] = [];
-      agrupado[t.estado].push(t.duracion_minutos);
+    // ── 2. Derivar promediosGlobales y agrupación por ingreso_id ─────────────
+    const agrupadoGlobal: Record<string, number[]> = {};
+    const porIngreso: Record<string, Record<string, number>> = {};
+
+    (tiemposRaw || []).forEach((r: any) => {
+      // Promedios globales
+      if (!agrupadoGlobal[r.estado]) agrupadoGlobal[r.estado] = [];
+      agrupadoGlobal[r.estado].push(r.duracion_minutos);
+
+      // Detalle por ingreso
+      if (!porIngreso[r.ingreso_id]) porIngreso[r.ingreso_id] = {};
+      porIngreso[r.ingreso_id][r.estado] =
+        (porIngreso[r.ingreso_id][r.estado] || 0) + r.duracion_minutos;
     });
 
-    const promediosGlobales = Object.keys(agrupado).map(estado => ({
+    const promediosGlobales = Object.keys(agrupadoGlobal).map(estado => ({
       estado,
-      promedio: Math.round(agrupado[estado].reduce((a, b) => a + b, 0) / agrupado[estado].length),
-      total: agrupado[estado].length
+      promedio: Math.round(
+        agrupadoGlobal[estado].reduce((a, b) => a + b, 0) / agrupadoGlobal[estado].length
+      ),
+      total: agrupadoGlobal[estado].length,
     }));
 
-    // Detalle por vehículo: JOINs manuales
-    let queryDetalle = supabase
-      .from('taller_ingresos_tiempos')
-      .select('ingreso_id, estado, duracion_minutos')
-      .eq('empresa_id', req.empresa_id);
-
-    if (start) queryDetalle = queryDetalle.gte('created_at', `${start}T00:00:00.000Z`);
-    if (end) queryDetalle = queryDetalle.lte('created_at', `${end}T23:59:59.999Z`);
-
-    const { data: detalleRaw, error: dError } = await queryDetalle;
-
-    if (dError) throw dError;
-
-    // Agrupar por ingreso_id
-    const porIngreso: Record<string, Record<string, number>> = {};
-    (detalleRaw || []).forEach((r: any) => {
-      if (!porIngreso[r.ingreso_id]) porIngreso[r.ingreso_id] = {};
-      porIngreso[r.ingreso_id][r.estado] = (porIngreso[r.ingreso_id][r.estado] || 0) + r.duracion_minutos;
-    });
-
-    // Obtener placas
+    // ── 3. Obtener placas, estado e items_factura de las órdenes ─────────────
     const ingresoIds = Object.keys(porIngreso);
     let detalleVehiculos: any[] = [];
+    let resumen = { totalOrdenes: 0, ordenesFacturadas: 0, facturacionTotal: 0, ticketPromedio: 0 };
 
     if (ingresoIds.length > 0) {
-      const { data: ingresosData } = await supabase
+      const { data: ingresosData, error: iError } = await supabase
         .from('taller_ingresos')
-        .select('id, taller_vehiculos(placa)')
+        .select('id, estado, updated_at, items_factura, taller_vehiculos(placa)')
+        .eq('empresa_id', req.empresa_id)
         .in('id', ingresoIds);
 
-      const placaMap: Record<string, string> = {};
+      if (iError) throw iError;
+
+      // ── 4. Obtener fechas reales de entrega vía bitácora ──────────────────
+      // Solo para las órdenes entregadas (Opción A: entrega dentro del período).
+      const entregadasIds = (ingresosData || [])
+        .filter((ing: any) => ing.estado === 'entregado')
+        .map((ing: any) => ing.id);
+
+      let bitacoraMap: Record<string, string> = {};
+
+      if (entregadasIds.length > 0) {
+        const { data: bitRows, error: bitError } = await supabase
+          .from('taller_ingresos_bitacora')
+          .select('ingreso_id, created_at')
+          .eq('empresa_id', req.empresa_id)
+          .eq('tipo_evento', 'entrega')
+          .in('ingreso_id', entregadasIds)
+          .order('created_at', { ascending: true }); // primera entrega por ingreso
+
+        if (bitError) throw bitError;
+
+        (bitRows || []).forEach((b: any) => {
+          // Solo guarda la primera entrega por ingreso
+          if (!bitacoraMap[b.ingreso_id]) {
+            bitacoraMap[b.ingreso_id] = toBogotaDateStr(b.created_at);
+          }
+        });
+      }
+
+      // ── 5. Construir detalleVehiculos y calcular resumen ─────────────────
+      const ingresoMap: Record<string, any> = {};
       (ingresosData || []).forEach((ing: any) => {
-        placaMap[ing.id] = ing.taller_vehiculos?.placa || 'N/A';
+        ingresoMap[ing.id] = ing;
       });
 
-      detalleVehiculos = ingresoIds.map(ingresoId => ({
-        placa: placaMap[ingresoId] || 'N/A',
-        tiempos: porIngreso[ingresoId]
-      }));
+      let totalOrdenes     = 0;
+      let ordenesFacturadas = 0;
+      let facturacionTotal  = 0;
+
+      detalleVehiculos = ingresoIds.flatMap(ingresoId => {
+        const ing = ingresoMap[ingresoId];
+
+        // Ingreso sin registro en taller_ingresos (huérfano): ignorar completamente
+        if (!ing) return [];
+
+        const estado = ing.estado as string;
+        const placa  = ing?.taller_vehiculos?.placa ?? 'N/A';
+
+        // Canceladas: aparecen en la tabla con — pero no suman al resumen
+        if (estado === 'cancelado') {
+          return [{ placa, tiempos: porIngreso[ingresoId], totalFacturado: null }];
+        }
+
+        totalOrdenes++;
+
+        // ¿La orden fue entregada Y dentro del período consultado?
+        let totalFacturado: number | null = null;
+        if (estado === 'entregado') {
+          const total       = sumarItemsFactura(ing.items_factura);
+          const fechaEntrega = bitacoraMap[ingresoId] ?? toBogotaDateStr(ing.updated_at);
+          const enRango      = fechaEntrega >= startStr && fechaEntrega <= endStr;
+
+          if (enRango && total > 0) {
+            totalFacturado     = total;
+            ordenesFacturadas++;
+            facturacionTotal  += total;
+          }
+        }
+
+        return [{ placa, tiempos: porIngreso[ingresoId], totalFacturado }];
+      });
+
+      resumen = {
+        totalOrdenes,
+        ordenesFacturadas,
+        facturacionTotal,
+        ticketPromedio: ordenesFacturadas > 0
+          ? Math.round(facturacionTotal / ordenesFacturadas)
+          : 0,
+      };
     }
 
-    res.json({ promediosGlobales, detalleVehiculos });
+    res.json({ promediosGlobales, detalleVehiculos, resumen });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 export const asignarTecnicos = async (req: Request, res: Response): Promise<void> => {
   try {

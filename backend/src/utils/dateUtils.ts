@@ -64,3 +64,22 @@ export function getBogotaRange(
   const d = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
   return { startStr: toBogotaDateStr(d), endStr };
 }
+
+/**
+ * Convierte un par de fechas "YYYY-MM-DD" (en zona Bogotá) a un rango de timestamps UTC
+ * listo para filtros Supabase con .gte / .lt (límite superior exclusivo).
+ *
+ * America/Bogota = UTC-5 (sin DST).
+ * "YYYY-MM-DD 00:00 COT" = "YYYY-MM-DD 05:00:00.000Z"
+ * El límite superior exclusivo es "endStr+1 día 05:00:00.000Z"
+ */
+export function bogotaDayBounds(startStr: string, endStr: string): {
+  startISO: string;
+  endExclusiveISO: string;
+} {
+  const startISO = `${startStr}T05:00:00.000Z`;
+  const endDate = new Date(`${endStr}T05:00:00.000Z`);
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
+  const endExclusiveISO = endDate.toISOString();
+  return { startISO, endExclusiveISO };
+}

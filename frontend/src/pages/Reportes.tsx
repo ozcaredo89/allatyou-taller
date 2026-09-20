@@ -43,7 +43,16 @@ const Reportes: React.FC = () => {
   // ── Operativo ──
   const [opLoading, setOpLoading] = useState(false);
   const [opSubView, setOpSubView] = useState<OpSubView>('total');
-  const [opData, setOpData] = useState<{ promediosGlobales: any[]; detalleVehiculos: any[] }>({ promediosGlobales: [], detalleVehiculos: [] });
+  const [opData, setOpData] = useState<{
+    promediosGlobales: any[];
+    detalleVehiculos: any[];
+    resumen: { totalOrdenes: number; ordenesFacturadas: number; facturacionTotal: number; ticketPromedio: number };
+  }>({
+    promediosGlobales: [],
+    detalleVehiculos: [],
+    resumen: { totalOrdenes: 0, ordenesFacturadas: 0, facturacionTotal: 0, ticketPromedio: 0 },
+  });
+
 
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -136,10 +145,15 @@ const Reportes: React.FC = () => {
       setOpLoading(true);
       const { start, end } = getFechaRango();
       const res = await api.get(`/ingresos/reportes/operaciones?start=${start}&end=${end}`);
-      setOpData(res.data);
+      setOpData({
+        promediosGlobales: res.data.promediosGlobales ?? [],
+        detalleVehiculos: res.data.detalleVehiculos ?? [],
+        resumen: res.data.resumen ?? { totalOrdenes: 0, ordenesFacturadas: 0, facturacionTotal: 0, ticketPromedio: 0 },
+      });
     } catch (err) { console.error(err); }
     finally { setOpLoading(false); }
   };
+
 
   const formatearDinero = (monto: number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(monto);
@@ -407,8 +421,42 @@ const Reportes: React.FC = () => {
             </div>
           </div>
 
+          {/* ── KPI Cards Operativo ── */}
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-opacity duration-200 ${opLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl shrink-0"><Activity size={24} /></div>
+              <div>
+                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('reportes.op_total_ordenes')}</p>
+                <p className="text-2xl font-bold text-slate-900">{opData.resumen.totalOrdenes}</p>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl shrink-0"><DollarSign size={24} /></div>
+              <div>
+                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('reportes.op_facturacion_total')}</p>
+                <p className="text-2xl font-bold text-slate-900">{formatearDinero(opData.resumen.facturacionTotal)}</p>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-violet-50 text-violet-600 rounded-xl shrink-0"><TrendingUp size={24} /></div>
+              <div>
+                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('reportes.op_ticket_promedio')}</p>
+                <p className="text-2xl font-bold text-slate-900">{formatearDinero(opData.resumen.ticketPromedio)}</p>
+                {opData.resumen.totalOrdenes > 0 && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {t('reportes.op_ticket_subtitulo', {
+                      facturadas: opData.resumen.ordenesFacturadas,
+                      total: opData.resumen.totalOrdenes,
+                    })}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {opLoading ? (
             <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin w-8 h-8 text-indigo-600" /></div>
+
           ) : (
             <>
               {opSubView === 'total' && (
@@ -444,6 +492,7 @@ const Reportes: React.FC = () => {
                             {['recepcion', 'diagnostico', 'en_reparacion', 'cotizacion'].map(e => (
                               <th key={e} className="text-center px-4 py-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">{t(`estado.${e}`)}</th>
                             ))}
+                            <th className="text-right px-6 py-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">{t('reportes.op_col_total')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -455,6 +504,12 @@ const Reportes: React.FC = () => {
                                   {v.tiempos[e] ? formatearTiempo(v.tiempos[e]) : '—'}
                                 </td>
                               ))}
+                              <td className="text-right px-6 py-3">
+                                {v.totalFacturado !== null && v.totalFacturado !== undefined
+                                  ? <span className="font-semibold text-emerald-700">{formatearDinero(v.totalFacturado)}</span>
+                                  : <span className="text-slate-300">—</span>
+                                }
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -470,8 +525,12 @@ const Reportes: React.FC = () => {
               )}
             </>
           )}
+
+          {/* Nota aclaratoria */}
+          <p className="text-xs text-slate-400 text-center">{t('reportes.op_nota_operativo')}</p>
         </>
       )}
+
     </div>
 
       {/* ═══════ MODAL DRILL-DOWN ═══════ */}

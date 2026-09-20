@@ -232,6 +232,13 @@
     "op_estado": "Status",
     "op_duracion": "Duration",
     "op_placa": "Plate",
+    "op_total_ordenes": "Orders Processed",
+    "op_facturacion_total": "Closed Revenue",
+    "op_ticket_promedio": "Average Ticket",
+    "op_ticket_subtitulo": "{{facturadas}} of {{total}} invoiced orders",
+    "op_col_total": "Total Invoiced",
+    "op_nota_operativo": "* Revenue calculated from orders delivered within the period with recorded technical activity.",
+
     "filtro_ayer": "Yesterday",
     "desde": "From",
     "hasta": "To",
