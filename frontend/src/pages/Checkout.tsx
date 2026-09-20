@@ -35,7 +35,6 @@ const Checkout: React.FC = () => {
   // Facturación
   const [items, setItems] = useState<ItemFactura[]>([]);
   const [notasFactura, setNotasFactura] = useState('');
-  const [ivaIncluido, setIvaIncluido] = useState(false);
 
   // Nuevo ítem (form inline)
   const [showForm, setShowForm] = useState(false);
@@ -73,7 +72,6 @@ const Checkout: React.FC = () => {
       setIngreso(data);
       setItems(data.items_factura || []);
       setNotasFactura(data.notas_factura || '');
-      setIvaIncluido(data.iva_incluido || false);
     } catch {
       setError(t('diagnostico.error_load'));
     } finally {
@@ -208,10 +206,7 @@ const Checkout: React.FC = () => {
     setEditingItemId(null);
   };
 
-  const sumaItems = items.reduce((acc, i) => acc + i.total, 0);
-  const subtotal = ivaIncluido ? Math.round(sumaItems / 1.19) : sumaItems;
-  const iva = ivaIncluido ? (sumaItems - subtotal) : Math.round(subtotal * 0.19);
-  const total = ivaIncluido ? sumaItems : (subtotal + iva);
+  const total = items.reduce((acc, i) => acc + i.total, 0);
 
   // Guarda la orden y pone estado = cotizacion
   const handleGuardarOrden = async () => {
@@ -225,14 +220,12 @@ const Checkout: React.FC = () => {
           fecha: new Date().toISOString(),
           items_anteriores: ingreso.items_factura || [],
           notas_anteriores: ingreso.notas_factura || '',
-          iva_incluido_anterior: ingreso.iva_incluido || false
         };
         const historialEnmiendas = ingreso.historial_enmiendas || [];
         historialEnmiendas.push(snapshot);
         const { data } = await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
-          iva_incluido: ivaIncluido,
           historial_enmiendas: historialEnmiendas,
         });
         setIngreso((prev: any) => ({ ...prev, ...data }));
@@ -241,7 +234,6 @@ const Checkout: React.FC = () => {
         const { data } = await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
-          iva_incluido: ivaIncluido,
           estado: 'cotizacion',
         });
         setIngreso((prev: any) => ({ ...prev, ...data }));
@@ -319,8 +311,6 @@ const Checkout: React.FC = () => {
         `🛠️ *Desglose de Servicios y Repuestos:*`,
         desgloseItems,
         `\n--------------------------------`,
-        `*Subtotal:* ${formatCOP(subtotal)}`,
-        iva > 0 ? `*IVA (19%):* ${formatCOP(iva)}` : '',
         `*TOTAL:* *${formatCOP(total)}*`,
         `--------------------------------\n`,
         `¿Nos confirma si aprueba estos trabajos para proceder? ¡Quedamos muy atentos!`,
@@ -346,7 +336,6 @@ const Checkout: React.FC = () => {
       const { data } = await api.put(`/ingresos/${id}`, {
         items_factura: items,
         notas_factura: notasFactura,
-        iva_incluido: ivaIncluido,
         ...(nuevoEstado ? { estado: nuevoEstado } : {}),
       });
 
@@ -384,7 +373,6 @@ const Checkout: React.FC = () => {
         await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
-          iva_incluido: ivaIncluido,
           estado: 'entregado',
         });
         navigate(`/${slug}`);
@@ -503,7 +491,6 @@ const Checkout: React.FC = () => {
           </div>
           <div className="text-right">
             <h2 className="text-xl font-bold text-slate-800">{empresaNombre || 'TallerPro'}</h2>
-            <p className="text-slate-500 text-sm">NIT: 900.000.000-1</p>
           </div>
         </div>
 
@@ -785,22 +772,8 @@ const Checkout: React.FC = () => {
 
         {/* Totales */}
         <div className="flex flex-col items-end border-t-2 border-slate-100 pt-6">
-          <div className="flex justify-end items-center mb-4 pb-4 border-b border-slate-100 print:hidden w-64">
-            <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-600 hover:text-slate-900 transition select-none">
-              <input type="checkbox" checked={ivaIncluido} onChange={e => setIvaIncluido(e.target.checked)} className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
-              {t('checkout.iva_incluido', 'Precios incluyen IVA')}
-            </label>
-          </div>
-          <div className="w-64 space-y-1.5">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">{t('checkout.subtotal')}</span>
-              <span className="text-slate-800 font-medium">${subtotal.toLocaleString('es-CO')}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">{t('checkout.iva')}</span>
-              <span className="text-slate-800 font-medium">${iva.toLocaleString('es-CO')}</span>
-            </div>
-            <div className="flex justify-between items-center border-t border-slate-200 pt-3 mt-2">
+          <div className="w-64">
+            <div className="flex justify-between items-center">
               <span className="text-xl font-bold text-slate-800">{t('checkout.total')}</span>
               <span className="text-2xl font-black text-indigo-700">${total.toLocaleString('es-CO')}</span>
             </div>
