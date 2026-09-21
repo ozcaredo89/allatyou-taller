@@ -4,6 +4,8 @@ import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
+import { ModalVincularGasto } from '../components/ModalVincularGasto';
 
 interface ItemFactura {
   id: string;
@@ -56,6 +58,13 @@ const Checkout: React.FC = () => {
   const [justificandoItemId, setJustificandoItemId] = useState<string | null>(null);
   const [popoverItemId, setPopoverItemId] = useState<string | null>(null);
 
+  // Gastos vinculados a la orden
+  const [gastos, setGastos] = useState<any[]>([]);
+  const [modalGastoOpen, setModalGastoOpen] = useState(false);
+  const [modalGastoItemId, setModalGastoItemId] = useState<string | null>(null);
+  const [modalGastoItemDesc, setModalGastoItemDesc] = useState<string>('');
+  const [modalGastoTab, setModalGastoTab] = useState<'nuevo' | 'existente'>('nuevo');
+
   // Fix #5: Close popover on outside click
   useEffect(() => {
     if (!popoverItemId) return;
@@ -64,7 +73,47 @@ const Checkout: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, [popoverItemId]);
 
-  useEffect(() => { cargarIngreso(); }, [id]);
+  const cargarGastos = async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/gastos?ingreso_id=${id}`);
+      setGastos(res.data?.gastos || []);
+    } catch (err) {
+      console.error('[cargarGastos] Error:', err);
+    }
+  };
+
+  useEffect(() => {
+    cargarIngreso();
+    cargarGastos();
+  }, [id]);
+
+  const handleOpenModalGasto = (itemId?: string, itemDesc?: string, tab: 'nuevo' | 'existente' = 'nuevo') => {
+    setModalGastoItemId(itemId || null);
+    setModalGastoItemDesc(itemDesc || '');
+    setModalGastoTab(tab);
+    setModalGastoOpen(true);
+  };
+
+  const handleDesvincularGastoDeItem = async (gastoId: string) => {
+    if (!window.confirm('¿Deseas desvincular este gasto del repuesto? (Permanecerá en la orden como costo general)')) return;
+    try {
+      await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: id, item_id: null });
+      await cargarGastos();
+    } catch (err) {
+      console.error('[handleDesvincularGastoDeItem] Error:', err);
+    }
+  };
+
+  const handleDesvincularGastoDeOrden = async (gastoId: string) => {
+    if (!window.confirm('¿Deseas desvincular este gasto de la orden completamente?')) return;
+    try {
+      await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: null, item_id: null });
+      await cargarGastos();
+    } catch (err) {
+      console.error('[handleDesvincularGastoDeOrden] Error:', err);
+    }
+  };
 
   const cargarIngreso = async () => {
     try {
@@ -122,7 +171,16 @@ const Checkout: React.FC = () => {
     setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(''); setNuevoCategoria(null); setShowForm(false);
   };
 
-  const eliminarItem = (itemId: string) => setItems(prev => prev.filter(i => i.id !== itemId));
+  const eliminarItem = (itemId: string) => {
+    const tieneGastos = gastos.some(g => g.item_id === itemId);
+    if (tieneGastos) {
+      const confirma = window.confirm(t('gastos.confirm_eliminar_item_con_gastos'));
+      if (!confirma) return;
+      // Inmediatamente desvincular del ítem en el estado local para que pase a costos generales sin esperar recarga
+      setGastos(prev => prev.map(g => g.item_id === itemId ? { ...g, item_id: null } : g));
+    }
+    setItems(prev => prev.filter(i => i.id !== itemId));
+  };
 
   const startEdit = (item: ItemFactura) => {
     setEditingItemId(item.id);
@@ -238,6 +296,7 @@ const Checkout: React.FC = () => {
         });
         setIngreso((prev: any) => ({ ...prev, ...data }));
       }
+      await cargarGastos();
     } catch {
       setError('Error al guardar la orden.');
     } finally {
@@ -735,6 +794,73 @@ const Checkout: React.FC = () => {
                               </span>
                             )}
                           </div>
+
+                          {/* Indicador de costo vinculado para repuestos */}
+                          {item.tipo === 'repuesto' && (
+                            <div className="mt-1 print:hidden flex items-center gap-2 text-xs">
+                              {(() => {
+                                const gastosItem = gastos.filter(g => g.item_id === item.id);
+                                const costoTotal = gastosItem.reduce((acc, g) => acc + Number(g.monto || 0), 0);
+                                const itemGuardado = ingreso?.items_factura?.some((saved: any) => saved.id === item.id);
+
+                                if (gastosItem.length > 0) {
+                                  const util = item.total - costoTotal;
+                                  const margen = item.total > 0 ? ((util / item.total) * 100).toFixed(0) : '0';
+                                  return (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-red-700 font-bold text-[11px] bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                                        Costo: ${costoTotal.toLocaleString('es-CO')}
+                                      </span>
+                                      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
+                                        util >= 0 ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'
+                                      }`}>
+                                        {util >= 0 ? `+${margen}%` : `${margen}%`}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenModalGasto(item.id, item.descripcion, 'nuevo')}
+                                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline"
+                                        title="Registrar gasto adicional para este ítem"
+                                      >
+                                        + Gasto
+                                      </button>
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] text-slate-400 italic">
+                                      {t('gastos.sin_costo_registrado')}
+                                    </span>
+                                    {itemGuardado ? (
+                                      <div className="flex items-center gap-1 ml-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenModalGasto(item.id, item.descripcion, 'nuevo')}
+                                          className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline"
+                                        >
+                                          + Costo
+                                        </button>
+                                        <span className="text-slate-300">·</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenModalGasto(item.id, item.descripcion, 'existente')}
+                                          className="text-[10px] text-slate-500 hover:text-slate-700 font-medium underline"
+                                        >
+                                          Vincular
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-amber-600 italic">
+                                        (Guarda la orden para vincular)
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
                         </td>
                         <td className="py-2.5 text-center">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{item.tipo === 'repuesto' ? t('checkout.repuesto') : t('checkout.mano_obra')}</span>
@@ -755,6 +881,19 @@ const Checkout: React.FC = () => {
           ) : (
             <p className="text-slate-400 italic text-sm text-center py-4 border border-dashed border-slate-200 rounded-xl">{t('checkout.no_items')}</p>
           )}
+        </div>
+
+        {/* ── Desglose de Rentabilidad de Repuestos ── */}
+        <div className="mb-8 print:hidden">
+          <RentabilidadRepuestos
+            itemsFactura={items}
+            gastos={gastos}
+            estadoOrden={ingreso?.estado}
+            savedItemIds={new Set<string>((ingreso?.items_factura || []).map((i: any) => i.id))}
+            onOpenModalGasto={handleOpenModalGasto}
+            onDesvincularGastoDeItem={handleDesvincularGastoDeItem}
+            onDesvincularGastoDeOrden={handleDesvincularGastoDeOrden}
+          />
         </div>
 
         {/* Notas de Factura */}
@@ -786,6 +925,24 @@ const Checkout: React.FC = () => {
           <p>{t('checkout.footer_2')}{empresaNombre || 'TallerPro'}.</p>
         </div>
       </div>
+
+      {/* Modal para registrar o vincular gastos a la orden/ítem */}
+      {modalGastoOpen && (
+        <ModalVincularGasto
+          key={modalGastoItemId ? `item-${modalGastoItemId}` : 'general'}
+          isOpen={modalGastoOpen}
+          onClose={() => {
+            setModalGastoOpen(false);
+            setModalGastoItemId(null);
+            setModalGastoItemDesc('');
+          }}
+          onSuccess={cargarGastos}
+          ingresoId={id!}
+          itemId={modalGastoItemId}
+          itemDescripcion={modalGastoItemDesc}
+          initialTab={modalGastoTab}
+        />
+      )}
     </div>
   );
 };

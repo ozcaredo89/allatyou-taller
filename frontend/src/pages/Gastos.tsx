@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Plus, Trash2, Loader2, Receipt, AlertCircle, Check, X,
-  Repeat, Upload, Tag, CalendarClock
+  Repeat, Upload, Tag, CalendarClock, Car, Package, Search
 } from 'lucide-react';
 import api from '../services/api';
 import { getBogotaRange, bogotaToday } from '../utils/dateUtils';
@@ -25,7 +26,19 @@ interface Gasto {
   comprobante_url?: string;
   tipo: 'unico' | 'recurrente';
   notas?: string;
+  ingreso_id?: string;
+  item_id?: string;
   taller_categorias_gastos?: Categoria;
+  taller_ingresos?: {
+    id: string;
+    estado: string;
+    fecha_ingreso: string;
+    taller_vehiculos?: {
+      placa: string;
+      marca?: string;
+      linea?: string;
+    };
+  };
 }
 
 interface Recurrente {
@@ -53,6 +66,8 @@ const formatearMonto = (v: string) => {
 // ─── Componente Principal ─────────────────────────────────────────────────────
 const Gastos: React.FC = () => {
   const { t } = useTranslation();
+  const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
 
   // ── Estado principal ──
   const [gastos, setGastos] = useState<Gasto[]>([]);
@@ -82,7 +97,27 @@ const Gastos: React.FC = () => {
     proveedor: '',
     notas: '',
     comprobante_url: '',
+    ingreso_id: '',
+    item_id: '',
   });
+
+  // Estado para autocompletar placa y vincular a orden
+  const [searchPlaca, setSearchPlaca] = useState('');
+  const [buscandoPlacas, setBuscandoPlacas] = useState(false);
+  const [ordenesSugeridas, setOrdenesSugeridas] = useState<any[]>([]);
+  const [ordenSeleccionada, setOrdenSeleccionada] = useState<any | null>(null);
+  const debounceTimerRef = useRef<any>(null);
+  const searchPlacaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchPlacaRef.current && !searchPlacaRef.current.contains(e.target as Node)) {
+        setOrdenesSugeridas([]);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Campos del formulario (recurrente)
   const [formRec, setFormRec] = useState({
@@ -188,6 +223,78 @@ const Gastos: React.FC = () => {
     }
   };
 
+  // ── Manejadores de autocompletado por placa ──
+  const handleSearchPlacaChange = (val: string) => {
+    const formatted = val.toUpperCase();
+    setSearchPlaca(formatted);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+
+    const clean = formatted.replace(/[^A-Z0-9]/g, '');
+    if (clean.length < 2) {
+      setOrdenesSugeridas([]);
+      setBuscandoPlacas(false);
+      return;
+    }
+
+    setBuscandoPlacas(true);
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/ingresos/buscar?q=${encodeURIComponent(clean)}`);
+        setOrdenesSugeridas(res.data || []);
+      } catch (err) {
+        console.error(err);
+        setOrdenesSugeridas([]);
+      } finally {
+        setBuscandoPlacas(false);
+      }
+    }, 300);
+  };
+
+  const seleccionarOrden = (orden: any) => {
+    setOrdenSeleccionada(orden);
+    setOrdenesSugeridas([]);
+    setSearchPlaca('');
+    setForm(f => {
+      let catId = f.categoria_id;
+      if (!catId) {
+        const repCat = categorias.find(c => c.nombre.toLowerCase().includes('repuesto'));
+        if (repCat) catId = repCat.id;
+      }
+      return {
+        ...f,
+        ingreso_id: orden.id,
+        item_id: '',
+        categoria_id: catId
+      };
+    });
+  };
+
+  const quitarOrdenSeleccionada = () => {
+    setOrdenSeleccionada(null);
+    setForm(f => ({ ...f, ingreso_id: '', item_id: '' }));
+  };
+
+  const handleSeleccionarItemOrden = (itemId: string) => {
+    setForm(f => {
+      const selectedItem = ordenSeleccionada?.items_repuesto?.find((i: any) => i.id === itemId);
+      let desc = f.descripcion;
+      if (selectedItem && (!desc || desc.startsWith('Compra '))) {
+        desc = `Compra ${selectedItem.descripcion}`;
+      }
+      let catId = f.categoria_id;
+      if (!catId) {
+        const repCat = categorias.find(c => c.nombre.toLowerCase().includes('repuesto'));
+        if (repCat) catId = repCat.id;
+      }
+      return {
+        ...f,
+        item_id: itemId,
+        descripcion: desc,
+        categoria_id: catId
+      };
+    });
+  };
+
   // ── Guardar gasto único ──
   const handleGuardar = async () => {
     if (!form.descripcion.trim()) { setError(t('gastos.error_descripcion')); return; }
@@ -196,7 +303,13 @@ const Gastos: React.FC = () => {
     try {
       setSaving(true);
       setError('');
-      await api.post('/gastos', { ...form, monto, tipo: 'unico' });
+      await api.post('/gastos', {
+        ...form,
+        monto,
+        tipo: 'unico',
+        ingreso_id: form.ingreso_id || null,
+        item_id: form.item_id || null,
+      });
       setModalOpen(false);
       resetForm();
       await cargarGastos();
@@ -265,8 +378,21 @@ const Gastos: React.FC = () => {
   };
 
   const resetForm = () => {
-    setForm({ fecha: bogotaToday(), categoria_id: '', descripcion: '', monto: '', proveedor: '', notas: '', comprobante_url: '' });
+    setForm({
+      fecha: bogotaToday(),
+      categoria_id: '',
+      descripcion: '',
+      monto: '',
+      proveedor: '',
+      notas: '',
+      comprobante_url: '',
+      ingreso_id: '',
+      item_id: '',
+    });
     setFormRec({ nombre: '', categoria_id: '', monto_estimado: '', frecuencia: 'mensual', dia_del_mes: '', fecha_inicio: bogotaToday(), notas: '' });
+    setSearchPlaca('');
+    setOrdenSeleccionada(null);
+    setOrdenesSugeridas([]);
     setError('');
   };
 
@@ -291,7 +417,7 @@ const Gastos: React.FC = () => {
           <p className="text-slate-500 text-sm">{t('gastos.subtitle')}</p>
         </div>
         <button
-          onClick={() => { setModalOpen(true); setError(''); }}
+          onClick={() => { resetForm(); setModalOpen(true); }}
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl transition shadow-md"
         >
           <Plus size={18} /> {t('gastos.btn_nuevo')}
@@ -455,6 +581,29 @@ const Gastos: React.FC = () => {
                           <Repeat size={9} /> {t('gastos.badge_recurrente')}
                         </span>
                       )}
+                      {g.taller_ingresos?.taller_vehiculos?.placa && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const esCerrada = g.taller_ingresos?.estado === 'entregado' || g.taller_ingresos?.estado === 'cancelado';
+                              const path = esCerrada
+                                ? `/${slug}/historial/${g.ingreso_id}`
+                                : `/${slug}/checkout/${g.ingreso_id}`;
+                              navigate(path);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded hover:bg-amber-200 transition"
+                            title="Ver orden de servicio"
+                          >
+                            <Car size={11} /> {g.taller_ingresos.taller_vehiculos.placa}
+                          </button>
+                          {g.item_id && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">
+                              <Package size={10} /> Ítem vinculado
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {g.comprobante_url && (
                         <a href={g.comprobante_url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 underline block mt-0.5">
                           {t('gastos.ver_recibo')}
@@ -548,6 +697,129 @@ const Gastos: React.FC = () => {
                       </select>
                     </div>
                   </div>
+
+                  {/* ── Bloque de Vinculación a Orden / Ítem ── */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Car size={15} className="text-indigo-600" />
+                        {t('gastos.vincular_orden')}
+                      </label>
+                      {ordenSeleccionada && (
+                        <button
+                          type="button"
+                          onClick={quitarOrdenSeleccionada}
+                          className="text-[11px] text-red-500 hover:text-red-700 font-semibold flex items-center gap-0.5"
+                        >
+                          <X size={12} /> {t('gastos.quitar_vinculo')}
+                        </button>
+                      )}
+                    </div>
+
+                    {!ordenSeleccionada ? (
+                      <div ref={searchPlacaRef} className="relative">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={searchPlaca}
+                            onChange={e => handleSearchPlacaChange(e.target.value)}
+                            placeholder={t('gastos.buscar_placa_placeholder')}
+                            className="w-full border border-slate-200 rounded-lg pl-8 pr-8 py-2 text-xs uppercase font-medium focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                          />
+                          <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                          {buscandoPlacas && (
+                            <Loader2 size={14} className="animate-spin absolute right-2.5 top-2.5 text-indigo-500" />
+                          )}
+                        </div>
+
+                        {/* Dropdown de resultados */}
+                        {ordenesSugeridas.length > 0 && (
+                          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-y-auto divide-y divide-slate-100">
+                            {ordenesSugeridas.map(ord => (
+                              <div
+                                key={ord.id}
+                                onClick={() => seleccionarOrden(ord)}
+                                className="p-2.5 hover:bg-indigo-50/40 cursor-pointer transition flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-black px-1.5 py-0.5 rounded tracking-wider">
+                                      {ord.vehiculo?.placa}
+                                    </span>
+                                    <span className="text-xs font-semibold text-slate-700 truncate">
+                                      {ord.vehiculo?.marca} {ord.vehiculo?.linea}
+                                    </span>
+                                  </div>
+                                  {ord.motivo_visita && (
+                                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{ord.motivo_visita}</p>
+                                  )}
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                                    ord.estado === 'en_reparacion' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                    ord.estado === 'entregado' ? 'bg-slate-100 text-slate-600' :
+                                    'bg-amber-50 text-amber-700 border border-amber-200'
+                                  }`}>
+                                    {ord.estado.replace('_', ' ')}
+                                  </span>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">{ord.fecha_ingreso?.split('T')[0]}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {/* Tarjeta de la orden seleccionada */}
+                        <div className="bg-white border border-indigo-100 rounded-lg p-2.5 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-amber-100 text-amber-900 border border-amber-300 font-black px-1.5 py-0.5 rounded tracking-wider text-xs">
+                              {ordenSeleccionada.vehiculo?.placa}
+                            </span>
+                            <div>
+                              <p className="font-bold text-slate-800">
+                                {ordenSeleccionada.vehiculo?.marca} {ordenSeleccionada.vehiculo?.linea}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                Estado: <strong className="capitalize">{ordenSeleccionada.estado?.replace('_', ' ')}</strong>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Selector de ítem de repuesto */}
+                        {ordenSeleccionada.items_repuesto && ordenSeleccionada.items_repuesto.length > 0 ? (
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                              {t('gastos.seleccionar_item')}
+                            </label>
+                            <select
+                              value={form.item_id}
+                              onChange={e => handleSeleccionarItemOrden(e.target.value)}
+                              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                            >
+                              <option value="">-- {t('gastos.solo_orden')} --</option>
+                              {ordenSeleccionada.items_repuesto.map((item: any) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.descripcion} (Venta: {formatearDinero(item.total)})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 italic">
+                            Esta orden no tiene repuestos cotizados aún. El gasto se vinculará a la orden general.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 bg-blue-50 border border-blue-100 rounded-lg p-2.5">
+                    {t('gastos.nota_costo_venta')}
+                  </p>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_descripcion')} *</label>
                     <input type="text" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}

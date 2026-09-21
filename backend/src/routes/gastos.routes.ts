@@ -9,6 +9,7 @@ import {
   createGasto,
   updateGasto,
   deleteGasto,
+  patchVinculoGasto,
   getRecurrentes,
   getPendientes,
   createRecurrente,
@@ -38,6 +39,7 @@ router.delete('/recurrentes/:id', deleteRecurrente);
 // ── Gastos Ejecutados ──
 router.get('/', getGastos);
 router.post('/', createGasto);
+router.patch('/:id/vinculo', patchVinculoGasto);
 router.put('/:id', updateGasto);
 router.delete('/:id', deleteGasto);
 

@@ -86,6 +86,87 @@ export const getHistorial = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+/**
+ * GET /api/ingresos/buscar
+ * Busca órdenes por placa de vehículo (activas y cerradas).
+ * Usado para autocompletar en el módulo de gastos e ítems de repuestos.
+ */
+export const buscarIngresosPorPlaca = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q, placa } = req.query;
+    const raw = String(q || placa || '').trim();
+    // Normalización: quita todo lo que no sea letra o número y pasa a mayúsculas
+    const clean = raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (clean.length < 2) {
+      res.json([]);
+      return;
+    }
+
+    // Patrón tolerante a espacios y guiones: intercala comodines '%' entre cada carácter (%J%F%S%1%0%9%)
+    const pattern = `%${clean.split('').join('%')}%`;
+
+    const { data, error } = await supabase
+      .from('taller_ingresos')
+      .select(`
+        id, estado, fecha_ingreso, items_factura, motivo_visita,
+        taller_vehiculos!inner(placa, marca, linea, taller_clientes(nombre_completo, telefono))
+      `)
+      .eq('empresa_id', req.empresa_id)
+      .eq('taller_vehiculos.empresa_id', req.empresa_id)
+      .ilike('taller_vehiculos.placa', pattern)
+      .neq('estado', 'cancelado')
+      .order('fecha_ingreso', { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+
+    const ordenes = data || [];
+
+    // Priorizar en memoria: activas primero, luego entregado
+    const prioridadEstado: Record<string, number> = {
+      en_reparacion: 1,
+      esperando_aprobacion: 2,
+      cotizacion: 3,
+      diagnostico: 4,
+      recepcion: 5,
+      entregado: 6
+    };
+
+    ordenes.sort((a: any, b: any) => {
+      const pA = prioridadEstado[a.estado] || 99;
+      const pB = prioridadEstado[b.estado] || 99;
+      if (pA !== pB) return pA - pB;
+      return new Date(b.fecha_ingreso).getTime() - new Date(a.fecha_ingreso).getTime();
+    });
+
+    const resultados = ordenes.slice(0, 15).map((ord: any) => {
+      const itemsFactura = Array.isArray(ord.items_factura) ? ord.items_factura : [];
+      const itemsRepuesto = itemsFactura
+        .filter((i: any) => i && i.tipo === 'repuesto' && i.id)
+        .map((i: any) => ({
+          id: i.id,
+          descripcion: i.descripcion,
+          cantidad: i.cantidad || 1,
+          total: i.total || 0,
+        }));
+
+      return {
+        id: ord.id,
+        estado: ord.estado,
+        fecha_ingreso: ord.fecha_ingreso,
+        motivo_visita: ord.motivo_visita,
+        vehiculo: ord.taller_vehiculos,
+        items_repuesto: itemsRepuesto
+      };
+    });
+
+    res.json(resultados);
+  } catch (error: any) {
+    console.error('[buscarIngresosPorPlaca] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const createIngreso = async (req: Request, res: Response): Promise<void> => {
   try {
     const { 
@@ -283,8 +364,6 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         });
       }
     }
-    // ───────────────────────────────────────────────────────────────────
-
     const { data, error } = await supabase
       .from('taller_ingresos')
       .update(body)
@@ -297,6 +376,41 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
       console.error('[updateIngreso] Supabase error:', JSON.stringify(error));
       throw error;
     }
+
+    // 5. ── LIMPIEZA DE HUÉRFANOS DE GASTOS ────────────────────────────────
+    // Si se guardaron exitosamente los items_factura, detectar repuestos eliminados o cambiados
+    if (body.items_factura !== undefined && current?.items_factura) {
+      try {
+        const prevRepuestos = (current.items_factura || [])
+          .filter((item: any) => item && item.tipo === 'repuesto' && item.id)
+          .map((item: any) => item.id);
+
+        const newRepuestosSet = new Set(
+          (body.items_factura || [])
+            .filter((item: any) => item && item.tipo === 'repuesto' && item.id)
+            .map((item: any) => item.id)
+        );
+
+        const repuestosRemovidos = prevRepuestos.filter((prevId: string) => !newRepuestosSet.has(prevId));
+
+        if (repuestosRemovidos.length > 0 && req.empresa_id) {
+          const { error: orphanErr } = await supabase
+            .from('taller_gastos')
+            .update({ item_id: null })
+            .eq('empresa_id', req.empresa_id)
+            .eq('ingreso_id', id)
+            .in('item_id', repuestosRemovidos);
+
+          if (orphanErr) {
+            console.error('[updateIngreso] Error limpiando gastos huérfanos:', orphanErr.message);
+          }
+        }
+      } catch (err: any) {
+        console.error('[updateIngreso] Error evaluando gastos huérfanos:', err?.message);
+      }
+    }
+    // ───────────────────────────────────────────────────────────────────
+
     res.json(data);
   } catch (error: any) {
     console.error('[updateIngreso] Caught error:', error.message);

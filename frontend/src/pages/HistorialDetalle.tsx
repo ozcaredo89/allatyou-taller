@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, XCircle, Receipt, Wrench, Edit } from 'lucide-react
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
 
 interface ItemFactura {
   id: string;
@@ -21,6 +22,7 @@ const HistorialDetalle: React.FC = () => {
   const { empresaNombre } = useAuth();
   const { t } = useTranslation();
   const [ingreso, setIngreso] = useState<any>(null);
+  const [gastos, setGastos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,6 +30,10 @@ const HistorialDetalle: React.FC = () => {
       .then(r => setIngreso(r.data))
       .catch(console.error)
       .finally(() => setLoading(false));
+
+    api.get(`/gastos?ingreso_id=${id}`)
+      .then(r => setGastos(r.data?.gastos || []))
+      .catch(console.error);
   }, [id]);
 
   if (loading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin w-8 h-8 text-indigo-600" /></div>;
@@ -148,6 +154,14 @@ const HistorialDetalle: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Rentabilidad de repuestos en solo lectura */}
+      <RentabilidadRepuestos
+        itemsFactura={items}
+        gastos={gastos}
+        estadoOrden={ingreso.estado}
+        readOnly={true}
+      />
 
       <div className="text-center text-slate-400 text-sm">
         <p>{t('checkout.footer_2')} {empresaNombre || 'TallerPro'}.</p>

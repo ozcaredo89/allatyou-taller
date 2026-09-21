@@ -111,12 +111,56 @@ export const inicializarCategorias = async (req: Request, res: Response): Promis
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Helper: valida que un vínculo orden-ítem sea válido para el tenant.
+ * - ingreso_id debe existir y pertenecer a empresaId.
+ * - Si viene item_id, debe existir en items_factura de esa orden y ser tipo === 'repuesto'.
+ * - item_id sin ingreso_id se rechaza.
+ */
+async function validarVinculo(
+  empresaId: string,
+  ingresoId?: string | null,
+  itemId?: string | null
+): Promise<{ ok: boolean; error?: string; status?: number }> {
+  if (itemId && !ingresoId) {
+    return { ok: false, error: 'No se puede vincular un ítem sin especificar la orden de servicio.', status: 400 };
+  }
+
+  if (!ingresoId) {
+    return { ok: true };
+  }
+
+  const { data: orden, error } = await supabase
+    .from('taller_ingresos')
+    .select('id, items_factura')
+    .eq('id', ingresoId)
+    .eq('empresa_id', empresaId)
+    .single();
+
+  if (error || !orden) {
+    return { ok: false, error: 'La orden de servicio especificada no existe o no pertenece a tu taller.', status: 404 };
+  }
+
+  if (itemId) {
+    const items = Array.isArray(orden.items_factura) ? orden.items_factura : [];
+    const itemEncontrado = items.find((i: any) => i && i.id === itemId);
+    if (!itemEncontrado) {
+      return { ok: false, error: `El ítem con ID '${itemId}' no existe en la orden de servicio.`, status: 400 };
+    }
+    if (itemEncontrado.tipo !== 'repuesto') {
+      return { ok: false, error: 'Solo se pueden vincular gastos a ítems de tipo repuesto.', status: 400 };
+    }
+  }
+
+  return { ok: true };
+}
+
+/**
  * GET /api/gastos
- * Lista gastos con filtros opcionales: desde, hasta, categoria_id.
+ * Lista gastos con filtros opcionales: desde, hasta, categoria_id, ingreso_id, sin_vincular.
  */
 export const getGastos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { desde, hasta, categoria_id, page = '1', limit = '50' } = req.query;
+    const { desde, hasta, categoria_id, ingreso_id, sin_vincular, page = '1', limit = '50' } = req.query;
     const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
 
     // ── Query base (sin paginación) para obtener el total monetario real ──
@@ -129,6 +173,8 @@ export const getGastos = async (req: Request, res: Response): Promise<void> => {
     if (desde) baseQuery = baseQuery.gte('fecha', desde as string);
     if (hasta) baseQuery = baseQuery.lte('fecha', hasta as string);
     if (categoria_id) baseQuery = baseQuery.eq('categoria_id', categoria_id as string);
+    if (ingreso_id) baseQuery = baseQuery.eq('ingreso_id', ingreso_id as string);
+    if (sin_vincular === 'true') baseQuery = baseQuery.is('ingreso_id', null);
 
     const { data: allMontos, count } = await baseQuery;
     const totalMonto = (allMontos || []).reduce(
@@ -140,9 +186,10 @@ export const getGastos = async (req: Request, res: Response): Promise<void> => {
       .from('taller_gastos')
       .select(`
         id, fecha, descripcion, monto, proveedor, comprobante_url,
-        tipo, notas, created_at,
+        tipo, notas, created_at, ingreso_id, item_id,
         taller_categorias_gastos(id, nombre, color, icono),
-        taller_gastos_recurrentes(id, nombre)
+        taller_gastos_recurrentes(id, nombre),
+        taller_ingresos(id, estado, fecha_ingreso, taller_vehiculos(placa, marca, linea))
       `)
       .eq('empresa_id', req.empresa_id)
       .order('fecha', { ascending: false })
@@ -152,6 +199,8 @@ export const getGastos = async (req: Request, res: Response): Promise<void> => {
     if (desde) query = query.gte('fecha', desde as string);
     if (hasta) query = query.lte('fecha', hasta as string);
     if (categoria_id) query = query.eq('categoria_id', categoria_id as string);
+    if (ingreso_id) query = query.eq('ingreso_id', ingreso_id as string);
+    if (sin_vincular === 'true') query = query.is('ingreso_id', null);
 
     const { data, error } = await query;
     if (error) throw error;
@@ -164,11 +213,23 @@ export const getGastos = async (req: Request, res: Response): Promise<void> => {
 
 /**
  * POST /api/gastos
- * Registra un nuevo gasto ejecutado.
+ * Registra un nuevo gasto ejecutado (opcionalmente vinculado a orden e ítem).
  */
 export const createGasto = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { fecha, categoria_id, descripcion, monto, proveedor, comprobante_url, tipo, plantilla_id, notas } = req.body;
+    const {
+      fecha,
+      categoria_id,
+      descripcion,
+      monto,
+      proveedor,
+      comprobante_url,
+      tipo,
+      plantilla_id,
+      notas,
+      ingreso_id,
+      item_id
+    } = req.body;
 
     if (!descripcion?.trim()) {
       res.status(400).json({ error: 'La descripción es obligatoria.' });
@@ -177,6 +238,14 @@ export const createGasto = async (req: Request, res: Response): Promise<void> =>
     if (!monto || Number(monto) <= 0) {
       res.status(400).json({ error: 'El monto debe ser mayor a cero.' });
       return;
+    }
+
+    if (ingreso_id || item_id) {
+      const validacion = await validarVinculo(req.empresa_id!, ingreso_id, item_id);
+      if (!validacion.ok) {
+        res.status(validacion.status || 400).json({ error: validacion.error });
+        return;
+      }
     }
 
     const { data, error } = await supabase
@@ -192,10 +261,14 @@ export const createGasto = async (req: Request, res: Response): Promise<void> =>
         tipo: tipo || 'unico',
         plantilla_id: plantilla_id || null,
         notas: notas?.trim() || null,
+        ingreso_id: ingreso_id || null,
+        item_id: ingreso_id ? (item_id || null) : null,
       }])
       .select(`
         id, fecha, descripcion, monto, proveedor, comprobante_url, tipo, notas,
-        taller_categorias_gastos(id, nombre, color, icono)
+        ingreso_id, item_id,
+        taller_categorias_gastos(id, nombre, color, icono),
+        taller_ingresos(id, estado, fecha_ingreso, taller_vehiculos(placa, marca, linea))
       `)
       .single();
     if (error) throw error;
@@ -222,22 +295,138 @@ export const createGasto = async (req: Request, res: Response): Promise<void> =>
 export const updateGasto = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { fecha, categoria_id, descripcion, monto, proveedor, comprobante_url, notas } = req.body;
+    const {
+      fecha,
+      categoria_id,
+      descripcion,
+      monto,
+      proveedor,
+      comprobante_url,
+      notas,
+      ingreso_id,
+      item_id
+    } = req.body;
+
+    const payload: Record<string, any> = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (fecha !== undefined) payload.fecha = fecha;
+    if (categoria_id !== undefined) payload.categoria_id = categoria_id;
+    if (descripcion !== undefined) payload.descripcion = descripcion;
+    if (monto !== undefined) payload.monto = Number(monto);
+    if (proveedor !== undefined) payload.proveedor = proveedor;
+    if (comprobante_url !== undefined) payload.comprobante_url = comprobante_url;
+    if (notas !== undefined) payload.notas = notas;
+
+    // Manejo de vínculo: undefined conserva el vínculo actual, null desvincula
+    if (ingreso_id !== undefined || item_id !== undefined) {
+      if (ingreso_id === null) {
+        payload.ingreso_id = null;
+        payload.item_id = null;
+      } else if (ingreso_id) {
+        const validacion = await validarVinculo(req.empresa_id!, ingreso_id, item_id);
+        if (!validacion.ok) {
+          res.status(validacion.status || 400).json({ error: validacion.error });
+          return;
+        }
+        payload.ingreso_id = ingreso_id;
+        payload.item_id = item_id || null;
+      } else if (item_id !== undefined) {
+        // Consultar el gasto actual para verificar su ingreso_id existente
+        const { data: currentGasto } = await supabase
+          .from('taller_gastos')
+          .select('ingreso_id')
+          .eq('id', id)
+          .eq('empresa_id', req.empresa_id)
+          .single();
+
+        const currentIngresoId = currentGasto?.ingreso_id;
+        if (item_id && !currentIngresoId) {
+          res.status(400).json({ error: 'No se puede vincular un ítem a un gasto sin orden vinculada.' });
+          return;
+        }
+        if (item_id && currentIngresoId) {
+          const validacion = await validarVinculo(req.empresa_id!, currentIngresoId, item_id);
+          if (!validacion.ok) {
+            res.status(validacion.status || 400).json({ error: validacion.error });
+            return;
+          }
+        }
+        payload.item_id = item_id || null;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('taller_gastos')
+      .update(payload)
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id)
+      .select(`
+        id, fecha, descripcion, monto, proveedor, comprobante_url, tipo, notas,
+        ingreso_id, item_id,
+        taller_categorias_gastos(id, nombre, color, icono),
+        taller_ingresos(id, estado, fecha_ingreso, taller_vehiculos(placa, marca, linea))
+      `)
+      .single();
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * PATCH /api/gastos/:id/vinculo
+ * Actualiza únicamente el vínculo de un gasto con una orden e ítem.
+ * Usado desde Checkout para vincular gastos existentes sin reenviar monto, fecha, etc.
+ */
+export const patchVinculoGasto = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { ingreso_id, item_id } = req.body;
+
+    // Verificar que el gasto exista y pertenezca a la empresa
+    const { data: existingGasto, error: findError } = await supabase
+      .from('taller_gastos')
+      .select('id')
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id)
+      .maybeSingle();
+
+    if (findError || !existingGasto) {
+      res.status(404).json({ error: 'El gasto especificado no existe o no pertenece a tu taller.' });
+      return;
+    }
+
+    const targetIngresoId = ingreso_id || null;
+    const targetItemId = targetIngresoId ? (item_id || null) : null;
+
+    if (targetIngresoId) {
+      const validacion = await validarVinculo(req.empresa_id!, targetIngresoId, targetItemId);
+      if (!validacion.ok) {
+        res.status(validacion.status || 400).json({ error: validacion.error });
+        return;
+      }
+    }
 
     const { data, error } = await supabase
       .from('taller_gastos')
       .update({
-        fecha, categoria_id, descripcion, monto: Number(monto),
-        proveedor, comprobante_url, notas,
+        ingreso_id: targetIngresoId,
+        item_id: targetItemId,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
       .eq('empresa_id', req.empresa_id)
       .select(`
         id, fecha, descripcion, monto, proveedor, comprobante_url, tipo, notas,
-        taller_categorias_gastos(id, nombre, color, icono)
+        ingreso_id, item_id,
+        taller_categorias_gastos(id, nombre, color, icono),
+        taller_ingresos(id, estado, fecha_ingreso, taller_vehiculos(placa, marca, linea))
       `)
       .single();
+
     if (error) throw error;
     res.json(data);
   } catch (error: any) {
