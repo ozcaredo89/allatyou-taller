@@ -3,13 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Plus, Trash2, Loader2, Receipt, AlertCircle, Check, X,
-  Repeat, Upload, Tag, CalendarClock, Car, Package, Search,
-  ChevronDown, ChevronRight, AlertTriangle, FileText
+  Repeat, Upload, Tag, CalendarClock, Car, Package,
+  AlertTriangle, FileText
 } from 'lucide-react';
 import api from '../services/api';
 import { getBogotaRange, bogotaToday } from '../utils/dateUtils';
 import EditorLineasGasto, { type BatchFila, crearNuevaFila } from '../components/EditorLineasGasto';
 import ModalVincularMasivo from '../components/ModalVincularMasivo';
+import SelectorVehiculo from '../components/SelectorVehiculo';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 interface Categoria {
@@ -104,23 +105,8 @@ const Gastos: React.FC = () => {
     item_id: '',
   });
 
-  // Estado para autocompletar placa y vincular a orden
-  const [searchPlaca, setSearchPlaca] = useState('');
-  const [buscandoPlacas, setBuscandoPlacas] = useState(false);
-  const [ordenesSugeridas, setOrdenesSugeridas] = useState<any[]>([]);
+  // Vehículo (orden) al que se vincula el gasto único
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<any | null>(null);
-  const debounceTimerRef = useRef<any>(null);
-  const searchPlacaRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchPlacaRef.current && !searchPlacaRef.current.contains(e.target as Node)) {
-        setOrdenesSugeridas([]);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Campos del formulario (recurrente)
   const [formRec, setFormRec] = useState({
@@ -145,15 +131,17 @@ const Gastos: React.FC = () => {
   const [modalMode, setModalMode] = useState<'unico' | 'batch'>('unico');
   const [currentLoteId, setCurrentLoteId] = useState<string>(() => crypto.randomUUID());
 
-  // Cabecera compartida del lote (fecha, proveedor, comprobante, total factura)
+  // Cabecera compartida del lote (fecha, proveedor, categoría, comprobante)
   const [batchHeader, setBatchHeader] = useState({
     fecha: bogotaToday(),
     proveedor: '',
     comprobante_url: '',
-    total_factura: '',     // para conciliar diferencia
     categoria_id: '',
     notas: '',
   });
+
+  // Vehículo de la factura: lo heredan todas las líneas que no tengan uno propio
+  const [batchOrden, setBatchOrden] = useState<any | null>(null);
 
   const [batchFilas, setBatchFilas] = useState<BatchFila[]>([crearNuevaFila()]);
   const [batchUploading, setBatchUploading] = useState(false);
@@ -258,37 +246,9 @@ const Gastos: React.FC = () => {
     }
   };
 
-  // ── Manejadores de autocompletado por placa ──
-  const handleSearchPlacaChange = (val: string) => {
-    const formatted = val.toUpperCase();
-    setSearchPlaca(formatted);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-    const clean = formatted.replace(/[^A-Z0-9]/g, '');
-    if (clean.length < 2) {
-      setOrdenesSugeridas([]);
-      setBuscandoPlacas(false);
-      return;
-    }
-
-    setBuscandoPlacas(true);
-    debounceTimerRef.current = setTimeout(async () => {
-      try {
-        const res = await api.get(`/ingresos/buscar?q=${encodeURIComponent(clean)}`);
-        setOrdenesSugeridas(res.data || []);
-      } catch (err) {
-        console.error(err);
-        setOrdenesSugeridas([]);
-      } finally {
-        setBuscandoPlacas(false);
-      }
-    }, 300);
-  };
-
+  // ── Vehículo del gasto único ──
   const seleccionarOrden = (orden: any) => {
     setOrdenSeleccionada(orden);
-    setOrdenesSugeridas([]);
-    setSearchPlaca('');
     setForm(f => {
       let catId = f.categoria_id;
       if (!catId) {
@@ -307,6 +267,30 @@ const Gastos: React.FC = () => {
   const quitarOrdenSeleccionada = () => {
     setOrdenSeleccionada(null);
     setForm(f => ({ ...f, ingreso_id: '', item_id: '' }));
+  };
+
+  const handleVehiculoChange = (orden: any | null) => {
+    if (orden) seleccionarOrden(orden);
+    else quitarOrdenSeleccionada();
+  };
+
+  // ── Modo Factura: vehículo de la cabecera ──
+  const handleBatchOrdenChange = (orden: any | null) => {
+    setBatchOrden(orden);
+    // El repuesto elegido en cada línea pertenece al vehículo anterior: se limpia
+    // en las líneas que heredan el vehículo de la cabecera.
+    setBatchFilas(fs => fs.map(f => (f.ordenSeleccionada ? f : { ...f, item_id: '' })));
+  };
+
+  // Al abrir "Factura (varios)" se preselecciona la categoría Repuestos (es lo habitual)
+  const activarModoFactura = () => {
+    setModalTab('unico');
+    setModalMode('batch');
+    setBatchHeader(h => {
+      if (h.categoria_id) return h;
+      const repCat = categorias.find(c => /repuesto/i.test(c.nombre));
+      return repCat ? { ...h, categoria_id: repCat.id } : h;
+    });
   };
 
   const handleSeleccionarItemOrden = (itemId: string) => {
@@ -433,12 +417,11 @@ const Gastos: React.FC = () => {
       item_id: '',
     });
     setFormRec({ nombre: '', categoria_id: '', monto_estimado: '', frecuencia: 'mensual', dia_del_mes: '', fecha_inicio: bogotaToday(), notas: '' });
-    setSearchPlaca('');
     setOrdenSeleccionada(null);
-    setOrdenesSugeridas([]);
     setMostrarVehiculo(false);
     setModalMode('unico');
-    setBatchHeader({ fecha: bogotaToday(), proveedor: '', comprobante_url: '', total_factura: '', categoria_id: '', notas: '' });
+    setBatchHeader({ fecha: bogotaToday(), proveedor: '', comprobante_url: '', categoria_id: '', notas: '' });
+    setBatchOrden(null);
     setBatchFilas([crearNuevaFila()]);
     setCurrentLoteId(crypto.randomUUID());
     setDuplicadosModal(null);
@@ -467,16 +450,20 @@ const Gastos: React.FC = () => {
   const handleGuardarBatch = async (confirmar = false) => {
     const loteId = currentLoteId;
 
+    // Las filas totalmente vacías se ignoran (p. ej. una fila agregada por error)
+    const filasConDatos = batchFilas.filter(f => f.descripcion.trim() || f.monto.trim());
+    if (filasConDatos.length === 0) { setError(t('gastos.error_descripcion')); return; }
+
     // Validación local básica antes de llamar al servidor
-    for (let i = 0; i < batchFilas.length; i++) {
-      const f = batchFilas[i];
-      const num = i + 1;
-      if (!f.descripcion.trim()) { setError(`Fila ${num}: La descripción es obligatoria.`); return; }
+    for (let i = 0; i < filasConDatos.length; i++) {
+      const f = filasConDatos[i];
+      const prefijo = t('gastos.fila_n', { n: i + 1 });
+      if (!f.descripcion.trim()) { setError(`${prefijo} ${t('gastos.error_descripcion')}`); return; }
       const m = parseInt(f.monto.replace(/\D/g, ''), 10);
-      if (!m || m <= 0) { setError(`Fila ${num}: El monto debe ser mayor a 0.`); return; }
+      if (!m || m <= 0) { setError(`${prefijo} ${t('gastos.error_monto')}`); return; }
     }
 
-    const filas = batchFilas.map(f => ({
+    const filas = filasConDatos.map(f => ({
       fecha: batchHeader.fecha || bogotaToday(),
       categoria_id: batchHeader.categoria_id || undefined,
       descripcion: f.descripcion.trim(),
@@ -484,7 +471,8 @@ const Gastos: React.FC = () => {
       proveedor: batchHeader.proveedor.trim() || undefined,
       notas: batchHeader.notas.trim() || undefined,
       comprobante_url: batchHeader.comprobante_url || undefined,
-      ingreso_id: f.ingreso_id || undefined,
+      // La línea usa su propio vehículo si lo tiene; si no, hereda el de la cabecera
+      ingreso_id: f.ingreso_id || batchOrden?.id || undefined,
       item_id: f.item_id || undefined,
     }));
 
@@ -543,6 +531,13 @@ const Gastos: React.FC = () => {
       return next;
     });
   };
+
+  // El bloque de vehículo se muestra abierto al elegir "Repuestos" (o si ya hay un vehículo);
+  // para cualquier otra categoría queda como un enlace discreto.
+  const categoriaSeleccionada = categorias.find(c => c.id === form.categoria_id);
+  const vehiculoVisible =
+    mostrarVehiculo || !!ordenSeleccionada || /repuesto/i.test(categoriaSeleccionada?.nombre || '');
+  const filasConDatosCount = batchFilas.filter(f => f.descripcion.trim() || f.monto.trim()).length;
 
   if (loading) {
     return (
@@ -867,10 +862,10 @@ const Gastos: React.FC = () => {
                 <Receipt size={13} className="inline mr-1" /> {t('gastos.tab_unico')}
               </button>
               <button
-                onClick={() => { setModalTab('unico'); setModalMode('batch'); }}
+                onClick={activarModoFactura}
                 className={`flex-1 py-2 rounded-lg text-xs font-semibold transition ${modalMode === 'batch' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
               >
-                <FileText size={13} className="inline mr-1" /> Factura (varios)
+                <FileText size={13} className="inline mr-1" /> {t('gastos.tab_factura')}
               </button>
               <button
                 onClick={() => { setModalTab('recurrente'); setModalMode('unico'); }}
@@ -900,14 +895,7 @@ const Gastos: React.FC = () => {
                       <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_categoria')}</label>
                       <select
                         value={form.categoria_id}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setForm(f => ({ ...f, categoria_id: val }));
-                          const cat = categorias.find(c => c.id === val);
-                          if (cat && /repuesto/i.test(cat.nombre)) {
-                            setMostrarVehiculo(true);
-                          }
-                        }}
+                        onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}
                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                       >
                         <option value="">{t('gastos.sin_categoria')}</option>
@@ -916,135 +904,46 @@ const Gastos: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* ── Bloque de Vinculación a Orden / Ítem (plegable) ── */}
-                  <div className="border border-slate-200/80 rounded-xl overflow-hidden">
-                    {/* Encabezado del acordeón */}
+                  {/* ── Vehículo (opcional): abierto con "Repuestos"; para otras categorías, un enlace discreto ── */}
+                  {!vehiculoVisible ? (
                     <button
                       type="button"
-                      onClick={() => setMostrarVehiculo(v => !v)}
-                      className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 transition text-xs font-bold text-slate-700"
+                      onClick={() => setMostrarVehiculo(true)}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
                     >
-                      <span className="flex items-center gap-1.5">
-                        <Car size={14} className="text-indigo-600" />
-                        {ordenSeleccionada
-                          ? `Vinculado: ${ordenSeleccionada.vehiculo?.placa} · ${ordenSeleccionada.vehiculo?.marca ?? ''}`
-                          : t('gastos.vincular_orden')}
-                      </span>
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        {ordenSeleccionada && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">Vinculado</span>}
-                        {mostrarVehiculo ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </span>
+                      <Car size={13} /> {t('gastos.asociar_vehiculo_link')}
                     </button>
+                  ) : (
+                    <div className="border border-indigo-100 bg-indigo-50/30 rounded-xl p-3.5 space-y-3">
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Car size={14} className="text-indigo-600" />
+                        {t('gastos.vehiculo_de_la_compra')}
+                      </label>
 
-                    {/* Cuerpo del acordeón */}
-                    {mostrarVehiculo && (
-                      <div className="p-3.5 space-y-3 bg-slate-50/50">
-                        {ordenSeleccionada && (
-                          <button type="button" onClick={quitarOrdenSeleccionada}
-                            className="text-[11px] text-red-500 hover:text-red-700 font-semibold flex items-center gap-0.5">
-                            <X size={12} /> {t('gastos.quitar_vinculo')}
-                          </button>
-                        )}
+                      <SelectorVehiculo value={ordenSeleccionada} onChange={handleVehiculoChange} />
 
-                        {!ordenSeleccionada ? (
-                          <div ref={searchPlacaRef} className="relative">
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={searchPlaca}
-                                onChange={e => handleSearchPlacaChange(e.target.value)}
-                                placeholder={t('gastos.buscar_placa_placeholder')}
-                                className="w-full border border-slate-200 rounded-lg pl-8 pr-8 py-2 text-xs uppercase font-medium focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                              />
-                              <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-                              {buscandoPlacas && (
-                                <Loader2 size={14} className="animate-spin absolute right-2.5 top-2.5 text-indigo-500" />
-                              )}
-                            </div>
-
-                            {/* Dropdown de resultados */}
-                            {ordenesSugeridas.length > 0 && (
-                              <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-y-auto divide-y divide-slate-100">
-                                {ordenesSugeridas.map(ord => (
-                                  <div
-                                    key={ord.id}
-                                    onClick={() => seleccionarOrden(ord)}
-                                    className="p-2.5 hover:bg-indigo-50/40 cursor-pointer transition flex items-center justify-between gap-2"
-                                  >
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-black px-1.5 py-0.5 rounded tracking-wider">
-                                          {ord.vehiculo?.placa}
-                                        </span>
-                                        <span className="text-xs font-semibold text-slate-700 truncate">
-                                          {ord.vehiculo?.marca} {ord.vehiculo?.linea}
-                                        </span>
-                                      </div>
-                                      {ord.motivo_visita && (
-                                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{ord.motivo_visita}</p>
-                                      )}
-                                    </div>
-                                    <div className="text-right shrink-0">
-                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                                        ord.estado === 'en_reparacion' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                        ord.estado === 'entregado' ? 'bg-slate-100 text-slate-600' :
-                                        'bg-amber-50 text-amber-700 border border-amber-200'
-                                      }`}>
-                                        {ord.estado.replace('_', ' ')}
-                                      </span>
-                                      <p className="text-[10px] text-slate-400 mt-0.5">{ord.fecha_ingreso?.split('T')[0]}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                      {ordenSeleccionada && (
+                        ordenSeleccionada.items_repuesto && ordenSeleccionada.items_repuesto.length > 0 ? (
+                          <select
+                            value={form.item_id}
+                            onChange={e => handleSeleccionarItemOrden(e.target.value)}
+                            className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                          >
+                            <option value="">{t('gastos.repuesto_de_orden')}</option>
+                            {ordenSeleccionada.items_repuesto.map((item: any) => (
+                              <option key={item.id} value={item.id}>
+                                {item.descripcion} ({formatearDinero(item.total)})
+                              </option>
+                            ))}
+                          </select>
                         ) : (
-                          <div className="space-y-2.5">
-                            <div className="bg-white border border-indigo-100 rounded-lg p-2.5 flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2">
-                                <span className="bg-amber-100 text-amber-900 border border-amber-300 font-black px-1.5 py-0.5 rounded tracking-wider text-xs">
-                                  {ordenSeleccionada.vehiculo?.placa}
-                                </span>
-                                <div>
-                                  <p className="font-bold text-slate-800">
-                                    {ordenSeleccionada.vehiculo?.marca} {ordenSeleccionada.vehiculo?.linea}
-                                  </p>
-                                  <p className="text-[10px] text-slate-400">
-                                    Estado: <strong className="capitalize">{ordenSeleccionada.estado?.replace('_', ' ')}</strong>
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {ordenSeleccionada.items_repuesto && ordenSeleccionada.items_repuesto.length > 0 ? (
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                                  {t('gastos.seleccionar_item')}
-                                </label>
-                                <select
-                                  value={form.item_id}
-                                  onChange={e => handleSeleccionarItemOrden(e.target.value)}
-                                  className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                                >
-                                  <option value="">-- {t('gastos.solo_orden')} --</option>
-                                  {ordenSeleccionada.items_repuesto.map((item: any) => (
-                                    <option key={item.id} value={item.id}>
-                                      {item.descripcion} (Venta: {formatearDinero(item.total)})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            ) : (
-                              <p className="text-[11px] text-slate-400 italic">
-                                {t('gastos.orden_sin_repuestos_desc')}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                          <p className="text-[11px] text-slate-400 italic">
+                            {t('gastos.orden_sin_repuestos_desc')}
+                          </p>
+                        )
+                      )}
+                    </div>
+                  )}
 
                   <p className="text-[11px] text-slate-500 bg-blue-50 border border-blue-100 rounded-lg p-2.5">
                     {t('gastos.nota_costo_venta')}
@@ -1104,9 +1003,8 @@ const Gastos: React.FC = () => {
               {/* ────── FORM: Factura Multilínea (Batch) ────── */}
               {modalTab === 'unico' && modalMode === 'batch' && (
                 <>
-                  {/* ── Cabecera compartida ── */}
+                  {/* ── Datos comunes de la factura (se escriben una sola vez) ── */}
                   <div className="bg-slate-50 rounded-xl p-3.5 space-y-3 border border-slate-200">
-                    <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('gastos.datos_factura')}</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_fecha')} *</label>
@@ -1114,62 +1012,54 @@ const Gastos: React.FC = () => {
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                       </div>
                       <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_proveedor')}</label>
+                        <input type="text" value={batchHeader.proveedor} onChange={e => setBatchHeader(h => ({ ...h, proveedor: e.target.value }))}
+                          placeholder={t('gastos.placeholder_proveedor')}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_categoria')}</label>
                         <select
                           value={batchHeader.categoria_id}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setBatchHeader(h => ({ ...h, categoria_id: val }));
-                            const cat = categorias.find(c => c.id === val);
-                            if (cat && /repuesto/i.test(cat.nombre)) {
-                              setBatchFilas(fs => fs.map(f => ({ ...f, mostrarVehiculo: true })));
-                            }
-                          }}
+                          onChange={e => setBatchHeader(h => ({ ...h, categoria_id: e.target.value }))}
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         >
                           <option value="">{t('gastos.sin_categoria')}</option>
                           {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_proveedor')}</label>
-                        <input type="text" value={batchHeader.proveedor} onChange={e => setBatchHeader(h => ({ ...h, proveedor: e.target.value }))}
-                          placeholder={t('gastos.placeholder_proveedor')}
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.total_factura_label')}</label>
-                        <input type="text" value={batchHeader.total_factura} onChange={e => setBatchHeader(h => ({ ...h, total_factura: formatearMonto(e.target.value) }))}
-                          placeholder="0"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                        <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_comprobante')}</label>
+                        {batchHeader.comprobante_url ? (
+                          <div className="flex items-center gap-2 text-sm h-[38px]">
+                            <a href={batchHeader.comprobante_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline truncate">{t('gastos.ver_archivo')}</a>
+                            <button type="button" onClick={() => setBatchHeader(h => ({ ...h, comprobante_url: '' }))} className="text-red-400 shrink-0"><X size={14} /></button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => batchFileRef.current?.click()} disabled={batchUploading}
+                            className="flex items-center gap-2 border-2 border-dashed border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition w-full justify-center">
+                            {batchUploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                            {batchUploading ? t('gastos.subiendo') : t('gastos.btn_adjuntar')}
+                          </button>
+                        )}
+                        <input ref={batchFileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleBatchUpload} />
                       </div>
                     </div>
-                    {/* Comprobante compartido */}
+
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_comprobante')}</label>
-                      {batchHeader.comprobante_url ? (
-                        <div className="flex items-center gap-2 text-sm">
-                          <a href={batchHeader.comprobante_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline truncate">{t('gastos.ver_archivo')}</a>
-                          <button onClick={() => setBatchHeader(h => ({ ...h, comprobante_url: '' }))} className="text-red-400"><X size={14} /></button>
-                        </div>
-                      ) : (
-                        <button type="button" onClick={() => batchFileRef.current?.click()} disabled={batchUploading}
-                          className="flex items-center gap-2 border-2 border-dashed border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition w-full justify-center">
-                          {batchUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                          {batchUploading ? t('gastos.subiendo') : t('gastos.btn_adjuntar')}
-                        </button>
-                      )}
-                      <input ref={batchFileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleBatchUpload} />
+                      <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.factura_vehiculo_titulo')}</label>
+                      <SelectorVehiculo value={batchOrden} onChange={handleBatchOrdenChange} />
                     </div>
                   </div>
 
-                  {/* ── Editor de Filas Reutilizable ── */}
+                  {/* ── Líneas: solo descripción y monto ── */}
                   <EditorLineasGasto
                     filas={batchFilas}
                     onChangeFilas={setBatchFilas}
-                    totalFactura={batchHeader.total_factura}
+                    ordenPorDefecto={batchOrden}
                     formatearDinero={formatearDinero}
                     formatearMonto={formatearMonto}
                   />
@@ -1257,7 +1147,7 @@ const Gastos: React.FC = () => {
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   {modalMode === 'batch'
-                    ? (batchFilas.length === 1 ? t('gastos.btn_registrar_batch', { count: 1 }) : t('gastos.btn_registrar_batch_plural', { count: batchFilas.length }))
+                    ? (filasConDatosCount <= 1 ? t('gastos.btn_registrar_batch', { count: 1 }) : t('gastos.btn_registrar_batch_plural', { count: filasConDatosCount }))
                     : modalTab === 'unico' ? t('gastos.btn_guardar') : t('gastos.btn_crear_plantilla')}
                 </button>
               </div>
