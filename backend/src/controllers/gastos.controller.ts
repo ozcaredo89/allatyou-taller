@@ -1,5 +1,42 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import { bogotaToday } from '../utils/dateUtils';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function esFechaValida(fecha: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
+  const [y, m, d] = fecha.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+function esUrlValida(url: string): boolean {
+  if (typeof url !== 'string' || url.length > 2048) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || (process.env.NODE_ENV !== 'production' && parsed.protocol === 'http:');
+  } catch {
+    return false;
+  }
+}
+
+async function validarCategoria(
+  empresaId: string,
+  categoriaId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await supabase
+    .from('taller_categorias_gastos')
+    .select('id')
+    .eq('id', categoriaId)
+    .eq('empresa_id', empresaId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { ok: false, error: 'La categoría especificada no existe o no pertenece a tu taller.' };
+  }
+  return { ok: true };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORÍAS
@@ -231,13 +268,31 @@ export const createGasto = async (req: Request, res: Response): Promise<void> =>
       item_id
     } = req.body;
 
-    if (!descripcion?.trim()) {
-      res.status(400).json({ error: 'La descripción es obligatoria.' });
+    if (!descripcion || typeof descripcion !== 'string' || !descripcion.trim()) {
+      res.status(400).json({ error: 'La descripción es obligatoria y debe ser texto.' });
       return;
     }
-    if (!monto || Number(monto) <= 0) {
-      res.status(400).json({ error: 'El monto debe ser mayor a cero.' });
+    const montoNum = Number(monto);
+    if (!Number.isFinite(montoNum) || montoNum <= 0 || montoNum > 999_999_999) {
+      res.status(400).json({ error: 'El monto debe ser un número válido mayor a cero y menor a 1.000 millones.' });
       return;
+    }
+    if (fecha && !esFechaValida(fecha)) {
+      res.status(400).json({ error: 'La fecha no es válida (use formato YYYY-MM-DD).' });
+      return;
+    }
+
+    if (comprobante_url && !esUrlValida(comprobante_url)) {
+      res.status(400).json({ error: 'El comprobante debe ser una URL válida con protocolo https.' });
+      return;
+    }
+
+    if (categoria_id) {
+      const validacionCat = await validarCategoria(req.empresa_id!, categoria_id);
+      if (!validacionCat.ok) {
+        res.status(400).json({ error: validacionCat.error });
+        return;
+      }
     }
 
     if (ingreso_id || item_id) {
@@ -252,15 +307,15 @@ export const createGasto = async (req: Request, res: Response): Promise<void> =>
       .from('taller_gastos')
       .insert([{
         empresa_id: req.empresa_id,
-        fecha: fecha || new Date().toISOString().split('T')[0],
+        fecha: fecha || bogotaToday(),
         categoria_id: categoria_id || null,
         descripcion: descripcion.trim(),
-        monto: Number(monto),
-        proveedor: proveedor?.trim() || null,
+        monto: montoNum,
+        proveedor: typeof proveedor === 'string' ? proveedor.trim() || null : null,
         comprobante_url: comprobante_url || null,
         tipo: tipo || 'unico',
         plantilla_id: plantilla_id || null,
-        notas: notas?.trim() || null,
+        notas: typeof notas === 'string' ? notas.trim() || null : null,
         ingreso_id: ingreso_id || null,
         item_id: ingreso_id ? (item_id || null) : null,
       }])
@@ -277,12 +332,344 @@ export const createGasto = async (req: Request, res: Response): Promise<void> =>
     if (plantilla_id) {
       await supabase
         .from('taller_gastos_recurrentes')
-        .update({ ultimo_registro: fecha || new Date().toISOString().split('T')[0] })
+        .update({ ultimo_registro: fecha || bogotaToday() })
         .eq('id', plantilla_id)
         .eq('empresa_id', req.empresa_id);
     }
 
     res.status(201).json(data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BATCH
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/gastos/batch
+ * Registra N gastos en un único lote atómico (para facturas con varios repuestos).
+ *
+ * Orden de evaluación:
+ *   1. Idempotencia — si lote_id ya existe devuelve los gastos ya creados (200).
+ *   2. Validaciones de negocio (con número de fila).
+ *   3. Detección de duplicados en servidor → 409 (si confirmar_duplicados no es true).
+ *   4. Inserción con lote_orden para garantizar atomicidad ante reintentos concurrentes.
+ */
+export const createGastosBatch = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresaId = req.empresa_id!;
+    const {
+      lote_id,
+      filas,
+      confirmar_duplicados = false,
+    }: {
+      lote_id: string;
+      filas: {
+        fecha?: string;
+        categoria_id?: string;
+        descripcion: string;
+        monto: number;
+        proveedor?: string;
+        notas?: string;
+        comprobante_url?: string;
+        ingreso_id?: string;
+        item_id?: string;
+      }[];
+      confirmar_duplicados?: boolean;
+    } = req.body;
+
+    // ── Validaciones básicas del wrapper ──────────────────────────────────
+    if (!lote_id || typeof lote_id !== 'string' || !UUID_REGEX.test(lote_id)) {
+      res.status(400).json({ error: 'lote_id debe ser un UUID válido.' });
+      return;
+    }
+    if (!Array.isArray(filas) || filas.length === 0) {
+      res.status(400).json({ error: 'Se requiere al menos una fila.' });
+      return;
+    }
+    if (filas.length > 50) {
+      res.status(400).json({ error: 'Máximo 50 filas por lote.' });
+      return;
+    }
+
+    // Validar de inmediato que cada elemento sea un objeto válido
+    for (let i = 0; i < filas.length; i++) {
+      const f = filas[i];
+      const num = i + 1;
+      if (!f || typeof f !== 'object' || Array.isArray(f)) {
+        res.status(400).json({ error: `Fila ${num}: La fila debe ser un objeto válido.`, fila: num });
+        return;
+      }
+    }
+
+    // ── 1. IDEMPOTENCIA ───────────────────────────────────────────────────
+    const { data: existentes, error: errorExistentes } = await supabase
+      .from('taller_gastos')
+      .select(`
+        id, fecha, descripcion, monto, proveedor, comprobante_url, tipo, notas,
+        ingreso_id, item_id, lote_id, lote_orden,
+        taller_categorias_gastos(id, nombre, color, icono),
+        taller_ingresos(id, estado, fecha_ingreso, taller_vehiculos(placa, marca, linea))
+      `)
+      .eq('empresa_id', empresaId)
+      .eq('lote_id', lote_id)
+      .order('lote_orden', { ascending: true });
+
+    if (errorExistentes) throw errorExistentes;
+
+    if (existentes && existentes.length > 0) {
+      // Lote ya procesado: respuesta idempotente
+      res.status(200).json({ gastos: existentes, idempotente: true });
+      return;
+    }
+
+    // ── 2. VALIDACIONES DE NEGOCIO POR FILA ──────────────────────────────
+    const today = bogotaToday();
+
+    // a) Recopilar categoria_ids únicos para validar en una sola consulta
+    const categoriaIdsUsados = [...new Set(
+      filas.map(f => f.categoria_id).filter((id): id is string => !!id)
+    )];
+    let categoriaIdsValidos = new Set<string>();
+    if (categoriaIdsUsados.length > 0) {
+      const { data: catRows, error: errorCat } = await supabase
+        .from('taller_categorias_gastos')
+        .select('id')
+        .eq('empresa_id', empresaId)
+        .in('id', categoriaIdsUsados);
+      if (errorCat) throw errorCat;
+      categoriaIdsValidos = new Set((catRows || []).map((c: any) => c.id));
+    }
+
+    // b) Recopilar ingreso_ids únicos para validar en una sola consulta
+    const ingresoIdsUsados = [...new Set(
+      filas.map(f => f.ingreso_id).filter((id): id is string => !!id)
+    )];
+    const ordenesMap = new Map<string, any>();
+    if (ingresoIdsUsados.length > 0) {
+      const { data: ordenRows, error: errorOrden } = await supabase
+        .from('taller_ingresos')
+        .select('id, items_factura')
+        .eq('empresa_id', empresaId)
+        .in('id', ingresoIdsUsados);
+      if (errorOrden) throw errorOrden;
+      for (const o of (ordenRows || [])) {
+        ordenesMap.set(o.id, o);
+      }
+    }
+
+    for (let i = 0; i < filas.length; i++) {
+      const fila = filas[i];
+      const num = i + 1;
+
+      if (!fila.descripcion || typeof fila.descripcion !== 'string' || !fila.descripcion.trim()) {
+        res.status(400).json({ error: `Fila ${num}: La descripción es obligatoria y debe ser texto.`, fila: num });
+        return;
+      }
+      const montoNum = Number(fila.monto);
+      if (!Number.isFinite(montoNum) || montoNum <= 0 || montoNum > 999_999_999) {
+        res.status(400).json({ error: `Fila ${num}: El monto debe ser un número válido mayor a 0 y menor a 1.000 millones.`, fila: num });
+        return;
+      }
+      if (fila.fecha && !esFechaValida(fila.fecha)) {
+        res.status(400).json({ error: `Fila ${num}: Fecha inválida (use formato YYYY-MM-DD existente en el calendario).`, fila: num });
+        return;
+      }
+      if (fila.proveedor !== undefined && fila.proveedor !== null && typeof fila.proveedor !== 'string') {
+        res.status(400).json({ error: `Fila ${num}: El proveedor debe ser texto.`, fila: num });
+        return;
+      }
+      if (fila.notas !== undefined && fila.notas !== null && typeof fila.notas !== 'string') {
+        res.status(400).json({ error: `Fila ${num}: Las notas deben ser texto.`, fila: num });
+        return;
+      }
+      if (fila.comprobante_url && !esUrlValida(fila.comprobante_url)) {
+        res.status(400).json({ error: `Fila ${num}: El comprobante debe ser una URL válida con protocolo https.`, fila: num });
+        return;
+      }
+      if (fila.categoria_id && !categoriaIdsValidos.has(fila.categoria_id)) {
+        res.status(400).json({ error: `Fila ${num}: La categoría especificada no pertenece a tu taller.`, fila: num });
+        return;
+      }
+      if (fila.item_id && !fila.ingreso_id) {
+        res.status(400).json({ error: `Fila ${num}: No se puede vincular un ítem sin especificar la orden.`, fila: num });
+        return;
+      }
+      if (fila.ingreso_id) {
+        const orden = ordenesMap.get(fila.ingreso_id);
+        if (!orden) {
+          res.status(400).json({ error: `Fila ${num}: La orden de servicio no existe o no pertenece a tu taller.`, fila: num });
+          return;
+        }
+        if (fila.item_id) {
+          const items = Array.isArray(orden.items_factura) ? orden.items_factura : [];
+          const item = items.find((it: any) => it?.id === fila.item_id);
+          if (!item) {
+            res.status(400).json({ error: `Fila ${num}: El ítem no existe en la orden de servicio.`, fila: num });
+            return;
+          }
+          if (item.tipo !== 'repuesto') {
+            res.status(400).json({ error: `Fila ${num}: Solo se pueden vincular gastos a ítems de tipo repuesto.`, fila: num });
+            return;
+          }
+        }
+      }
+    }
+
+    // ── 3. DETECCIÓN DE DUPLICADOS EN SERVIDOR ────────────────────────────
+    if (!confirmar_duplicados) {
+      const filasConProveedor = filas.filter(f => f.proveedor && typeof f.proveedor === 'string' && f.proveedor.trim());
+      if (filasConProveedor.length > 0) {
+        const montosUnicos = [...new Set(filasConProveedor.map(f => Number(f.monto)))];
+        // Rango de fechas ±7 días respecto al mínimo/máximo de fechas del lote
+        const fechasLote = filas.map(f => f.fecha || today);
+        const fechaMin = new Date(Math.min(...fechasLote.map(d => new Date(d).getTime())));
+        const fechaMax = new Date(Math.max(...fechasLote.map(d => new Date(d).getTime())));
+        fechaMin.setDate(fechaMin.getDate() - 7);
+        fechaMax.setDate(fechaMax.getDate() + 7);
+        const dMin = fechaMin.toISOString().split('T')[0];
+        const dMax = fechaMax.toISOString().split('T')[0];
+
+        const { data: candidatos, error: errorCandidatos } = await supabase
+          .from('taller_gastos')
+          .select('id, fecha, descripcion, monto, proveedor')
+          .eq('empresa_id', empresaId)
+          .gte('fecha', dMin)
+          .lte('fecha', dMax)
+          .in('monto', montosUnicos);
+
+        if (errorCandidatos) throw errorCandidatos;
+
+        if (candidatos && candidatos.length > 0) {
+          const duplicados: any[] = [];
+          for (const fila of filasConProveedor) {
+            const provNorm = fila.proveedor!.toLowerCase().trim();
+            const fechaFila = new Date(fila.fecha || today);
+            for (const c of candidatos) {
+              if (!c.proveedor) continue;
+              if (c.proveedor.toLowerCase().trim() !== provNorm) continue;
+              if (Number(c.monto) !== Number(fila.monto)) continue;
+              const diffDias = Math.abs(new Date(c.fecha).getTime() - fechaFila.getTime()) / 86400000;
+              if (diffDias <= 7) {
+                duplicados.push({ fila_nueva: fila, existente: c });
+              }
+            }
+          }
+          if (duplicados.length > 0) {
+            res.status(409).json({
+              error: 'Se detectaron posibles gastos duplicados. Revísalos y confirma para guardar.',
+              duplicados,
+            });
+            return;
+          }
+        }
+      }
+    }
+
+    // ── 4. INSERCIÓN ATÓMICA CON lote_orden ───────────────────────────────
+    const rows = filas.map((fila, i) => ({
+      empresa_id: empresaId,
+      lote_id,
+      lote_orden: i + 1,
+      fecha: fila.fecha || today,
+      categoria_id: fila.categoria_id || null,
+      descripcion: fila.descripcion.trim(),
+      monto: Number(fila.monto),
+      proveedor: typeof fila.proveedor === 'string' ? fila.proveedor.trim() || null : null,
+      notas: typeof fila.notas === 'string' ? fila.notas.trim() || null : null,
+      comprobante_url: fila.comprobante_url || null,
+      tipo: 'unico' as const,
+      ingreso_id: fila.ingreso_id || null,
+      item_id: fila.ingreso_id ? (fila.item_id || null) : null,
+    }));
+
+    const { data, error: insertError } = await supabase
+      .from('taller_gastos')
+      .insert(rows)
+      .select(`
+        id, fecha, descripcion, monto, proveedor, comprobante_url, tipo, notas,
+        ingreso_id, item_id, lote_id, lote_orden,
+        taller_categorias_gastos(id, nombre, color, icono),
+        taller_ingresos(id, estado, fecha_ingreso, taller_vehiculos(placa, marca, linea))
+      `);
+
+    if (insertError) {
+      // Código 23505 = violación de índice único → colisión concurrente de lote_id+lote_orden
+      if (insertError.code === '23505') {
+        const { data: existentesRetry, error: errorRetry } = await supabase
+          .from('taller_gastos')
+          .select(`
+            id, fecha, descripcion, monto, proveedor, comprobante_url, tipo, notas,
+            ingreso_id, item_id, lote_id, lote_orden,
+            taller_categorias_gastos(id, nombre, color, icono),
+            taller_ingresos(id, estado, fecha_ingreso, taller_vehiculos(placa, marca, linea))
+          `)
+          .eq('empresa_id', empresaId)
+          .eq('lote_id', lote_id)
+          .order('lote_orden', { ascending: true });
+        if (errorRetry) throw errorRetry;
+        res.status(200).json({ gastos: existentesRetry || [], idempotente: true });
+        return;
+      }
+      throw insertError;
+    }
+
+    res.status(201).json({ gastos: data || [] });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * PATCH /api/gastos/batch-vinculo
+ * Actualiza el vínculo orden/ítem de múltiples gastos mediante una RPC SQL atómica.
+ * El RPC valida que cada orden e ítem pertenezca a la empresa (fail-closed multi-tenant).
+ */
+export const patchVinculoGastoBatch = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresaId = req.empresa_id!;
+    const { vinculos } = req.body as {
+      vinculos: { gasto_id: string; ingreso_id?: string; item_id?: string }[];
+    };
+
+    if (!Array.isArray(vinculos) || vinculos.length === 0) {
+      res.status(400).json({ error: 'Se requiere al menos un vínculo.' });
+      return;
+    }
+    if (vinculos.length > 50) {
+      res.status(400).json({ error: 'Máximo 50 vínculos por operación.' });
+      return;
+    }
+
+    for (const v of vinculos) {
+      if (!v.gasto_id || typeof v.gasto_id !== 'string' || !UUID_REGEX.test(v.gasto_id)) {
+        res.status(400).json({ error: `gasto_id inválido: '${v.gasto_id}'. Debe ser un UUID válido.` });
+        return;
+      }
+      if (v.ingreso_id && (typeof v.ingreso_id !== 'string' || !UUID_REGEX.test(v.ingreso_id))) {
+        res.status(400).json({ error: `ingreso_id inválido: '${v.ingreso_id}'. Debe ser un UUID válido.` });
+        return;
+      }
+    }
+
+    const { data, error } = await supabase.rpc('actualizar_vinculos_gastos', {
+      p_empresa_id: empresaId,
+      p_vinculos: vinculos,
+    });
+
+    if (error) {
+      // P0001 = RAISE EXCEPTION en PostgreSQL (regla de validación de negocio)
+      if (error.code === 'P0001') {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json(data);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -311,13 +698,55 @@ export const updateGasto = async (req: Request, res: Response): Promise<void> =>
       updated_at: new Date().toISOString()
     };
 
-    if (fecha !== undefined) payload.fecha = fecha;
-    if (categoria_id !== undefined) payload.categoria_id = categoria_id;
-    if (descripcion !== undefined) payload.descripcion = descripcion;
-    if (monto !== undefined) payload.monto = Number(monto);
-    if (proveedor !== undefined) payload.proveedor = proveedor;
-    if (comprobante_url !== undefined) payload.comprobante_url = comprobante_url;
-    if (notas !== undefined) payload.notas = notas;
+    if (fecha !== undefined) {
+      if (!esFechaValida(fecha)) {
+        res.status(400).json({ error: 'La fecha no es válida (use formato YYYY-MM-DD).' });
+        return;
+      }
+      payload.fecha = fecha;
+    }
+
+    if (categoria_id !== undefined) {
+      if (categoria_id !== null) {
+        const validacionCat = await validarCategoria(req.empresa_id!, categoria_id);
+        if (!validacionCat.ok) {
+          res.status(400).json({ error: validacionCat.error });
+          return;
+        }
+      }
+      payload.categoria_id = categoria_id;
+    }
+
+    if (descripcion !== undefined) {
+      if (typeof descripcion !== 'string' || !descripcion.trim()) {
+        res.status(400).json({ error: 'La descripción es obligatoria y debe ser texto.' });
+        return;
+      }
+      payload.descripcion = descripcion.trim();
+    }
+
+    if (monto !== undefined) {
+      const montoNum = Number(monto);
+      if (!Number.isFinite(montoNum) || montoNum <= 0 || montoNum > 999_999_999) {
+        res.status(400).json({ error: 'El monto debe ser un número válido mayor a 0 y menor a 1.000 millones.' });
+        return;
+      }
+      payload.monto = montoNum;
+    }
+
+    if (proveedor !== undefined) {
+      payload.proveedor = typeof proveedor === 'string' ? proveedor.trim() || null : null;
+    }
+    if (comprobante_url !== undefined) {
+      if (comprobante_url !== null && !esUrlValida(comprobante_url)) {
+        res.status(400).json({ error: 'El comprobante debe ser una URL válida con protocolo https.' });
+        return;
+      }
+      payload.comprobante_url = comprobante_url;
+    }
+    if (notas !== undefined) {
+      payload.notas = typeof notas === 'string' ? notas.trim() || null : null;
+    }
 
     // Manejo de vínculo: undefined conserva el vínculo actual, null desvincula
     if (ingreso_id !== undefined || item_id !== undefined) {

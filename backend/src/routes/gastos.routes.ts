@@ -7,9 +7,11 @@ import {
   inicializarCategorias,
   getGastos,
   createGasto,
+  createGastosBatch,
   updateGasto,
   deleteGasto,
   patchVinculoGasto,
+  patchVinculoGastoBatch,
   getRecurrentes,
   getPendientes,
   createRecurrente,
@@ -37,10 +39,14 @@ router.put('/recurrentes/:id', updateRecurrente);
 router.delete('/recurrentes/:id', deleteRecurrente);
 
 // ── Gastos Ejecutados ──
+// Rutas fijas antes de las parametrizadas /:id para evitar colisiones en Express
 router.get('/', getGastos);
 router.post('/', createGasto);
+router.post('/batch', createGastosBatch);
+router.patch('/batch-vinculo', patchVinculoGastoBatch);
 router.patch('/:id/vinculo', patchVinculoGasto);
 router.put('/:id', updateGasto);
 router.delete('/:id', deleteGasto);
 
 export default router;
+
