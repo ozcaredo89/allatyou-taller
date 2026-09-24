@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  X, Loader2, Car, Search, AlertTriangle, Check
+  X, Loader2, Car, AlertTriangle, Check
 } from 'lucide-react';
 import api from '../services/api';
+import SelectorVehiculo from './SelectorVehiculo';
 
 interface GastoParaVincular {
   id: string;
@@ -34,77 +35,30 @@ export const ModalVincularMasivo: React.FC<ModalVincularMasivoProps> = ({
   formatearDinero,
 }) => {
   const { t } = useTranslation();
-  const [searchPlaca, setSearchPlaca] = useState('');
-  const [buscando, setBuscando] = useState(false);
-  const [sugerencias, setSugerencias] = useState<any[]>([]);
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<any | null>(null);
   const [itemsPorGasto, setItemsPorGasto] = useState<Record<string, string>>({});
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  const debounceRef = useRef<any>(null);
-  const lastQueryRef = useRef<string>('');
 
   useEffect(() => {
     if (open) {
-      setSearchPlaca('');
-      setBuscando(false);
-      setSugerencias([]);
       setOrdenSeleccionada(null);
       setItemsPorGasto({});
       setError('');
-      lastQueryRef.current = '';
     }
   }, [open]);
 
   if (!open) return null;
 
-  const handleSearchChange = (val: string) => {
-    const formatted = val.toUpperCase();
-    setSearchPlaca(formatted);
-    const clean = formatted.replace(/[^A-Z0-9]/g, '');
-    lastQueryRef.current = clean;
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (clean.length < 2) {
-      setSugerencias([]);
-      setBuscando(false);
-      return;
-    }
-    setBuscando(true);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await api.get(`/ingresos/buscar?q=${encodeURIComponent(clean)}`);
-        if (lastQueryRef.current === clean) {
-          setSugerencias(res.data || []);
-        }
-      } catch {
-        if (lastQueryRef.current === clean) {
-          setSugerencias([]);
-        }
-      } finally {
-        if (lastQueryRef.current === clean) {
-          setBuscando(false);
-        }
-      }
-    }, 300);
-  };
-
-  const handleSeleccionarOrden = (ord: any) => {
+  // Al elegir (o quitar) el carro, se reinicia el repuesto asignado a cada gasto
+  const handleSeleccionarOrden = (ord: any | null) => {
     setOrdenSeleccionada(ord);
-    setSearchPlaca('');
-    setSugerencias([]);
-    setBuscando(false);
-    // Inicializar asignación de ítems si la orden tiene repuestos cotizados
-    const inicial: Record<string, string> = {};
-    gastosSeleccionados.forEach(g => {
-      inicial[g.id] = '';
-    });
-    setItemsPorGasto(inicial);
+    setItemsPorGasto({});
   };
 
   const handleGuardar = async () => {
     if (!ordenSeleccionada) {
-      setError('Debes buscar y seleccionar una orden de servicio.');
+      setError(t('gastos.masivo_elige_carro'));
       return;
     }
 
@@ -122,7 +76,7 @@ export const ModalVincularMasivo: React.FC<ModalVincularMasivoProps> = ({
       await onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Error al vincular los gastos.');
+      setError(err?.response?.data?.error || t('gastos.masivo_error'));
     } finally {
       setGuardando(false);
     }
@@ -159,73 +113,13 @@ export const ModalVincularMasivo: React.FC<ModalVincularMasivoProps> = ({
             </div>
           )}
 
-          {/* Buscador de placa */}
-          {!ordenSeleccionada ? (
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-700">
-                {t('gastos.vincular_orden')} *
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchPlaca}
-                  onChange={e => handleSearchChange(e.target.value)}
-                  placeholder={t('gastos.buscar_placa_placeholder')}
-                  className="w-full border border-slate-200 rounded-xl pl-9 pr-9 py-2.5 text-sm uppercase font-semibold focus:ring-2 focus:ring-indigo-500 outline-none"
-                  autoFocus
-                />
-                <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-                {buscando && <Loader2 size={16} className="animate-spin absolute right-3 top-3 text-indigo-500" />}
-              </div>
-
-              {sugerencias.length > 0 && (
-                <div className="border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white">
-                  {sugerencias.map(ord => (
-                    <div
-                      key={ord.id}
-                      onClick={() => handleSeleccionarOrden(ord)}
-                      className="p-3 hover:bg-indigo-50/50 cursor-pointer flex items-center justify-between text-xs transition"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="bg-amber-100 text-amber-900 border border-amber-300 font-black px-2 py-0.5 rounded text-xs tracking-wider">
-                          {ord.vehiculo?.placa}
-                        </span>
-                        <span className="font-semibold text-slate-800">
-                          {ord.vehiculo?.marca} {ord.vehiculo?.linea}
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-slate-400 capitalize">
-                        {ord.estado?.replace('_', ' ')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <span className="bg-amber-100 text-amber-900 border border-amber-300 font-black px-2 py-1 rounded text-xs tracking-wider">
-                  {ordenSeleccionada.vehiculo?.placa}
-                </span>
-                <div>
-                  <p className="font-bold text-slate-800 text-xs">
-                    {ordenSeleccionada.vehiculo?.marca} {ordenSeleccionada.vehiculo?.linea}
-                  </p>
-                  <p className="text-[10px] text-slate-500 capitalize">
-                    {ordenSeleccionada.estado?.replace('_', ' ')} · Ingreso: {ordenSeleccionada.fecha_ingreso?.split('T')[0]}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOrdenSeleccionada(null)}
-                className="text-xs text-red-500 hover:text-red-700 font-semibold"
-              >
-                {t('gastos.cambiar_orden')}
-              </button>
-            </div>
-          )}
+          {/* ¿Para qué carro? */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-700">
+              {t('gastos.vincular_orden')} *
+            </label>
+            <SelectorVehiculo value={ordenSeleccionada} onChange={handleSeleccionarOrden} />
+          </div>
 
           {/* Lista de gastos a vincular */}
           <div className="space-y-2">

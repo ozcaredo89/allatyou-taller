@@ -4,11 +4,9 @@ import { useTranslation } from 'react-i18next';
 import {
   Plus, Trash2, Loader2, Receipt, AlertCircle, Check, X,
   Repeat, Upload, Tag, CalendarClock, Car, Package,
-  AlertTriangle, FileText
 } from 'lucide-react';
 import api from '../services/api';
 import { getBogotaRange, bogotaToday } from '../utils/dateUtils';
-import EditorLineasGasto, { type BatchFila, crearNuevaFila } from '../components/EditorLineasGasto';
 import ModalVincularMasivo from '../components/ModalVincularMasivo';
 import SelectorVehiculo from '../components/SelectorVehiculo';
 
@@ -127,34 +125,11 @@ const Gastos: React.FC = () => {
   const [confirmRecurrente, setConfirmRecurrente] = useState<Recurrente | null>(null);
   const [montoConfirm, setMontoConfirm] = useState('');
 
-  // ── Estado Modo Factura (Batch / Multilínea) ──
-  const [modalMode, setModalMode] = useState<'unico' | 'batch'>('unico');
-  const [currentLoteId, setCurrentLoteId] = useState<string>(() => crypto.randomUUID());
+  // Mensaje de confirmación tras "Guardar y agregar otro" + foco en la descripción
+  const [aviso, setAviso] = useState('');
+  const descripcionRef = useRef<HTMLInputElement>(null);
 
-  // Cabecera compartida del lote (fecha, proveedor, categoría, comprobante)
-  const [batchHeader, setBatchHeader] = useState({
-    fecha: bogotaToday(),
-    proveedor: '',
-    comprobante_url: '',
-    categoria_id: '',
-    notas: '',
-  });
-
-  // Vehículo de la factura: lo heredan todas las líneas que no tengan uno propio
-  const [batchOrden, setBatchOrden] = useState<any | null>(null);
-
-  const [batchFilas, setBatchFilas] = useState<BatchFila[]>([crearNuevaFila()]);
-  const [batchUploading, setBatchUploading] = useState(false);
-  const batchFileRef = useRef<HTMLInputElement>(null);
-
-  // Diálogo de confirmación de duplicados (409)
-  const [duplicadosModal, setDuplicadosModal] = useState<{
-    pendingLoteId: string;
-    pendingFilas: any[];
-    duplicados: any[];
-  } | null>(null);
-
-  // Toggle de sección de vehículo en modo único (acordeón plegable)
+  // Enlace "+ Asociar a un carro" (para categorías distintas de Repuestos)
   const [mostrarVehiculo, setMostrarVehiculo] = useState(false);
 
   // ── Estado Selección Masiva (Fase 2) ──
@@ -274,25 +249,6 @@ const Gastos: React.FC = () => {
     else quitarOrdenSeleccionada();
   };
 
-  // ── Modo Factura: vehículo de la cabecera ──
-  const handleBatchOrdenChange = (orden: any | null) => {
-    setBatchOrden(orden);
-    // El repuesto elegido en cada línea pertenece al vehículo anterior: se limpia
-    // en las líneas que heredan el vehículo de la cabecera.
-    setBatchFilas(fs => fs.map(f => (f.ordenSeleccionada ? f : { ...f, item_id: '' })));
-  };
-
-  // Al abrir "Factura (varios)" se preselecciona la categoría Repuestos (es lo habitual)
-  const activarModoFactura = () => {
-    setModalTab('unico');
-    setModalMode('batch');
-    setBatchHeader(h => {
-      if (h.categoria_id) return h;
-      const repCat = categorias.find(c => /repuesto/i.test(c.nombre));
-      return repCat ? { ...h, categoria_id: repCat.id } : h;
-    });
-  };
-
   const handleSeleccionarItemOrden = (itemId: string) => {
     setForm(f => {
       const selectedItem = ordenSeleccionada?.items_repuesto?.find((i: any) => i.id === itemId);
@@ -315,13 +271,16 @@ const Gastos: React.FC = () => {
   };
 
   // ── Guardar gasto único ──
-  const handleGuardar = async () => {
+  // agregarOtro = true: guarda y deja el formulario abierto conservando fecha, proveedor,
+  // categoría, recibo y carro; solo se limpian descripción y monto (facturas con varios repuestos).
+  const handleGuardar = async (agregarOtro = false) => {
     if (!form.descripcion.trim()) { setError(t('gastos.error_descripcion')); return; }
     const monto = parseInt(form.monto.replace(/\D/g, ''), 10);
     if (!monto || monto <= 0) { setError(t('gastos.error_monto')); return; }
     try {
       setSaving(true);
       setError('');
+      setAviso('');
       await api.post('/gastos', {
         ...form,
         monto,
@@ -329,8 +288,14 @@ const Gastos: React.FC = () => {
         ingreso_id: form.ingreso_id || null,
         item_id: form.item_id || null,
       });
-      setModalOpen(false);
-      resetForm();
+      if (agregarOtro) {
+        setForm(f => ({ ...f, descripcion: '', monto: '', notas: '', item_id: '' }));
+        setAviso(t('gastos.gasto_guardado_siguiente'));
+        descripcionRef.current?.focus();
+      } else {
+        setModalOpen(false);
+        resetForm();
+      }
       await cargarGastos();
     } catch (err: any) {
       setError(err?.response?.data?.error || t('gastos.error_monto'));
@@ -419,90 +384,8 @@ const Gastos: React.FC = () => {
     setFormRec({ nombre: '', categoria_id: '', monto_estimado: '', frecuencia: 'mensual', dia_del_mes: '', fecha_inicio: bogotaToday(), notas: '' });
     setOrdenSeleccionada(null);
     setMostrarVehiculo(false);
-    setModalMode('unico');
-    setBatchHeader({ fecha: bogotaToday(), proveedor: '', comprobante_url: '', categoria_id: '', notas: '' });
-    setBatchOrden(null);
-    setBatchFilas([crearNuevaFila()]);
-    setCurrentLoteId(crypto.randomUUID());
-    setDuplicadosModal(null);
+    setAviso('');
     setError('');
-  };
-
-  // ── Upload comprobante del lote (cabecera batch) ──
-  const handleBatchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setBatchUploading(true);
-      const fd = new FormData();
-      fd.append('archivo', file);
-      const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setBatchHeader(h => ({ ...h, comprobante_url: res.data.url }));
-    } catch {
-      setError('Error subiendo comprobante.');
-    } finally {
-      setBatchUploading(false);
-      if (batchFileRef.current) batchFileRef.current.value = '';
-    }
-  };
-
-  // ── Guardar Lote (Idempotencia garantizada: reutiliza currentLoteId hasta éxito) ──
-  const handleGuardarBatch = async (confirmar = false) => {
-    const loteId = currentLoteId;
-
-    // Las filas totalmente vacías se ignoran (p. ej. una fila agregada por error)
-    const filasConDatos = batchFilas.filter(f => f.descripcion.trim() || f.monto.trim());
-    if (filasConDatos.length === 0) { setError(t('gastos.error_descripcion')); return; }
-
-    // Validación local básica antes de llamar al servidor
-    for (let i = 0; i < filasConDatos.length; i++) {
-      const f = filasConDatos[i];
-      const prefijo = t('gastos.fila_n', { n: i + 1 });
-      if (!f.descripcion.trim()) { setError(`${prefijo} ${t('gastos.error_descripcion')}`); return; }
-      const m = parseInt(f.monto.replace(/\D/g, ''), 10);
-      if (!m || m <= 0) { setError(`${prefijo} ${t('gastos.error_monto')}`); return; }
-    }
-
-    const filas = filasConDatos.map(f => ({
-      fecha: batchHeader.fecha || bogotaToday(),
-      categoria_id: batchHeader.categoria_id || undefined,
-      descripcion: f.descripcion.trim(),
-      monto: parseInt(f.monto.replace(/\D/g, ''), 10),
-      proveedor: batchHeader.proveedor.trim() || undefined,
-      notas: batchHeader.notas.trim() || undefined,
-      comprobante_url: batchHeader.comprobante_url || undefined,
-      // La línea usa su propio vehículo si lo tiene; si no, hereda el de la cabecera
-      ingreso_id: f.ingreso_id || batchOrden?.id || undefined,
-      item_id: f.item_id || undefined,
-    }));
-
-    try {
-      setSaving(true);
-      setError('');
-      await api.post('/gastos/batch', {
-        lote_id: loteId,
-        filas,
-        confirmar_duplicados: confirmar,
-      });
-      setModalOpen(false);
-      setDuplicadosModal(null);
-      resetForm();
-      await cargarGastos();
-    } catch (err: any) {
-      if (err?.response?.status === 409) {
-        // Mostrar modal de confirmación de duplicados (conserva currentLoteId para reenvío)
-        setDuplicadosModal({
-          pendingLoteId: loteId,
-          pendingFilas: filas,
-          duplicados: err.response.data.duplicados || [],
-        });
-        setSaving(false);
-        return;
-      }
-      setError(err?.response?.data?.error || 'Error guardando el lote.');
-    } finally {
-      setSaving(false);
-    }
   };
 
   // ── Selección Masiva (Fase 2) ──
@@ -537,7 +420,6 @@ const Gastos: React.FC = () => {
   const categoriaSeleccionada = categorias.find(c => c.id === form.categoria_id);
   const vehiculoVisible =
     mostrarVehiculo || !!ordenSeleccionada || /repuesto/i.test(categoriaSeleccionada?.nombre || '');
-  const filasConDatosCount = batchFilas.filter(f => f.descripcion.trim() || f.monto.trim()).length;
 
   if (loading) {
     return (
@@ -844,7 +726,7 @@ const Gastos: React.FC = () => {
       {/* ═══════════════════════════════════════════════════════════════ */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-          <div className={`bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-y-auto ${modalMode === 'batch' ? 'max-w-2xl' : 'max-w-lg'}`}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             {/* Header Modal */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-900">{t('gastos.modal_title')}</h2>
@@ -853,25 +735,19 @@ const Gastos: React.FC = () => {
               </button>
             </div>
 
-            {/* Tabs: Único / Factura Multilínea / Recurrente */}
+            {/* Tabs: Único / Recurrente */}
             <div className="flex gap-1 p-3 bg-slate-50 border-b border-slate-100">
               <button
-                onClick={() => { setModalTab('unico'); setModalMode('unico'); }}
-                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition ${modalTab === 'unico' && modalMode === 'unico' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
+                onClick={() => setModalTab('unico')}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${modalTab === 'unico' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
               >
-                <Receipt size={13} className="inline mr-1" /> {t('gastos.tab_unico')}
+                <Receipt size={14} className="inline mr-1" /> {t('gastos.tab_unico')}
               </button>
               <button
-                onClick={activarModoFactura}
-                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition ${modalMode === 'batch' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
+                onClick={() => setModalTab('recurrente')}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${modalTab === 'recurrente' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
               >
-                <FileText size={13} className="inline mr-1" /> {t('gastos.tab_factura')}
-              </button>
-              <button
-                onClick={() => { setModalTab('recurrente'); setModalMode('unico'); }}
-                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition ${modalTab === 'recurrente' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
-              >
-                <Repeat size={13} className="inline mr-1" /> {t('gastos.tab_recurrente')}
+                <Repeat size={14} className="inline mr-1" /> {t('gastos.tab_recurrente')}
               </button>
             </div>
 
@@ -879,6 +755,11 @@ const Gastos: React.FC = () => {
               {error && (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
                   <AlertCircle size={14} /> {error}
+                </div>
+              )}
+              {aviso && (
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl p-3 text-sm">
+                  <Check size={14} /> {aviso}
                 </div>
               )}
 
@@ -951,7 +832,7 @@ const Gastos: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_descripcion')} *</label>
-                    <input type="text" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+                    <input ref={descripcionRef} type="text" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
                       placeholder={t('gastos.placeholder_descripcion')}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                   </div>
@@ -1000,75 +881,8 @@ const Gastos: React.FC = () => {
                 </>
               )}
 
-              {/* ────── FORM: Factura Multilínea (Batch) ────── */}
-              {modalTab === 'unico' && modalMode === 'batch' && (
-                <>
-                  {/* ── Datos comunes de la factura (se escriben una sola vez) ── */}
-                  <div className="bg-slate-50 rounded-xl p-3.5 space-y-3 border border-slate-200">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_fecha')} *</label>
-                        <input type="date" value={batchHeader.fecha} onChange={e => setBatchHeader(h => ({ ...h, fecha: e.target.value }))}
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_proveedor')}</label>
-                        <input type="text" value={batchHeader.proveedor} onChange={e => setBatchHeader(h => ({ ...h, proveedor: e.target.value }))}
-                          placeholder={t('gastos.placeholder_proveedor')}
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_categoria')}</label>
-                        <select
-                          value={batchHeader.categoria_id}
-                          onChange={e => setBatchHeader(h => ({ ...h, categoria_id: e.target.value }))}
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                        >
-                          <option value="">{t('gastos.sin_categoria')}</option>
-                          {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_comprobante')}</label>
-                        {batchHeader.comprobante_url ? (
-                          <div className="flex items-center gap-2 text-sm h-[38px]">
-                            <a href={batchHeader.comprobante_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline truncate">{t('gastos.ver_archivo')}</a>
-                            <button type="button" onClick={() => setBatchHeader(h => ({ ...h, comprobante_url: '' }))} className="text-red-400 shrink-0"><X size={14} /></button>
-                          </div>
-                        ) : (
-                          <button type="button" onClick={() => batchFileRef.current?.click()} disabled={batchUploading}
-                            className="flex items-center gap-2 border-2 border-dashed border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition w-full justify-center">
-                            {batchUploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-                            {batchUploading ? t('gastos.subiendo') : t('gastos.btn_adjuntar')}
-                          </button>
-                        )}
-                        <input ref={batchFileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleBatchUpload} />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.factura_vehiculo_titulo')}</label>
-                      <SelectorVehiculo value={batchOrden} onChange={handleBatchOrdenChange} />
-                    </div>
-                  </div>
-
-                  {/* ── Líneas: solo descripción y monto ── */}
-                  <EditorLineasGasto
-                    filas={batchFilas}
-                    onChangeFilas={setBatchFilas}
-                    ordenPorDefecto={batchOrden}
-                    formatearDinero={formatearDinero}
-                    formatearMonto={formatearMonto}
-                  />
-                </>
-              )}
-
               {/* ────── FORM: Gasto Recurrente ────── */}
               {modalTab === 'recurrente' && (
-
                 <>
                   <p className="text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg p-3">
                     {t('gastos.desc_plantilla')}
@@ -1129,67 +943,31 @@ const Gastos: React.FC = () => {
               )}
 
               {/* Botones del modal */}
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
                 <button
                   onClick={() => { setModalOpen(false); resetForm(); }}
                   className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl font-semibold text-sm hover:bg-slate-50 transition"
                 >
                   {t('gastos.btn_cancelar')}
                 </button>
+                {modalTab === 'unico' && (
+                  <button
+                    onClick={() => handleGuardar(true)}
+                    disabled={saving}
+                    className="flex-1 border border-indigo-200 text-indigo-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-indigo-50 transition disabled:opacity-50"
+                  >
+                    {t('gastos.btn_guardar_agregar_otro')}
+                  </button>
+                )}
                 <button
-                  onClick={
-                    modalMode === 'batch'
-                      ? () => handleGuardarBatch()
-                      : modalTab === 'unico' ? handleGuardar : handleGuardarRecurrente
-                  }
+                  onClick={modalTab === 'unico' ? () => handleGuardar(false) : handleGuardarRecurrente}
                   disabled={saving}
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-bold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                  {modalMode === 'batch'
-                    ? (filasConDatosCount <= 1 ? t('gastos.btn_registrar_batch', { count: 1 }) : t('gastos.btn_registrar_batch_plural', { count: filasConDatosCount }))
-                    : modalTab === 'unico' ? t('gastos.btn_guardar') : t('gastos.btn_crear_plantilla')}
+                  {modalTab === 'unico' ? t('gastos.btn_guardar') : t('gastos.btn_crear_plantilla')}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* MODAL: Confirmar Duplicados (409)                               */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {duplicadosModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-amber-100 rounded-xl text-amber-600"><AlertTriangle size={22} /></div>
-              <div>
-                <h3 className="font-bold text-slate-900">{t('gastos.posibles_duplicados')}</h3>
-                <p className="text-sm text-slate-500">{t('gastos.revisar_antes_confirmar')}</p>
-              </div>
-            </div>
-            <div className="max-h-48 overflow-y-auto space-y-2">
-              {duplicadosModal.duplicados.map((d: any, i: number) => (
-                <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs">
-                  <p className="font-bold text-amber-900">{d.fila_nueva?.descripcion} — {formatearDinero(d.fila_nueva?.monto)}</p>
-                  <p className="text-amber-700 mt-0.5">Gasto similar ya registrado el {d.existente?.fecha}: {d.existente?.descripcion} ({formatearDinero(d.existente?.monto)})</p>
-                </div>
-              ))}
-            </div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => setDuplicadosModal(null)}
-                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl font-semibold text-sm hover:bg-slate-50 transition">
-                {t('gastos.btn_cancelar')}
-              </button>
-              <button
-                onClick={() => handleGuardarBatch(true)}
-                disabled={saving}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl font-bold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                {t('gastos.guardar_de_todas_formas')}
-              </button>
             </div>
           </div>
         </div>
