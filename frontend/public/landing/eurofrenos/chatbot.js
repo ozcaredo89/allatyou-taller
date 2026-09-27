@@ -33,7 +33,9 @@
     ultimaCotizacion: '',
     telefonoTaller: config.phoneNumber,
     turnstileWidgetId: null,
-    turnstileReady: false
+    turnstileReady: false,
+    turnstileToken: null,
+    turnstileError: false
   };
 
   // ─── 3. Helpers de Formato y Parsers (Spec Mirror de PublicAIChatbot.tsx) ───
@@ -681,77 +683,110 @@
         try {
           state.turnstileWidgetId = window.turnstile.render('#ai-turnstile-container', {
             sitekey: config.turnstileSiteKey,
-            size: 'invisible',
-            execution: 'execute'
+            callback: (token) => {
+              state.turnstileToken = token;
+              state.turnstileError = false;
+            },
+            'error-callback': () => {
+              state.turnstileToken = null;
+              state.turnstileError = true;
+              console.warn('[AI Turnstile] Error callback invocado por Cloudflare.');
+            },
+            'expired-callback': () => {
+              state.turnstileToken = null;
+              console.warn('[AI Turnstile] Token Turnstile expirado.');
+            }
           });
           state.turnstileReady = true;
-          console.log('[AI Chatbot] Cloudflare Turnstile inicializado en modo explícito.');
         } catch (err) {
           console.error('[AI Chatbot] Error al renderizar widget Turnstile:', err);
         }
       }
     }, 150);
 
-    // Timeout de 8s para detener el polling del SDK
-    setTimeout(() => clearInterval(checkSDK), 8000);
+    setTimeout(() => clearInterval(checkSDK), 10000);
   }
 
   /**
-   * Obtiene un token Turnstile 100% fresco antes de cada petición (anti-replay).
-   * Implementa timeout de 8s y captura callbacks de error y expiración.
+   * Obtiene un token Turnstile fresco.
+   * Si ya hay uno pre-generado, lo usa y resetea para el siguiente.
+   * Si no, espera el callback o ejecuta el challenge si es necesario.
    */
   function obtenerTokenFresco() {
     return new Promise((resolve) => {
       if (!config.turnstileSiteKey || !window.turnstile || state.turnstileWidgetId === null) {
+        const t = state.turnstileToken;
+        state.turnstileToken = null;
+        resolve(t || null);
+        return;
+      }
+
+      // Si ya tenemos un token generado previamente
+      if (state.turnstileToken) {
+        const token = state.turnstileToken;
+        state.turnstileToken = null;
+        try {
+          window.turnstile.reset(state.turnstileWidgetId);
+        } catch {}
+        resolve(token);
+        return;
+      }
+
+      // Si Cloudflare ya reportó un error
+      if (state.turnstileError) {
+        console.warn('[AI Turnstile] Saltando espera porque Cloudflare reportó error en el widget.');
         resolve(null);
         return;
       }
 
       let resuelto = false;
+      let intervalCheck = null;
+
       const timeoutId = setTimeout(() => {
         if (!resuelto) {
           resuelto = true;
-          console.warn('[AI Turnstile] Timeout (8s) al esperar token fresco.');
-          resolve(null);
+          if (intervalCheck) clearInterval(intervalCheck);
+          const t = state.turnstileToken;
+          state.turnstileToken = null;
+          console.warn('[AI Turnstile] Timeout (5s) al esperar token fresco.');
+          resolve(t || null);
         }
-      }, 8000);
+      }, 5000);
 
       try {
         window.turnstile.reset(state.turnstileWidgetId);
-        window.turnstile.render('#ai-turnstile-container', {
-          sitekey: config.turnstileSiteKey,
-          size: 'invisible',
-          execution: 'execute',
-          callback: (token) => {
-            if (!resuelto) {
-              resuelto = true;
-              clearTimeout(timeoutId);
-              resolve(token);
-            }
-          },
-          'error-callback': () => {
-            if (!resuelto) {
-              resuelto = true;
-              clearTimeout(timeoutId);
-              console.warn('[AI Turnstile] Error callback invocado por Cloudflare.');
-              resolve(null);
-            }
-          },
-          'expired-callback': () => {
-            if (!resuelto) {
-              resuelto = true;
-              clearTimeout(timeoutId);
-              console.warn('[AI Turnstile] Token expirado antes de uso.');
-              resolve(null);
-            }
+
+        intervalCheck = setInterval(() => {
+          if (resuelto) {
+            if (intervalCheck) clearInterval(intervalCheck);
+            return;
           }
-        });
-        window.turnstile.execute(state.turnstileWidgetId);
+
+          if (state.turnstileToken) {
+            resuelto = true;
+            clearInterval(intervalCheck);
+            clearTimeout(timeoutId);
+            const t = state.turnstileToken;
+            state.turnstileToken = null;
+            try {
+              window.turnstile.reset(state.turnstileWidgetId);
+            } catch {}
+            resolve(t);
+          } else if (state.turnstileError) {
+            resuelto = true;
+            clearInterval(intervalCheck);
+            clearTimeout(timeoutId);
+            console.warn('[AI Turnstile] Error recibido de Cloudflare durante la espera.');
+            resolve(null);
+          }
+        }, 100);
+
       } catch (e) {
         if (!resuelto) {
           resuelto = true;
+          if (intervalCheck) clearInterval(intervalCheck);
           clearTimeout(timeoutId);
-          console.error('[AI Turnstile] Excepción al ejecutar challenge:', e);
+          console.error('[AI Turnstile] Excepción al reiniciar widget:', e);
           resolve(null);
         }
       }
