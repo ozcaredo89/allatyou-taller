@@ -488,7 +488,7 @@ const Checkout: React.FC = () => {
           {/* Entregar vehículo — solo cuando en_reparacion CON ítems (orden aprobada) */}
           {puedeEntregar && (
             <button
-              onClick={handleEntregar}
+              onClick={() => handleEntregar()}
               disabled={entregando}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold transition shadow-md disabled:opacity-50 flex items-center gap-2"
             >

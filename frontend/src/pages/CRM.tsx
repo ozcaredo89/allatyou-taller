@@ -5,7 +5,6 @@ import {
   AlertTriangle, BellOff, ChevronDown, ChevronUp,
   RefreshCw, Save, X
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
 import { useAuth } from '../context/AuthContext';
@@ -91,17 +90,9 @@ function formatFecha(iso: string) {
   return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function normalizePhone(telefono: string): string {
-  const soloDigitos = telefono.replace(/\D/g, '');
-  return soloDigitos.startsWith('57') && soloDigitos.length >= 12
-    ? soloDigitos
-    : `57${soloDigitos}`;
-}
-
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
 const CRM: React.FC = () => {
-  const { t } = useTranslation();
   const { empresaNombre } = useAuth();
 
   const [tab, setTab] = useState<Tab>('resenas');
@@ -239,7 +230,7 @@ const CRM: React.FC = () => {
     }
   };
 
-  const handleNoContactar = async (clienteId: string, ingresosIds: string[]) => {
+  const handleNoContactar = async (clienteId: string) => {
     if (!window.confirm('¿Dar de baja a este cliente de mensajes de WhatsApp? Se excluirá de ambas pestañas de CRM (Ley 1581).')) return;
     try {
       await api.patch(`/crm/clientes/${clienteId}/no-contactar`, { acepta_whatsapp: false });
