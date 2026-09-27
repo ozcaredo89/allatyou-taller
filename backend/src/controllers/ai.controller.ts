@@ -443,66 +443,119 @@ export const chatConAsistente = async (req: Request, res: Response): Promise<voi
     }
 
     // 1. Recopilación de Contexto
+    //    Las tres consultas son independientes entre sí: se lanzan en paralelo
+    //    para reducir la latencia total del endpoint.
 
-    // Vehículos activos en el taller (mismos estados que el Dashboard)
     const ESTADOS_ACTIVOS = ['recepcion', 'diagnostico', 'cotizacion', 'esperando_aprobacion', 'en_reparacion'];
-    const { data: vehiculosTaller, error: errVehiculos } = await supabase
-      .from('taller_ingresos')
-      .select('id, estado')
-      .eq('empresa_id', empresa_id)
-      .in('estado', ESTADOS_ACTIVOS);
 
-    if (errVehiculos) throw errVehiculos;
-
-    // Desglose por estado para dar contexto más rico al AI
-    const desglosePorEstado: Record<string, number> = {};
-    (vehiculosTaller || []).forEach(v => {
-      desglosePorEstado[v.estado] = (desglosePorEstado[v.estado] || 0) + 1;
-    });
-
-    // Ingresos facturados hoy/esta semana
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const inicioSemana = new Date(hoy);
     inicioSemana.setDate(hoy.getDate() - hoy.getDay() + (hoy.getDay() === 0 ? -6 : 1)); // Lunes
 
-    // Traer items_factura para calcular el total (no existe columna 'total', se suma desde el JSONB)
-    const { data: ingresosSemana, error: errIngresos } = await supabase
-      .from('taller_ingresos')
-      .select('items_factura, updated_at')
-      .eq('empresa_id', empresa_id)
-      .eq('estado', 'entregado')
-      .gte('updated_at', inicioSemana.toISOString());
+    // Ventana para el ranking de servicios: últimos 90 días desde hoy a medianoche Bogotá
+    const hace90Dias = new Date(
+      new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) + 'T00:00:00-05:00'
+    );
+    hace90Dias.setDate(hace90Dias.getDate() - 90);
 
-    if (errIngresos) throw errIngresos;
+    const [
+      { data: vehiculosTaller,  error: errVehiculos  },
+      { data: ingresosSemana,   error: errIngresos   },
+      { data: mantenimientos,   error: errMantenimientos },
+      // Consulta a la tabla persistente de ítems entregados (datos ya canonizados).
+      // Solo se pide ingreso_id (para contar órdenes distintas), nombre_servicio y
+      // precio_unitario (para la pregunta "qué deja más plata").
+      // precio_unitario ≤ 0 ya fue filtrado en sincronizarPreciosOrdenEntregada.
+      { data: itemsEntregados,  error: errItemsEntregados },
+    ] = await Promise.all([
+      supabase
+        .from('taller_ingresos')
+        .select('id, estado')
+        .eq('empresa_id', empresa_id)
+        .in('estado', ESTADOS_ACTIVOS),
 
+      // Traer items_factura para calcular el total semanal/diario
+      // (no existe columna 'total' en taller_ingresos; se suma desde el JSONB)
+      supabase
+        .from('taller_ingresos')
+        .select('items_factura, updated_at')
+        .eq('empresa_id', empresa_id)
+        .eq('estado', 'entregado')
+        .gte('updated_at', inicioSemana.toISOString()),
+
+      supabase
+        .from('taller_mv_proximos_mantenimientos')
+        .select('fecha_sugerida')
+        .eq('empresa_id', empresa_id),
+
+      supabase
+        .from('taller_precios_items_entregados')
+        .select('ingreso_id, nombre_servicio, precio_unitario')
+        .eq('empresa_id', empresa_id)
+        .gte('fecha_entrega', hace90Dias.toISOString()),
+    ]);
+
+    if (errVehiculos) throw errVehiculos;
+    if (errIngresos)  throw errIngresos;
+
+    // Desglose de vehículos activos por estado
+    const desglosePorEstado: Record<string, number> = {};
+    (vehiculosTaller || []).forEach(v => {
+      desglosePorEstado[v.estado] = (desglosePorEstado[v.estado] || 0) + 1;
+    });
+
+    // Totales facturados hoy y esta semana
     let totalHoy = 0;
     let totalSemana = 0;
+    (ingresosSemana || []).forEach(ingreso => {
+      const total = (ingreso.items_factura || []).reduce(
+        (acc: number, item: any) => acc + (Number(item.total) || 0), 0
+      );
+      totalSemana += total;
+      if (new Date(ingreso.updated_at) >= hoy) totalHoy += total;
+    });
 
-    if (ingresosSemana) {
-      ingresosSemana.forEach(ingreso => {
-        const total = (ingreso.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-        totalSemana += total;
-        const fechaUpdated = new Date(ingreso.updated_at);
-        if (fechaUpdated >= hoy) {
-          totalHoy += total;
-        }
-      });
-    }
+    // Mantenimientos vencidos (fecha_sugerida ya pasó)
+    const vencidos = (!errMantenimientos && mantenimientos)
+      ? mantenimientos.filter(m => m.fecha_sugerida && new Date(m.fecha_sugerida) < new Date()).length
+      : 0;
 
-    // Mantenimientos vencidos/proximos
-    const { data: mantenimientos, error: errMantenimientos } = await supabase
-      .from('taller_mv_proximos_mantenimientos')
-      .select('*')
-      .eq('empresa_id', empresa_id);
+    // Top 5 servicios — fuente: taller_precios_items_entregados (90 días)
+    //
+    // Métrica principal : ordenes_distintas → número de órdenes que incluyeron el ítem
+    //   (contar ingreso_id únicos evita que repuestos vendidos por unidad inflen el ranking)
+    // Métrica secundaria: ingreso_total_cop → responde "¿qué servicio deja más dinero?"
+    //
+    // Si la consulta falló (tabla vacía antes de la migración 2026-09-17 u otro error)
+    // se envía null al modelo para que lo comunique honestamente en lugar de silenciarlo.
+    let topServiciosMasVendidos: Array<{
+      servicio: string;
+      ordenes_distintas: number;
+      ingreso_total_cop: number;
+    }> | null = null;
 
-    // Consideramos vencidos si la fecha sugerida ya pasó.
-    let vencidos = 0;
-    if (!errMantenimientos && mantenimientos) {
-        vencidos = mantenimientos.filter(m => {
-            if (!m.fecha_sugerida) return false;
-            return new Date(m.fecha_sugerida) < new Date();
-        }).length;
+    if (!errItemsEntregados && itemsEntregados) {
+      // Agrupar en memoria; el payload es mucho más ligero que el JSONB de taller_ingresos
+      // porque esta tabla solo almacena (ingreso_id, nombre_servicio, precio_unitario).
+      const acumulado: Record<string, { ingresos: Set<string>; total: number }> = {};
+
+      for (const row of itemsEntregados) {
+        const nombre = row.nombre_servicio as string;
+        if (!nombre) continue;
+        if (!acumulado[nombre]) acumulado[nombre] = { ingresos: new Set(), total: 0 };
+        acumulado[nombre].ingresos.add(row.ingreso_id as string);
+        acumulado[nombre].total += Number(row.precio_unitario) || 0;
+      }
+
+      topServiciosMasVendidos = Object.entries(acumulado)
+        .map(([servicio, { ingresos, total }]) => ({
+          servicio,
+          ordenes_distintas: ingresos.size,
+          ingreso_total_cop: Math.round(total),
+        }))
+        .sort((a, b) => b.ordenes_distintas - a.ordenes_distintas)
+        .slice(0, 5);
     }
 
     const kpis = {
@@ -511,6 +564,8 @@ export const chatConAsistente = async (req: Request, res: Response): Promise<voi
       total_facturado_hoy: totalHoy,
       total_facturado_semana: totalSemana,
       mantenimientos_vencidos: vencidos,
+      // null cuando la tabla aún no tiene histórico (migración posterior al 2026-09-17)
+      top_servicios_mas_vendidos_90dias: topServiciosMasVendidos,
     };
 
     // 2. Integración con Gemini
