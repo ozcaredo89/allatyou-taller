@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText } from 'lucide-react';
+import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
 import { ModalVincularGasto } from '../components/ModalVincularGasto';
+import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 
 interface ItemFactura {
   id: string;
@@ -64,6 +65,10 @@ const Checkout: React.FC = () => {
   const [modalGastoItemId, setModalGastoItemId] = useState<string | null>(null);
   const [modalGastoItemDesc, setModalGastoItemDesc] = useState<string>('');
   const [modalGastoTab, setModalGastoTab] = useState<'nuevo' | 'existente'>('nuevo');
+
+  // Técnicos y validación de liquidación
+  const [showModalTecnicos, setShowModalTecnicos] = useState(false);
+  const [showConfirmEntregarSinTecnico, setShowConfirmEntregarSinTecnico] = useState(false);
 
   // Fix #5: Close popover on outside click
   useEffect(() => {
@@ -421,8 +426,18 @@ const Checkout: React.FC = () => {
     }
   };
 
+  const tecnicosAsignados = ingreso?.taller_ingresos_tecnicos || [];
+  const tieneTecnicos = tecnicosAsignados.length > 0;
+  const tieneManoObra = items.some(item => item.tipo === 'mano_obra');
+  const faltaTecnicoMO = tieneManoObra && !tieneTecnicos;
+  const tecnicosIds = tecnicosAsignados.map((t: any) => t.taller_tecnicos?.id).filter(Boolean);
+
   // Entrega el vehículo (flujo final desde en_reparacion)
-  const handleEntregar = async () => {
+  const handleEntregar = async (force: boolean = false) => {
+    if (faltaTecnicoMO && !force && !isEditMode) {
+      setShowConfirmEntregarSinTecnico(true);
+      return;
+    }
     try {
       setEntregando(true);
       setError('');
@@ -440,6 +455,7 @@ const Checkout: React.FC = () => {
       setError('Error al entregar.');
     } finally {
       setEntregando(false);
+      setShowConfirmEntregarSinTecnico(false);
     }
   };
 
@@ -573,6 +589,69 @@ const Checkout: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Técnicos Asignados */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-200 print:hidden">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${tieneTecnicos ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-500'}`}>
+              <Users size={20} />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('checkout.tecnico_asignado')}</h3>
+              {tieneTecnicos ? (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {tecnicosAsignados.map((tItem: any, idx: number) => (
+                    <span key={tItem.taller_tecnicos?.id || idx} className="bg-white text-indigo-900 border border-indigo-200 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
+                      <Wrench size={12} className="text-indigo-600" />
+                      {tItem.taller_tecnicos?.nombre || 'Técnico'}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500 font-medium mt-0.5">
+                  Sin técnicos asignados a esta orden
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowModalTecnicos(true)}
+            className="self-start sm:self-auto text-xs font-bold px-3.5 py-2 rounded-lg border border-slate-300 hover:border-indigo-400 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <Wrench size={14} />
+            {tieneTecnicos ? 'Modificar Técnicos' : t('checkout.btn_asignar_tecnico')}
+          </button>
+        </div>
+
+        {/* Warning: Mano de Obra sin técnico */}
+        {faltaTecnicoMO && (
+          <div className="mb-8 bg-amber-50 border border-amber-300 rounded-2xl p-5 shadow-sm print:hidden">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-amber-100 rounded-xl text-amber-700 shrink-0 mt-0.5">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-amber-900">
+                    {t('checkout.warning_mano_obra_sin_tecnico_titulo')}
+                  </h4>
+                  <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                    {t('checkout.warning_mano_obra_sin_tecnico_desc')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModalTecnicos(true)}
+                className="whitespace-nowrap px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 self-end sm:self-auto shrink-0 cursor-pointer"
+              >
+                <Wrench size={14} />
+                {t('checkout.btn_asignar_tecnico')}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Diagnóstico (read-only summary) */}
         {Object.keys(diagnostico).length > 0 && (
@@ -942,6 +1021,69 @@ const Checkout: React.FC = () => {
           itemDescripcion={modalGastoItemDesc}
           initialTab={modalGastoTab}
         />
+      )}
+
+      {/* Modal Asignar Técnicos */}
+      {showModalTecnicos && id && (
+        <ModalAsignarTecnicos
+          ingresoId={id}
+          tecnicosAsignadosIds={tecnicosIds}
+          onClose={() => setShowModalTecnicos(false)}
+          onSuccess={async () => {
+            setShowModalTecnicos(false);
+            await cargarIngreso();
+          }}
+        />
+      )}
+
+      {/* Modal Confirmación de Entrega sin Técnico (Warning M.O.) */}
+      {showConfirmEntregarSinTecnico && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-100 rounded-full text-amber-600 shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg">
+                {t('checkout.modal_entregar_sin_tecnico_titulo')}
+              </h3>
+            </div>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              {t('checkout.modal_entregar_sin_tecnico_desc')}
+            </p>
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmEntregarSinTecnico(false);
+                  setShowModalTecnicos(true);
+                }}
+                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 text-sm shadow-sm cursor-pointer"
+              >
+                <Wrench size={16} />
+                {t('checkout.btn_asignar_ahora')}
+              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmEntregarSinTecnico(false)}
+                  className="flex-1 py-2 px-3 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition text-sm cursor-pointer"
+                >
+                  {t('diagnostico.btn_cancelar')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEntregar(true)}
+                  disabled={entregando}
+                  className="flex-1 py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition text-sm flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {entregando ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {t('checkout.btn_entregar_de_todos_modos')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -220,33 +220,64 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* ── Entregar Vehículo Modal ── */}
-      {entregarTarget && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center gap-3 text-emerald-600 mb-4">
-              <CheckSquare size={28} />
-              <h2 className="text-xl font-bold text-slate-900">{t('checkout.btn_entregar')}</h2>
-            </div>
-            <p className="text-slate-600 mb-6">
-              ¿Confirmas que deseas registrar la entrega del vehículo <strong>{entregarTarget.taller_vehiculos?.placa}</strong>?
-              La orden pasará al historial de vehículos entregados.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setEntregarTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition">{t('diagnostico.btn_cancelar')}</button>
-              <button onClick={confirmarEntrega} disabled={entregando} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-2">
-                {entregando ? <Loader2 size={16} className="animate-spin" /> : <CheckSquare size={16} />}
-                {t('checkout.btn_entregar')}
-              </button>
+      {entregarTarget && (() => {
+        const items = Array.isArray(entregarTarget.items_factura) ? entregarTarget.items_factura : [];
+        const tieneManoObra = items.some((i: any) => i.tipo === 'mano_obra');
+        const tieneTecnicos = Array.isArray(entregarTarget.taller_ingresos_tecnicos) && entregarTarget.taller_ingresos_tecnicos.length > 0;
+        const faltaTecnicoMO = tieneManoObra && !tieneTecnicos;
+
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center gap-3 text-emerald-600 mb-4">
+                <CheckSquare size={28} />
+                <h2 className="text-xl font-bold text-slate-900">{t('checkout.btn_entregar')}</h2>
+              </div>
+              <p className="text-slate-600 mb-4">
+                ¿Confirmas que deseas registrar la entrega del vehículo <strong>{entregarTarget.taller_vehiculos?.placa}</strong>?
+                La orden pasará al historial de vehículos entregados.
+              </p>
+
+              {faltaTecnicoMO && (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 mb-5 text-xs text-amber-900 flex items-start gap-2.5">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="font-bold block text-amber-950">Atención: Mano de obra sin técnico</strong>
+                    <p className="mt-1 leading-relaxed">
+                      Esta orden incluye mano de obra facturada pero no tiene ningún técnico asignado. Si la entregas ahora, no se generará liquidación de comisiones para este servicio.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = entregarTarget;
+                        setEntregarTarget(null);
+                        setIngresoParaAsignar(target);
+                      }}
+                      className="mt-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white border border-indigo-200 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 shadow-xs transition cursor-pointer"
+                    >
+                      <Wrench size={13} /> Asignar técnico antes de entregar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setEntregarTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition cursor-pointer">{t('diagnostico.btn_cancelar')}</button>
+                <button onClick={confirmarEntrega} disabled={entregando} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-2 cursor-pointer">
+                  {entregando ? <Loader2 size={16} className="animate-spin" /> : <CheckSquare size={16} />}
+                  {t('checkout.btn_entregar')}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Assign Technicians Modal ── */}
       {ingresoParaAsignar && (
         <ModalAsignarTecnicos
           ingresoId={ingresoParaAsignar.id}
-          tecnicosAsignadosIds={(ingresoParaAsignar.taller_ingresos_tecnicos || []).map(t => t.taller_tecnicos.id)}
+          tecnicosAsignadosIds={(ingresoParaAsignar.taller_ingresos_tecnicos || []).map((t: any) => t.taller_tecnicos?.id).filter(Boolean)}
           onClose={() => setIngresoParaAsignar(null)}
           onSuccess={() => { setIngresoParaAsignar(null); fetchIngresos(); }}
         />
@@ -569,14 +600,21 @@ const Dashboard: React.FC = () => {
                         {new Date(ingreso.fecha_ingreso).toLocaleDateString()}
                       </span>
                     </div>
-                    {ingreso.taller_ingresos_tecnicos && ingreso.taller_ingresos_tecnicos.length > 0 && (
+                    {ingreso.taller_ingresos_tecnicos && ingreso.taller_ingresos_tecnicos.length > 0 ? (
                       <div className="flex items-start gap-3 text-slate-600 text-sm">
                         <Wrench size={15} className="text-slate-400 shrink-0 mt-0.5" />
                         <span>
                           <span className="font-medium text-slate-900 mr-1">{t('dashboard.tecnicos')}:</span>
-                          {ingreso.taller_ingresos_tecnicos.map(t => t.taller_tecnicos.nombre).join(', ')}
+                          {ingreso.taller_ingresos_tecnicos.map(t => t.taller_tecnicos?.nombre).filter(Boolean).join(', ')}
                         </span>
                       </div>
+                    ) : (
+                      Array.isArray(ingreso.items_factura) && ingreso.items_factura.some((i: any) => i.tipo === 'mano_obra') ? (
+                        <div className="flex items-center gap-2 bg-amber-50 text-amber-800 text-xs px-2.5 py-1.5 rounded-lg border border-amber-200">
+                          <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                          <span><strong>Sin técnico:</strong> Tiene mano de obra para liquidar</span>
+                        </div>
+                      ) : null
                     )}
                   </div>
                 </div>
@@ -585,9 +623,24 @@ const Dashboard: React.FC = () => {
                 <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-wrap gap-2">
 
                   {/* Asignar técnicos — siempre */}
-                  <button onClick={() => setIngresoParaAsignar(ingreso)} className="w-full flex items-center justify-center gap-2 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-medium py-2 px-3 rounded-lg transition text-sm mb-1">
-                    <Wrench size={15} /> {t('dashboard.asignar_tecnicos')}
-                  </button>
+                  {(() => {
+                    const cardTieneManoObra = Array.isArray(ingreso.items_factura) && ingreso.items_factura.some((i: any) => i.tipo === 'mano_obra');
+                    const cardSinTecnico = !ingreso.taller_ingresos_tecnicos || ingreso.taller_ingresos_tecnicos.length === 0;
+                    const cardAlertaTecnico = cardTieneManoObra && cardSinTecnico;
+
+                    return (
+                      <button
+                        onClick={() => setIngresoParaAsignar(ingreso)}
+                        className={`w-full flex items-center justify-center gap-2 font-medium py-2 px-3 rounded-lg transition text-sm mb-1 cursor-pointer ${
+                          cardAlertaTecnico
+                            ? 'border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold'
+                            : 'border border-indigo-200 text-indigo-700 hover:bg-indigo-50'
+                        }`}
+                      >
+                        <Wrench size={15} /> {t('dashboard.asignar_tecnicos')}
+                      </button>
+                    );
+                  })()}
 
                   {/* Botones de Diagnóstico extra: Ver diagnóstico (solo en_reparacion) + Rediagnosticar */}
                   {ingreso.estado === 'en_reparacion' && (

@@ -244,7 +244,7 @@ export const getIngresoById = async (req: Request, res: Response): Promise<void>
     const { id } = req.params;
     const { data, error } = await supabase
       .from('taller_ingresos')
-      .select('*, taller_vehiculos(*, taller_clientes(*))')
+      .select('*, taller_vehiculos(*, taller_clientes(*)), taller_ingresos_tecnicos(taller_tecnicos(id, nombre))')
       .eq('empresa_id', req.empresa_id)
       .eq('id', id)
       .single();
@@ -852,6 +852,39 @@ export const asignarTecnicos = async (req: Request, res: Response): Promise<void
         `Asignado a: ${nombresTecnicos || 'Sin nombre'}`,
         { tecnicos_ids, nombres: nombresTecnicos }
       );
+
+      // Si la orden ya está en estado 'entregado', calcular comisiones inmediatamente
+      try {
+        const { data: ordenActual } = await supabase
+          .from('taller_ingresos')
+          .select('estado, items_factura')
+          .eq('id', id)
+          .single();
+
+        if (ordenActual?.estado === 'entregado') {
+          const itemsFactura = ordenActual.items_factura || [];
+          const totalManoObra = itemsFactura
+            .filter((item: any) => item.tipo === 'mano_obra')
+            .reduce((acc: number, item: any) => acc + (item.total || 0), 0);
+
+          const PORCENTAJE_GLOBAL_MO = 50;
+          const numTecnicos = tecnicos_ids.length;
+          const porcentajePorTecnico = PORCENTAJE_GLOBAL_MO / numTecnicos;
+          const comisionPorTecnico = Math.round(totalManoObra * (porcentajePorTecnico / 100));
+
+          await supabase
+            .from('taller_ingresos_tecnicos')
+            .update({
+              monto_comision: comisionPorTecnico,
+              porcentaje_aplicado: porcentajePorTecnico
+            })
+            .eq('ingreso_id', id);
+
+          console.log(`[asignarTecnicos] Comisiones calculadas para orden entregada: ${porcentajePorTecnico}% = $${comisionPorTecnico} x ${numTecnicos} técnicos`);
+        }
+      } catch (comisionErr: any) {
+        console.error('[asignarTecnicos] Error recalculando comisiones:', comisionErr.message);
+      }
     } else {
       // Si vaciaron la asignación
       await registrarEventoBitacora(

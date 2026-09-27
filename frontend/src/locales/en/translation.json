@@ -168,7 +168,14 @@
     "ia_regenerar": "↺ Regenerate",
     "ia_regenerando": "⏳ Regenerating...",
     "ia_generando": "Generating...",
-    "ingreso_no_encontrado": "Entry not found."
+    "ingreso_no_encontrado": "Entry not found.",
+    "warning_mano_obra_sin_tecnico_titulo": "Labor item without assigned technician",
+    "warning_mano_obra_sin_tecnico_desc": "This order includes labor items but has no technician assigned. We recommend assigning a technician so that commissions for this service are calculated correctly upon vehicle delivery.",
+    "btn_asignar_tecnico": "Assign Technician",
+    "modal_entregar_sin_tecnico_titulo": "Deliver without assigned technician?",
+    "modal_entregar_sin_tecnico_desc": "This order includes billed labor items but has no technician assigned. If you deliver the vehicle now, no commission will be generated for any technician.",
+    "btn_entregar_de_todos_modos": "Deliver anyway",
+    "btn_asignar_ahora": "Assign technician now"
   },
   "historial": {
     "title": "Service History",
