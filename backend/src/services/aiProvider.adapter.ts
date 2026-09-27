@@ -72,9 +72,10 @@ export class GeminiProvider implements IAiProvider {
     const model = this.client.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 800,
-      },
+        temperature: 0.3,
+        maxOutputTokens: 400,
+        thinkingConfig: { thinkingBudget: 0 },
+      } as any,
     });
 
     // Gemini requiere que el historial comience con rol 'user'
@@ -97,7 +98,7 @@ export class GeminiProvider implements IAiProvider {
     const result = await chatSession.sendMessage(ultimoMensaje);
     const usage = result.response.usageMetadata;
     const tokensIn = usage?.promptTokenCount ?? 0;
-    const tokensOut = usage?.candidatesTokenCount ?? 0;
+    const tokensOut = (usage?.candidatesTokenCount ?? 0) + ((usage as any)?.thoughtsTokenCount ?? 0);
     const costo = calcularCosto('gemini', tokensIn, tokensOut);
 
     return {
