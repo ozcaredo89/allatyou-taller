@@ -874,7 +874,18 @@ export const deleteGasto = async (req: Request, res: Response): Promise<void> =>
       .delete()
       .eq('id', id)
       .eq('empresa_id', req.empresa_id);
-    if (error) throw error;
+
+    if (error) {
+      // 23503 = violación de FK (ON DELETE RESTRICT): el gasto está vinculado
+      // a comisiones liquidadas y no puede eliminarse directamente.
+      if (error.code === '23503') {
+        res.status(400).json({
+          error: 'Este gasto corresponde a una liquidación de técnicos y no puede eliminarse.',
+        });
+        return;
+      }
+      throw error;
+    }
     res.json({ ok: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

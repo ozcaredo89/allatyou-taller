@@ -316,11 +316,14 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
           .filter((item: any) => item.tipo === 'mano_obra')
           .reduce((acc: number, item: any) => acc + (item.total || 0), 0);
 
-        // Si totalManoObra es >= 0, recalcular (incluso si bajó a 0 hay que actualizar a 0)
-        // Consultar técnicos asignados a este ingreso
+        // Si totalManoObra es >= 0, recalcular (incluso si bajó a 0 hay que actualizar a 0).
+        // Consultar TODAS las filas de la orden para calcular numTecnicos correctamente;
+        // si se filtrara solo por 'pendiente', el porcentaje se distorsionaría cuando
+        // algún técnico ya fue liquidado (ej. 2 técnicos → 25% c/u; uno liquidado →
+        // el pendiente no debe subir a 50%).
         const { data: pivoteRows } = await supabase
           .from('taller_ingresos_tecnicos')
-          .select('id')
+          .select('id, estado')
           .eq('ingreso_id', id);
 
         const numTecnicos = pivoteRows?.length ?? 0;
@@ -329,8 +332,10 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
           const porcentajePorTecnico = PORCENTAJE_GLOBAL_MO / numTecnicos;
           const comisionPorTecnico = Math.round(totalManoObra * (porcentajePorTecnico / 100));
 
-          // Actualizar monto_comision Y porcentaje_aplicado para cada fila pivote
-          const updatePromises = (pivoteRows || []).map((row: any) =>
+          // Actualizar monto_comision Y porcentaje_aplicado SOLO en filas pendientes.
+          // Las filas ya liquidadas no se tocan: su monto coincide con el gasto emitido.
+          const filasPendientes = (pivoteRows || []).filter((row: any) => row.estado !== 'liquidado');
+          const updatePromises = filasPendientes.map((row: any) =>
             supabase
               .from('taller_ingresos_tecnicos')
               .update({
@@ -339,8 +344,8 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
               })
               .eq('id', row.id)
           );
-          await Promise.all(updatePromises);
-          console.log(`[updateIngreso] Comisiones recalculadas: ${porcentajePorTecnico}% = $${comisionPorTecnico} x ${numTecnicos} técnicos (MO: $${totalManoObra})`);
+          if (updatePromises.length > 0) await Promise.all(updatePromises);
+          console.log(`[updateIngreso] Comisiones recalculadas: ${porcentajePorTecnico}% = $${comisionPorTecnico} x ${numTecnicos} técnicos (MO: $${totalManoObra}, pendientes actualizados: ${filasPendientes.length})`);
         }
       } catch (comisionError: any) {
         console.error('[updateIngreso] Error calculando comisiones:', comisionError.message);
@@ -815,7 +820,28 @@ export const asignarTecnicos = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Borrar asignaciones previas
+    // Verificar que ninguna fila de esta orden ya esté liquidada.
+    // Si existe al menos una, rechazar: borrar y recrear filas borraría el rastro
+    // del pago y volvería a generarse deuda para esos técnicos.
+    // Se captura el error explícitamente para fallar cerrado: si la consulta
+    // falla, filasLiquidadas quedaría null y el delete podría ejecutarse.
+    const { data: filasLiquidadas, error: errorLiquidadas } = await supabase
+      .from('taller_ingresos_tecnicos')
+      .select('id')
+      .eq('ingreso_id', id)
+      .eq('estado', 'liquidado')
+      .limit(1);
+
+    if (errorLiquidadas) throw errorLiquidadas;
+
+    if (filasLiquidadas && filasLiquidadas.length > 0) {
+      res.status(400).json({
+        error: 'No es posible reasignar técnicos: esta orden ya tiene comisiones liquidadas y pagadas.',
+      });
+      return;
+    }
+
+    // Borrar asignaciones previas (solo si ninguna está liquidada)
     const { error: deleteError } = await supabase
       .from('taller_ingresos_tecnicos')
       .delete()
