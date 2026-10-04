@@ -294,7 +294,17 @@
     "cargando_detalle": "Cargando detalle...",
     "sin_datos_dia": "Sin datos para este día",
     "total_dia": "Total del día",
-    "reintentar": "Intentar de nuevo"
+    "reintentar": "Intentar de nuevo",
+    "ver_items_gastos": "Ver ítems del gasto",
+    "desglose_gastos": "Desglose de Ítems de Gastos",
+    "cargando_gastos": "Cargando ítems de gastos...",
+    "sin_gastos_periodo": "No hay gastos registrados en este período",
+    "sin_coincidencias_gastos": "No se encontraron gastos que coincidan con la búsqueda",
+    "buscar_gastos_placeholder": "Buscar por descripción, proveedor o placa...",
+    "ir_a_gastos": "Ir a Gastos",
+    "total_periodo_gastos": "Total período",
+    "total_filtrado_gastos": "Total filtrado",
+    "cerrar": "Cerrar"
   },
   "login": {
     "email": "Correo Electrónico",

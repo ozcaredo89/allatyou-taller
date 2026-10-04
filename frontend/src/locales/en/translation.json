@@ -250,7 +250,17 @@
     "cargando_detalle": "Loading detail...",
     "sin_datos_dia": "No data for this day",
     "total_dia": "Day total",
-    "reintentar": "Try again"
+    "reintentar": "Try again",
+    "ver_items_gastos": "View expense items",
+    "desglose_gastos": "Expense Items Breakdown",
+    "cargando_gastos": "Loading expense items...",
+    "sin_gastos_periodo": "No expenses recorded in this period",
+    "sin_coincidencias_gastos": "No expenses found matching the search",
+    "buscar_gastos_placeholder": "Search by description, vendor, or plate...",
+    "ir_a_gastos": "Go to Expenses",
+    "total_periodo_gastos": "Period total",
+    "total_filtrado_gastos": "Filtered total",
+    "cerrar": "Close"
   },
   "login": {
     "email": "Email",
