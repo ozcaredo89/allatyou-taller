@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity } from 'lucide-react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity, FileEdit } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { trackEvent } from '../utils/analytics';
@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
 import CronometroInteligente from '../components/CronometroInteligente';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
+import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import TimelineDrawer from '../components/TimelineDrawer';
 
 interface Cliente {
@@ -85,6 +86,9 @@ const Dashboard: React.FC = () => {
 
   // Timeline Drawer state
   const [ingresoParaTimeline, setIngresoParaTimeline] = useState<Ingreso | null>(null);
+
+  // Editar Entrada state
+  const [ingresoParaEditar, setIngresoParaEditar] = useState<Ingreso | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -489,6 +493,9 @@ const Dashboard: React.FC = () => {
                             {ing.estado === 'en_reparacion' && (
                               <button onClick={() => setEntregarTarget(ing)} className="px-3 py-1 bg-emerald-600 text-white text-xs font-medium rounded-md hover:bg-emerald-700 transition">Entregar</button>
                             )}
+                            <button onClick={() => setIngresoParaEditar(ing)} className="px-2 py-1 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-medium rounded-md transition" title={t('card.btn_editar_ingreso', 'Editar Entrada')}>
+                              <FileEdit size={13} />
+                            </button>
                             <button onClick={() => setCancelTarget(ing)} className="px-3 py-1 border border-red-200 text-red-600 hover:bg-red-50 text-xs font-medium rounded-md transition" title="Cancelar Ingreso">
                               Cancelar
                             </button>
@@ -575,11 +582,21 @@ const Dashboard: React.FC = () => {
                   )}
 
                   <div className="space-y-2.5 mt-4">
-                    <div className="flex items-center gap-3 text-slate-600 text-sm">
-                      <FileText size={15} className="text-slate-400 shrink-0" />
-                      <span className="truncate" title={ingreso.motivo_visita}>
-                        <span className="font-medium text-slate-900 mr-1">{t('card.motivo')}</span>{ingreso.motivo_visita}
-                      </span>
+                    <div className="flex items-center justify-between text-slate-600 text-sm group">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <FileText size={15} className="text-slate-400 shrink-0" />
+                        <span className="truncate" title={ingreso.motivo_visita}>
+                          <span className="font-medium text-slate-900 mr-1">{t('card.motivo')}</span>
+                          {ingreso.motivo_visita}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setIngresoParaEditar(ingreso)}
+                        className="text-indigo-600 hover:text-indigo-800 p-1 hover:bg-indigo-50 rounded-md transition shrink-0 ml-1.5 cursor-pointer opacity-80 group-hover:opacity-100"
+                        title={t('card.btn_editar_ingreso', 'Editar entrada del vehículo')}
+                      >
+                        <FileEdit size={14} />
+                      </button>
                     </div>
                     <div className="flex items-start gap-3 text-slate-600 text-sm">
                       <Key size={15} className="text-slate-400 shrink-0 mt-0.5" />
@@ -676,6 +693,15 @@ const Dashboard: React.FC = () => {
                     <MessageCircle size={15} />
                   </button>
 
+                  {/* Editar Entrada — siempre disponible */}
+                  <button
+                    onClick={() => setIngresoParaEditar(ingreso)}
+                    className="flex items-center justify-center gap-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium py-2 px-3 rounded-lg transition text-sm flex-none cursor-pointer"
+                    title={t('card.btn_editar_ingreso', 'Editar entrada del vehículo')}
+                  >
+                    <FileEdit size={15} />
+                  </button>
+
                   {/* Bitácora — abre TimelineDrawer */}
                   <button
                     onClick={() => {
@@ -723,6 +749,18 @@ const Dashboard: React.FC = () => {
             estado:  ingresoParaTimeline.estado,
           }}
           onClose={() => setIngresoParaTimeline(null)}
+        />
+      )}
+
+      {/* ── Modal Editar Entrada ── */}
+      {ingresoParaEditar && (
+        <ModalEditarIngreso
+          ingresoId={ingresoParaEditar.id}
+          onClose={() => setIngresoParaEditar(null)}
+          onSuccess={() => {
+            setIngresoParaEditar(null);
+            fetchIngresos();
+          }}
         />
       )}
     </div>

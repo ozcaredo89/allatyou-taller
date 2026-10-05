@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, XCircle, Receipt, Wrench, Edit } from 'lucide-react';
+import { ArrowLeft, Loader2, XCircle, Receipt, Wrench, Edit, FileEdit, Gauge, Fuel, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
+import ModalEditarIngreso from '../components/ModalEditarIngreso';
 
 interface ItemFactura {
   id: string;
@@ -24,6 +25,7 @@ const HistorialDetalle: React.FC = () => {
   const [ingreso, setIngreso] = useState<any>(null);
   const [gastos, setGastos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEditIngresoModal, setShowEditIngresoModal] = useState(false);
 
   useEffect(() => {
     api.get(`/ingresos/${id}`)
@@ -56,14 +58,23 @@ const HistorialDetalle: React.FC = () => {
         <span className={`text-xs font-bold px-3 py-1 rounded-full border ${isCancelado ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
           {isCancelado ? `✗ ${t('estado.cancelado')}` : `✓ ${t('estado.entregado')}`}
         </span>
-        {!isCancelado && (
+        <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => navigate(`/${slug}/checkout/${ingreso.id}?edit=true`)}
-            className="ml-auto flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition"
+            onClick={() => setShowEditIngresoModal(true)}
+            className="flex items-center gap-2 bg-slate-100 border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-200 transition cursor-pointer"
+            title={t('editar_ingreso.btn_editar_entrada', 'Editar Entrada')}
           >
-            <Edit size={16} /> Editar Orden
+            <FileEdit size={16} /> {t('editar_ingreso.btn_editar_entrada', 'Editar Entrada')}
           </button>
-        )}
+          {!isCancelado && (
+            <button
+              onClick={() => navigate(`/${slug}/checkout/${ingreso.id}?edit=true`)}
+              className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition"
+            >
+              <Edit size={16} /> Editar Orden
+            </button>
+          )}
+        </div>
       </div>
 
       {isCancelado && ingreso.motivo_cancelacion && (
@@ -88,6 +99,40 @@ const HistorialDetalle: React.FC = () => {
           <p className="font-bold text-slate-800 text-2xl tracking-widest">{vehiculo?.placa}</p>
           <p className="text-slate-500 text-sm">{vehiculo?.marca} {vehiculo?.linea}</p>
           {ingreso.tecnico_asignado && <p className="text-slate-500 text-sm mt-1">{t('card.tecnico').replace(':', '')} <strong>{ingreso.tecnico_asignado}</strong></p>}
+        </div>
+
+        {/* Datos de Entrada / Recepción */}
+        <div className="border-t border-slate-100 mt-2 pt-4 col-span-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <FileText size={13} className="text-slate-400" /> {t('editar_ingreso.datos_recepcion', 'Datos de Recepción')}
+            </span>
+            <button
+              onClick={() => setShowEditIngresoModal(true)}
+              className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <FileEdit size={12} /> {t('editar_ingreso.btn_editar_entrada', 'Editar Entrada')}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 sm:col-span-2">
+              <p className="text-xs font-bold text-slate-500 uppercase">{t('editar_ingreso.motivo_titulo', 'Motivo de Entrada')}</p>
+              <p className="font-semibold text-slate-800 text-sm mt-0.5">{ingreso.motivo_visita || t('editar_ingreso.no_especificado', 'No especificado')}</p>
+              {ingreso.observaciones_recepcion && (
+                <p className="text-xs text-slate-500 italic mt-1">Obs: "{ingreso.observaciones_recepcion}"</p>
+              )}
+            </div>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 flex flex-col justify-center space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span className="flex items-center gap-1"><Gauge size={13} className="text-slate-400" /> {t('editar_ingreso.kilometraje_label', 'Kilometraje')}:</span>
+                <span className="font-bold text-slate-800">{ingreso.kilometraje !== undefined && ingreso.kilometraje !== null ? `${Number(ingreso.kilometraje).toLocaleString('es-CO')} km` : '—'}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span className="flex items-center gap-1"><Fuel size={13} className="text-slate-400" /> {t('editar_ingreso.nivel_gasolina_label', 'Combustible')}:</span>
+                <span className="font-bold text-slate-800">{ingreso.nivel_gasolina || '—'}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -166,6 +211,19 @@ const HistorialDetalle: React.FC = () => {
       <div className="text-center text-slate-400 text-sm">
         <p>{t('checkout.footer_2')} {empresaNombre || 'TallerPro'}.</p>
       </div>
+
+      {showEditIngresoModal && id && (
+        <ModalEditarIngreso
+          ingresoId={id}
+          onClose={() => setShowEditIngresoModal(false)}
+          onSuccess={() => {
+            setShowEditIngresoModal(false);
+            api.get(`/ingresos/${id}`)
+              .then(r => setIngreso(r.data))
+              .catch(console.error);
+          }}
+        />
+      )}
     </div>
   );
 };

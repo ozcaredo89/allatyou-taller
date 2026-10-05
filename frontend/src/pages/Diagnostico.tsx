@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon, Settings, Eye, EyeOff, Plus, X, XCircle } from 'lucide-react';
+import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon, Settings, Eye, EyeOff, Plus, X, XCircle, FileEdit, Gauge, Fuel } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import ModalEditarIngreso from '../components/ModalEditarIngreso';
 
 type EstadoItem = 'buen_estado' | 'revisar' | 'danado';
 
@@ -92,6 +93,7 @@ const Diagnostico: React.FC = () => {
   const [autoSaving, setAutoSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadingItem, setUploadingItem] = useState<string | null>(null);
+  const [showModalEditarIngreso, setShowModalEditarIngreso] = useState(false);
 
   const isFirstRender = useRef(true);
 
@@ -329,6 +331,45 @@ const Diagnostico: React.FC = () => {
         </div>
       </div>
 
+      {/* Resumen de Entrada / Motivo de Visita */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="space-y-1 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+              {t('editar_ingreso.motivo_titulo', 'Motivo de Ingreso')}
+            </span>
+            {ingreso.kilometraje !== undefined && ingreso.kilometraje !== null && (
+              <span className="text-xs text-slate-500 flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                <Gauge size={13} className="text-slate-400" />
+                {Number(ingreso.kilometraje).toLocaleString('es-CO')} km
+              </span>
+            )}
+            {ingreso.nivel_gasolina && (
+              <span className="text-xs text-slate-500 flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                <Fuel size={13} className="text-slate-400" />
+                {ingreso.nivel_gasolina}
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-semibold text-slate-800 leading-snug pt-0.5">
+            {ingreso.motivo_visita || t('editar_ingreso.sin_motivo', 'Sin motivo especificado')}
+          </p>
+          {ingreso.observaciones_recepcion && (
+            <p className="text-xs text-slate-500 italic">
+              Obs: "{ingreso.observaciones_recepcion}"
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => setShowModalEditarIngreso(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold rounded-xl text-xs transition shrink-0 cursor-pointer shadow-2xs"
+          title={t('editar_ingreso.btn_editar_entrada', 'Editar Entrada')}
+        >
+          <FileEdit size={14} />
+          <span>{t('editar_ingreso.btn_editar_entrada', 'Editar Entrada')}</span>
+        </button>
+      </div>
+
       {error && (
         <div className="bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-3 border border-red-200">
           <AlertCircle size={20} />
@@ -549,6 +590,17 @@ const Diagnostico: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {showModalEditarIngreso && id && (
+        <ModalEditarIngreso
+          ingresoId={id}
+          onClose={() => setShowModalEditarIngreso(false)}
+          onSuccess={() => {
+            setShowModalEditarIngreso(false);
+            cargarIngreso();
+          }}
+        />
       )}
 
     </div>

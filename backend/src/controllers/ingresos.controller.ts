@@ -266,7 +266,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     // 1. Obtener estado actual para SLA y comisiones
     const { data: current, error: fetchError } = await supabase
       .from('taller_ingresos')
-      .select('estado, estado_desde, items_factura, vehiculo_id, taller_vehiculos(marca, linea, modelo_anio, placa)')
+      .select('estado, estado_desde, items_factura, vehiculo_id, motivo_visita, kilometraje, nivel_gasolina, fecha_ingreso, taller_vehiculos(id, marca, linea, modelo_anio, color, placa, cliente_id, taller_clientes(id, nombre_completo, telefono))')
       .eq('empresa_id', req.empresa_id)
       .eq('id', id)
       .single();
@@ -369,17 +369,138 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         });
       }
     }
+    // Separar campos del ingreso de campos relacionales o auxiliares
+    const {
+      taller_vehiculos,
+      taller_ingresos_tecnicos,
+      taller_clientes,
+      vehiculo,
+      cliente,
+      vehiculo_datos,
+      cliente_datos,
+      ...camposIngreso
+    } = body;
+
+    // 1. Whitelist y validación estricta de vehiculo_datos (prevenir mass assignment y cruce de tenant)
+    const safeVehiculoData: Record<string, any> = {};
+    if (vehiculo_datos && typeof vehiculo_datos === 'object' && current?.vehiculo_id) {
+      if (vehiculo_datos.placa !== undefined) {
+        const cleanPlaca = String(vehiculo_datos.placa).trim().toUpperCase();
+        if (cleanPlaca.length === 0) {
+          res.status(400).json({ error: 'La placa no puede quedar vacía.' });
+          return;
+        }
+        safeVehiculoData.placa = cleanPlaca;
+
+        // Validar unicidad dentro del tenant si la placa cambió
+        const currentPlaca = (current?.taller_vehiculos as any)?.placa;
+        if (cleanPlaca !== currentPlaca && req.empresa_id) {
+          const { data: vehDup } = await supabase
+            .from('taller_vehiculos')
+            .select('id')
+            .eq('empresa_id', req.empresa_id)
+            .eq('placa', cleanPlaca)
+            .neq('id', current.vehiculo_id)
+            .maybeSingle();
+
+          if (vehDup) {
+            res.status(409).json({ error: `La placa ${cleanPlaca} ya está registrada en otro vehículo.` });
+            return;
+          }
+        }
+      }
+      if (vehiculo_datos.marca !== undefined) safeVehiculoData.marca = String(vehiculo_datos.marca).trim();
+      if (vehiculo_datos.linea !== undefined) safeVehiculoData.linea = String(vehiculo_datos.linea).trim();
+      if (vehiculo_datos.modelo_anio !== undefined) safeVehiculoData.modelo_anio = vehiculo_datos.modelo_anio ? Number(vehiculo_datos.modelo_anio) : null;
+      if (vehiculo_datos.color !== undefined) safeVehiculoData.color = String(vehiculo_datos.color).trim();
+    }
+
+    // 2. Whitelist y validación estricta de cliente_datos
+    const safeClienteData: Record<string, any> = {};
+    if (cliente_datos && typeof cliente_datos === 'object') {
+      if (cliente_datos.nombre_completo !== undefined) safeClienteData.nombre_completo = String(cliente_datos.nombre_completo).trim();
+      if (cliente_datos.telefono !== undefined) safeClienteData.telefono = String(cliente_datos.telefono).trim();
+    }
+
+    // 3. Ejecutar update principal en taller_ingresos
     const { data, error } = await supabase
       .from('taller_ingresos')
-      .update(body)
+      .update(camposIngreso)
       .eq('empresa_id', req.empresa_id)
       .eq('id', id)
-      .select()
+      .select('*, taller_vehiculos(*, taller_clientes(*)), taller_ingresos_tecnicos(taller_tecnicos(id, nombre))')
       .single();
 
     if (error) {
       console.error('[updateIngreso] Supabase error:', JSON.stringify(error));
       throw error;
+    }
+
+    // 4. Actualizar vehículo con manejo explícito de errores (no tragar fallos)
+    if (Object.keys(safeVehiculoData).length > 0 && current?.vehiculo_id && req.empresa_id) {
+      const { error: vehErr } = await supabase
+        .from('taller_vehiculos')
+        .update(safeVehiculoData)
+        .eq('id', current.vehiculo_id)
+        .eq('empresa_id', req.empresa_id);
+
+      if (vehErr) {
+        console.error('[updateIngreso] Error actualizando datos del vehículo:', vehErr.message);
+        res.status(vehErr.code === '23505' ? 409 : 400).json({
+          error: vehErr.code === '23505' ? 'La placa ya se encuentra registrada en otro vehículo.' : vehErr.message
+        });
+        return;
+      }
+    }
+
+    // 5. Actualizar cliente con filtro estricto por tenant (regla multi-tenant CLAUDE.md)
+    if (Object.keys(safeClienteData).length > 0 && req.empresa_id && current?.vehiculo_id) {
+      const clienteId = (current?.taller_vehiculos as any)?.cliente_id || (current?.taller_vehiculos as any)?.taller_clientes?.id;
+      if (clienteId) {
+        const { error: cliErr } = await supabase
+          .from('taller_clientes')
+          .update(safeClienteData)
+          .eq('id', clienteId)
+          .eq('empresa_id', req.empresa_id);
+
+        if (cliErr) {
+          console.error('[updateIngreso] Error actualizando datos del cliente:', cliErr.message);
+          res.status(400).json({ error: cliErr.message });
+          return;
+        }
+      }
+    }
+
+    // 6. Escribir en la bitácora DESPUÉS de que todos los updates fueron exitosos
+    const cambiosEntrada: string[] = [];
+    if (camposIngreso.motivo_visita && current && current.motivo_visita !== camposIngreso.motivo_visita) {
+      cambiosEntrada.push(`Motivo: "${current.motivo_visita}" -> "${camposIngreso.motivo_visita}"`);
+    }
+    if (camposIngreso.kilometraje !== undefined && current && (current as any).kilometraje !== undefined && (current as any).kilometraje !== camposIngreso.kilometraje) {
+      cambiosEntrada.push(`Kilometraje: ${(current as any).kilometraje} km -> ${camposIngreso.kilometraje} km`);
+    }
+    if (camposIngreso.nivel_gasolina && (current as any).nivel_gasolina && (current as any).nivel_gasolina !== camposIngreso.nivel_gasolina) {
+      cambiosEntrada.push(`Gasolina: ${(current as any).nivel_gasolina} -> ${camposIngreso.nivel_gasolina}`);
+    }
+    if (camposIngreso.fecha_ingreso && current?.fecha_ingreso && new Date(current.fecha_ingreso).getTime() !== new Date(camposIngreso.fecha_ingreso).getTime()) {
+      cambiosEntrada.push(`Fecha de ingreso ajustada`);
+    }
+    if (safeVehiculoData.placa && (current?.taller_vehiculos as any)?.placa && (current?.taller_vehiculos as any)?.placa !== safeVehiculoData.placa) {
+      cambiosEntrada.push(`Placa: ${(current?.taller_vehiculos as any)?.placa} -> ${safeVehiculoData.placa}`);
+    }
+    if (safeClienteData.nombre_completo && (current?.taller_vehiculos as any)?.taller_clientes?.nombre_completo && (current?.taller_vehiculos as any)?.taller_clientes?.nombre_completo !== safeClienteData.nombre_completo) {
+      cambiosEntrada.push(`Cliente: "${safeClienteData.nombre_completo}"`);
+    }
+
+    if (cambiosEntrada.length > 0 && req.empresa_id) {
+      await registrarEventoBitacora(
+        req.empresa_id,
+        id as string,
+        'nota',
+        'Entrada de Vehículo Modificada',
+        cambiosEntrada.join(' | '),
+        { detalle_cambios: cambiosEntrada }
+      );
     }
 
     // 5. ── LIMPIEZA DE HUÉRFANOS DE GASTOS ────────────────────────────────

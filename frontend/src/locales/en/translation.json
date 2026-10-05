@@ -42,7 +42,35 @@
     "tecnico": "Technician:",
     "btn_diagnostico": "Diagnostic",
     "btn_checkout": "Generate Service Order",
-    "btn_bitacora": "View visit timeline"
+    "btn_bitacora": "View visit timeline",
+    "btn_editar_ingreso": "Edit vehicle intake"
+  },
+  "editar_ingreso": {
+    "title": "Edit Vehicle Intake",
+    "subtitle": "Modify details recorded at vehicle intake reception.",
+    "motivo_label": "Intake Reason / Reported Issue",
+    "motivo_placeholder": "E.g. Oil change, Engine noise, Brake check...",
+    "kilometraje_label": "Mileage",
+    "kilometraje_placeholder": "E.g. 198000",
+    "nivel_gasolina_label": "Fuel Level",
+    "fecha_ingreso_label": "Intake Date and Time",
+    "observaciones_label": "Intake Observations",
+    "observaciones_placeholder": "Scratches, visual condition details, items left in vehicle...",
+    "checklist_title": "Received Inventory",
+    "datos_vehiculo_cliente": "Correct Vehicle & Customer Data (Optional)",
+    "btn_guardar": "Save Changes",
+    "btn_guardando": "Saving...",
+    "btn_cancelar": "Cancel",
+    "exito": "Intake updated successfully.",
+    "error_guardar": "Error saving changes.",
+    "error_motivo_requerido": "Intake reason is required.",
+    "error_km_requerido": "Mileage is required and must be a number.",
+    "error_placa_requerida": "License plate cannot be empty.",
+    "btn_editar_entrada": "Edit Intake",
+    "motivo_titulo": "Intake Reason",
+    "datos_recepcion": "Reception Details",
+    "no_especificado": "Not specified",
+    "sin_motivo": "No reason specified"
   },
   "timeline": {
     "ver_historial_anterior": "View previous visits for this plate"

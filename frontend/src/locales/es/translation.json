@@ -42,7 +42,35 @@
     "tecnico": "Técnico:",
     "btn_diagnostico": "Diagnóstico",
     "btn_checkout": "Generar Orden de Servicio",
-    "btn_bitacora": "Ver bitácora de la visita"
+    "btn_bitacora": "Ver bitácora de la visita",
+    "btn_editar_ingreso": "Editar entrada del vehículo"
+  },
+  "editar_ingreso": {
+    "title": "Editar Entrada del Vehículo",
+    "subtitle": "Modifica los datos registrados al momento de la recepción del vehículo.",
+    "motivo_label": "Motivo de Ingreso / Falla Reportada",
+    "motivo_placeholder": "Ej: Cambio de aceite, Ruido en el motor, Falla en frenos...",
+    "kilometraje_label": "Kilometraje",
+    "kilometraje_placeholder": "Ej: 198000",
+    "nivel_gasolina_label": "Nivel de Combustible",
+    "fecha_ingreso_label": "Fecha y Hora de Ingreso",
+    "observaciones_label": "Observaciones de Recepción",
+    "observaciones_placeholder": "Rayones, detalles del estado visual, objetos dejados en el vehículo...",
+    "checklist_title": "Inventario Recibido",
+    "datos_vehiculo_cliente": "Corregir datos del Vehículo y Cliente (Opcional)",
+    "btn_guardar": "Guardar Cambios",
+    "btn_guardando": "Guardando...",
+    "btn_cancelar": "Cancelar",
+    "exito": "Entrada actualizada correctamente.",
+    "error_guardar": "Error al guardar los cambios.",
+    "error_motivo_requerido": "El motivo de visita es obligatorio.",
+    "error_km_requerido": "El kilometraje es obligatorio y debe ser un número.",
+    "error_placa_requerida": "La placa no puede quedar vacía.",
+    "btn_editar_entrada": "Editar Entrada",
+    "motivo_titulo": "Motivo de Ingreso",
+    "datos_recepcion": "Datos de Recepción",
+    "no_especificado": "No especificado",
+    "sin_motivo": "Sin motivo especificado"
   },
   "timeline": {
     "ver_historial_anterior": "Ver visitas anteriores de esta placa"

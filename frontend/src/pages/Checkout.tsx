@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users } from 'lucide-react';
+import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users, FileEdit, Gauge, Fuel } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
 import { ModalVincularGasto } from '../components/ModalVincularGasto';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
+import ModalEditarIngreso from '../components/ModalEditarIngreso';
 
 interface ItemFactura {
   id: string;
@@ -69,6 +70,7 @@ const Checkout: React.FC = () => {
   // Técnicos y validación de liquidación
   const [showModalTecnicos, setShowModalTecnicos] = useState(false);
   const [showConfirmEntregarSinTecnico, setShowConfirmEntregarSinTecnico] = useState(false);
+  const [showModalEditarIngreso, setShowModalEditarIngreso] = useState(false);
 
   // Fix #5: Close popover on outside click
   useEffect(() => {
@@ -529,6 +531,15 @@ const Checkout: React.FC = () => {
             {t('whatsapp.btn_notificar_cotizacion')}
           </button>
 
+          {/* Editar Entrada */}
+          <button
+            onClick={() => setShowModalEditarIngreso(true)}
+            className="bg-white border text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm hover:bg-slate-50 transition flex items-center gap-2 cursor-pointer"
+            title={t('editar_ingreso.btn_editar_entrada', 'Editar Entrada')}
+          >
+            <FileEdit size={16} /> {t('editar_ingreso.btn_editar_entrada', 'Editar Entrada')}
+          </button>
+
           {/* Imprimir */}
           <button onClick={() => window.print()} className="bg-white border text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm hover:bg-slate-50 transition flex items-center gap-2">
             <Printer size={16} /> {t('checkout.btn_print')}
@@ -587,6 +598,39 @@ const Checkout: React.FC = () => {
             <p className="font-bold text-indigo-700 bg-indigo-100 px-3 py-1 rounded-lg inline-block mt-2 text-sm border border-indigo-200 shadow-sm">
               {vehiculo?.marca} {vehiculo?.linea} {vehiculo?.modelo_anio ? ` - ${vehiculo?.modelo_anio}` : ''}
             </p>
+          </div>
+
+          {/* Motivo de Entrada y Datos de Recepción */}
+          <div className="border-t border-slate-200 mt-4 pt-4 w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <FileText size={13} className="text-slate-400" /> {t('editar_ingreso.motivo_titulo', 'Motivo de Ingreso')}
+              </span>
+              <p className="font-semibold text-slate-800 text-sm">
+                {ingreso.motivo_visita || t('editar_ingreso.no_especificado', 'No especificado')}
+              </p>
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                {ingreso.kilometraje !== undefined && ingreso.kilometraje !== null && (
+                  <span className="flex items-center gap-1">
+                    <Gauge size={12} className="text-slate-400" />
+                    {Number(ingreso.kilometraje).toLocaleString('es-CO')} km
+                  </span>
+                )}
+                {ingreso.nivel_gasolina && (
+                  <span className="flex items-center gap-1">
+                    <Fuel size={12} className="text-slate-400" />
+                    {ingreso.nivel_gasolina}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowModalEditarIngreso(true)}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 hover:border-indigo-400 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition flex items-center gap-1.5 shadow-2xs cursor-pointer print:hidden"
+            >
+              <FileEdit size={13} /> {t('editar_ingreso.btn_editar_entrada', 'Editar Entrada')}
+            </button>
           </div>
         </div>
 
@@ -1084,6 +1128,17 @@ const Checkout: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showModalEditarIngreso && id && (
+        <ModalEditarIngreso
+          ingresoId={id}
+          onClose={() => setShowModalEditarIngreso(false)}
+          onSuccess={() => {
+            setShowModalEditarIngreso(false);
+            cargarIngreso();
+          }}
+        />
       )}
     </div>
   );
