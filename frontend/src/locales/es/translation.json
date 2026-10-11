@@ -21,7 +21,13 @@
     "asignar_tecnicos": "Asignar Técnicos",
     "selecciona_tecnicos": "Selecciona los técnicos a cargo",
     "guardar_asignacion": "Guardar Asignación",
-    "tecnicos": "Técnicos"
+    "tecnicos": "Técnicos",
+    "todos": "Todos",
+    "filtrando_por": "Mostrando solo",
+    "limpiar_filtro": "Mostrar todos",
+    "no_encontrados_estado": "No hay vehículos en este estado",
+    "ver_todos": "Ver todos los vehículos",
+    "vehiculos_activos": "vehículos activos"
   },
   "estado": {
     "recepcion": "Recepción",

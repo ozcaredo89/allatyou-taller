@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity, FileEdit } from 'lucide-react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity, FileEdit, Clock } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { trackEvent } from '../utils/analytics';
@@ -48,6 +48,82 @@ const estadoColors: Record<string, string> = {
   en_reparacion: 'bg-purple-100 text-purple-800 border-purple-200',
 };
 
+interface EstadoConfig {
+  id: string;
+  labelKey: string;
+  defaultLabel: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  colors: {
+    active: string;
+    inactive: string;
+    badgeActive: string;
+    badgeInactive: string;
+  };
+}
+
+const ESTADOS_CONFIG: EstadoConfig[] = [
+  {
+    id: 'recepcion',
+    labelKey: 'estado.recepcion',
+    defaultLabel: 'Recepción',
+    icon: Car,
+    colors: {
+      active: 'bg-blue-600 text-white border-blue-600 shadow-xs',
+      inactive: 'bg-blue-50/80 text-blue-800 border-blue-200/80 hover:bg-blue-100',
+      badgeActive: 'bg-blue-700 text-white',
+      badgeInactive: 'bg-blue-200/70 text-blue-900',
+    },
+  },
+  {
+    id: 'diagnostico',
+    labelKey: 'estado.diagnostico',
+    defaultLabel: 'Diagnóstico',
+    icon: FileSearch,
+    colors: {
+      active: 'bg-amber-600 text-white border-amber-600 shadow-xs',
+      inactive: 'bg-amber-50/80 text-amber-800 border-amber-200/80 hover:bg-amber-100',
+      badgeActive: 'bg-amber-700 text-white',
+      badgeInactive: 'bg-amber-200/70 text-amber-900',
+    },
+  },
+  {
+    id: 'cotizacion',
+    labelKey: 'estado.cotizacion',
+    defaultLabel: 'Cotizando',
+    icon: Receipt,
+    colors: {
+      active: 'bg-orange-600 text-white border-orange-600 shadow-xs',
+      inactive: 'bg-orange-50/80 text-orange-800 border-orange-200/80 hover:bg-orange-100',
+      badgeActive: 'bg-orange-700 text-white',
+      badgeInactive: 'bg-orange-200/70 text-orange-900',
+    },
+  },
+  {
+    id: 'esperando_aprobacion',
+    labelKey: 'estado.esperando_aprobacion',
+    defaultLabel: 'Esperando Aprobación',
+    icon: Clock,
+    colors: {
+      active: 'bg-cyan-600 text-white border-cyan-600 shadow-xs',
+      inactive: 'bg-cyan-50/80 text-cyan-800 border-cyan-200/80 hover:bg-cyan-100',
+      badgeActive: 'bg-cyan-700 text-white',
+      badgeInactive: 'bg-cyan-200/70 text-cyan-900',
+    },
+  },
+  {
+    id: 'en_reparacion',
+    labelKey: 'estado.en_reparacion',
+    defaultLabel: 'En Reparación',
+    icon: Wrench,
+    colors: {
+      active: 'bg-purple-600 text-white border-purple-600 shadow-xs',
+      inactive: 'bg-purple-50/80 text-purple-800 border-purple-200/80 hover:bg-purple-100',
+      badgeActive: 'bg-purple-700 text-white',
+      badgeInactive: 'bg-purple-200/70 text-purple-900',
+    },
+  },
+];
+
 const normalizeString = (s: string) => s ? s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
 
 const Dashboard: React.FC = () => {
@@ -55,12 +131,32 @@ const Dashboard: React.FC = () => {
   const [promediosSLA, setPromediosSLA] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const location = useLocation();
   const { t } = useTranslation();
   const { empresaNombre } = useAuth();
+
+  // Conteo dinámico de vehículos por estado
+  const conteoPorEstado = useMemo(() => {
+    const counts: Record<string, number> = {
+      recepcion: 0,
+      diagnostico: 0,
+      cotizacion: 0,
+      esperando_aprobacion: 0,
+      en_reparacion: 0,
+    };
+    ingresos.forEach(ing => {
+      if (counts[ing.estado] !== undefined) {
+        counts[ing.estado]++;
+      } else {
+        counts[ing.estado] = (counts[ing.estado] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [ingresos]);
 
   // Cancellation modal state
   const [cancelTarget, setCancelTarget] = useState<Ingreso | null>(null);
@@ -411,7 +507,10 @@ const Dashboard: React.FC = () => {
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
             {t('dashboard.title')}
             {ingresos.length > 0 && (
-              <span className="bg-indigo-100 text-indigo-700 text-sm font-bold px-3 py-1 rounded-full shadow-sm">
+              <span
+                className="bg-indigo-100 text-indigo-700 text-sm font-bold px-3 py-1 rounded-full shadow-sm"
+                title={`${ingresos.length} ${t('dashboard.vehiculos_activos', 'vehículos activos')}`}
+              >
                 {ingresos.length}
               </span>
             )}
@@ -450,6 +549,82 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ── Conteo por Estado y Filtros Rápidos ── */}
+      {ingresos.length > 0 && (
+        <div className="space-y-3 mb-6">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none sm:flex-wrap">
+            {/* Botón Todos */}
+            <button
+              type="button"
+              onClick={() => setFiltroEstado(null)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 border cursor-pointer ${
+                filtroEstado === null
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <span>{t('dashboard.todos', 'Todos')}</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[11px] font-extrabold ${
+                  filtroEstado === null ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                {ingresos.length}
+              </span>
+            </button>
+
+            {/* Chips por Estado */}
+            {ESTADOS_CONFIG.map(est => {
+              const count = conteoPorEstado[est.id] || 0;
+              const isSelected = filtroEstado === est.id;
+              const Icon = est.icon;
+
+              return (
+                <button
+                  key={est.id}
+                  type="button"
+                  onClick={() => setFiltroEstado(prev => (prev === est.id ? null : est.id))}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 border cursor-pointer ${
+                    isSelected
+                      ? est.colors.active
+                      : `${est.colors.inactive} ${count === 0 ? 'opacity-55' : ''}`
+                  }`}
+                  title={`${t(est.labelKey, est.defaultLabel)}: ${count}`}
+                >
+                  <Icon size={14} className={isSelected ? 'text-white' : ''} />
+                  <span>{t(est.labelKey, est.defaultLabel)}</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[11px] font-extrabold min-w-[20px] text-center ${
+                      isSelected ? est.colors.badgeActive : est.colors.badgeInactive
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Indicador de filtro activo */}
+          {filtroEstado && (
+            <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl w-fit">
+              <span>{t('dashboard.filtrando_por', 'Mostrando solo')}:</span>
+              <span className="font-bold text-slate-800 capitalize">
+                {t(`estado.${filtroEstado}`, filtroEstado)}
+              </span>
+              <button
+                onClick={() => setFiltroEstado(null)}
+                className="ml-1 text-slate-400 hover:text-slate-700 font-bold p-0.5 rounded cursor-pointer transition flex items-center gap-1 hover:bg-slate-200/50"
+                title={t('dashboard.limpiar_filtro', 'Mostrar todos')}
+              >
+                <X size={12} />
+                <span className="text-[11px] font-medium">{t('dashboard.limpiar_filtro', 'Mostrar todos')}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Alerta de Vehículos Duplicados ── */}
       {duplicates.length > 0 && (
@@ -516,6 +691,9 @@ const Dashboard: React.FC = () => {
       {(() => {
         const term = normalizeString(searchTerm);
         const ingresosFiltrados = ingresos.filter(ing => {
+          if (filtroEstado && ing.estado !== filtroEstado) {
+            return false;
+          }
           const placa = normalizeString(ing.taller_vehiculos?.placa ?? '');
           const cliente = normalizeString(ing.taller_vehiculos?.taller_clientes?.nombre_completo ?? '');
           const marca = normalizeString(ing.taller_vehiculos?.marca ?? '');
@@ -536,10 +714,24 @@ const Dashboard: React.FC = () => {
           return (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center flex flex-col items-center">
               <div className="bg-slate-50 p-4 rounded-full mb-4"><Search size={48} className="text-slate-300" /></div>
-              <h3 className="text-xl font-medium text-slate-900">No encontramos resultados para '{searchTerm}'</h3>
-              <p className="text-slate-500 mt-2 mb-4">Intenta con otro término de búsqueda.</p>
-              <button onClick={() => setSearchTerm('')} className="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition text-sm">
-                Limpiar búsqueda
+              <h3 className="text-xl font-medium text-slate-900">
+                {searchTerm
+                  ? `No encontramos resultados para '${searchTerm}'`
+                  : t('dashboard.no_encontrados_estado', 'No hay vehículos en este estado')}
+              </h3>
+              <p className="text-slate-500 mt-2 mb-4">
+                {searchTerm
+                  ? 'Intenta con otro término de búsqueda.'
+                  : 'No hay vehículos actualmente en esta etapa del proceso.'}
+              </p>
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setFiltroEstado(null);
+                }}
+                className="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition text-sm cursor-pointer"
+              >
+                {t('dashboard.ver_todos', 'Ver todos los vehículos')}
               </button>
             </div>
           );

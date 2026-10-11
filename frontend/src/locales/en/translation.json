@@ -21,7 +21,13 @@
     "asignar_tecnicos": "Assign Technicians",
     "selecciona_tecnicos": "Select the technicians in charge",
     "guardar_asignacion": "Save Assignment",
-    "tecnicos": "Technicians"
+    "tecnicos": "Technicians",
+    "todos": "All",
+    "filtrando_por": "Showing only",
+    "limpiar_filtro": "Show all",
+    "no_encontrados_estado": "No vehicles in this status",
+    "ver_todos": "View all vehicles",
+    "vehiculos_activos": "active vehicles"
   },
   "estado": {
     "recepcion": "Reception",
