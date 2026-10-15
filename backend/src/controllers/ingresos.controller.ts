@@ -6,6 +6,10 @@ import {
   sincronizarPreciosOrdenEntregada,
   eliminarPreciosOrdenEntregada
 } from '../services/catalog.service';
+import {
+  evaluarAplicaRenting,
+  procesarSincronizacionRenting
+} from '../services/allatyouSync.service';
 
 // ─── Helper: Registrar evento en la bitácora ─────────────────────────────────
 // El cambio de ESTADO queda cubierto por el Trigger SQL (fn_bitacora_cambio_estado).
@@ -64,7 +68,12 @@ export const getIngresosActivos = async (req: Request, res: Response): Promise<v
       });
     }
 
-    res.json({ ingresos: data || [], promediosSLA });
+    const ingresosConRenting = (data || []).map((ing: any) => ({
+      ...ing,
+      aplica_renting: evaluarAplicaRenting(req.empresa_id, ing.taller_vehiculos?.taller_clientes?.documento)
+    }));
+
+    res.json({ ingresos: ingresosConRenting, promediosSLA });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -80,7 +89,11 @@ export const getHistorial = async (req: Request, res: Response): Promise<void> =
       .order('updated_at', { ascending: false });
 
     if (error) throw error;
-    res.json(data || []);
+    const historialConRenting = (data || []).map((ing: any) => ({
+      ...ing,
+      aplica_renting: evaluarAplicaRenting(req.empresa_id, ing.taller_vehiculos?.taller_clientes?.documento)
+    }));
+    res.json(historialConRenting);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -250,7 +263,9 @@ export const getIngresoById = async (req: Request, res: Response): Promise<void>
       .single();
       
     if (error) throw error;
-    res.json(data);
+    const clienteDoc = (data as any)?.taller_vehiculos?.taller_clientes?.documento;
+    const aplicaRenting = evaluarAplicaRenting(req.empresa_id, clienteDoc);
+    res.json({ ...data, aplica_renting: aplicaRenting });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -266,7 +281,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     // 1. Obtener estado actual para SLA y comisiones
     const { data: current, error: fetchError } = await supabase
       .from('taller_ingresos')
-      .select('estado, estado_desde, items_factura, vehiculo_id, motivo_visita, kilometraje, nivel_gasolina, fecha_ingreso, taller_vehiculos(id, marca, linea, modelo_anio, color, placa, cliente_id, taller_clientes(id, nombre_completo, telefono))')
+      .select('estado, estado_desde, items_factura, vehiculo_id, motivo_visita, kilometraje, nivel_gasolina, fecha_ingreso, renting_sync_at, taller_vehiculos(id, marca, linea, modelo_anio, color, placa, cliente_id, taller_clientes(id, documento, nombre_completo, telefono))')
       .eq('empresa_id', req.empresa_id)
       .eq('id', id)
       .single();
@@ -537,7 +552,42 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     }
     // ───────────────────────────────────────────────────────────────────
 
-    res.json(data);
+    // 6. Preparar información de Renting Flota Propia
+    const clienteDoc = (current?.taller_vehiculos as any)?.taller_clientes?.documento || (data?.taller_vehiculos as any)?.taller_clientes?.documento;
+    const aplicaRenting = evaluarAplicaRenting(req.empresa_id, clienteDoc);
+
+    let rentingInfo = null;
+    if (aplicaRenting) {
+      const effectivePlaca = safeVehiculoData.placa || (current?.taller_vehiculos as any)?.placa || (data?.taller_vehiculos as any)?.placa || '';
+      const itemsRaw = body.items_factura ?? current?.items_factura ?? data?.items_factura ?? [];
+      const validItems = (itemsRaw || [])
+        .filter((i: any) => typeof i?.total === 'number' && i.total > 0 && i.descripcion)
+        .map((i: any) => ({
+          item: String(i.descripcion).trim(),
+          category: 'Mantenimiento',
+          amount: i.total
+        }));
+
+      const dateBogota = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
+      const motivo = body.motivo_visita ?? current?.motivo_visita ?? '';
+
+      rentingInfo = {
+        aplica_renting: true,
+        ya_sincronizado: Boolean(current?.renting_sync_at || (data as any)?.renting_sync_at),
+        prefill: {
+          date: dateBogota,
+          placa: effectivePlaca,
+          description: `[Taller Orden #${id}] ${motivo}`.trim(),
+          items: validItems
+        }
+      };
+    }
+
+    res.json({
+      ...data,
+      aplica_renting: aplicaRenting,
+      renting_info: rentingInfo
+    });
   } catch (error: any) {
     console.error('[updateIngreso] Caught error:', error.message);
     res.status(500).json({ error: error.message });
@@ -1153,5 +1203,120 @@ export const getBitacora = async (req: Request, res: Response): Promise<void> =>
     res.json({ eventos: data || [], total: count || 0, limit, offset });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * POST /api/ingresos/:id/renting-sync
+ * Crea el gasto correspondiente en AllAtYou Renting a partir de una orden entregada.
+ * - Re-valida elegibilidad (tenant y cédula del propietario).
+ * - Exige estado 'entregado'.
+ * - Toma la placa inmutable de la base de datos.
+ * - Valida estructura del payload enviado desde el modal.
+ * - Ejecuta reclamo atómico optimista y dispara el gasto en Renting.
+ */
+export const syncIngresoToRenting = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { date, description, items } = req.body || {};
+
+    if (!req.empresa_id) {
+      res.status(401).json({ error: 'Sesión sin empresa identificada' });
+      return;
+    }
+
+    // 1. Validaciones del body
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({ error: 'La fecha debe tener formato YYYY-MM-DD' });
+      return;
+    }
+
+    if (typeof description !== 'string' || !description.trim()) {
+      res.status(400).json({ error: 'La descripción del gasto es obligatoria' });
+      return;
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: 'Debes incluir al menos un ítem con monto mayor a cero' });
+      return;
+    }
+
+    for (const it of items) {
+      if (!it || typeof it.item !== 'string' || !it.item.trim()) {
+        res.status(400).json({ error: 'Cada ítem debe tener una descripción válida' });
+        return;
+      }
+      if (typeof it.amount !== 'number' || !isFinite(it.amount) || it.amount <= 0) {
+        res.status(400).json({ error: `El ítem "${it.item}" debe tener un monto numérico mayor a cero` });
+        return;
+      }
+    }
+
+    // 2. Consultar orden desde la base de datos con aislamiento estricto de tenant
+    const { data: ingreso, error: fetchErr } = await supabase
+      .from('taller_ingresos')
+      .select('id, estado, renting_sync_at, taller_vehiculos(placa, taller_clientes(documento))')
+      .eq('empresa_id', req.empresa_id)
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !ingreso) {
+      res.status(404).json({ error: 'Orden no encontrada en este taller' });
+      return;
+    }
+
+    // 3. Exigir que la orden esté en estado entregado
+    if (ingreso.estado !== 'entregado') {
+      res.status(400).json({ error: 'Solo se pueden sincronizar con Renting órdenes que se encuentren en estado entregado.' });
+      return;
+    }
+
+    // 4. Re-validar elegibilidad multi-tenant y de propietario (Fail-Closed)
+    const clienteDoc = (ingreso.taller_vehiculos as any)?.taller_clientes?.documento;
+    if (!evaluarAplicaRenting(req.empresa_id, clienteDoc)) {
+      res.status(403).json({ error: 'Acceso denegado: Esta orden no pertenece a la flota autorizada para sincronización con Renting.' });
+      return;
+    }
+
+    // 5. La placa es tomada directamente de la DB (inmutable)
+    const placaDb = (ingreso.taller_vehiculos as any)?.placa;
+    if (!placaDb) {
+      res.status(400).json({ error: 'La orden no tiene un vehículo con placa asociado' });
+      return;
+    }
+
+    // 6. Ejecutar reclamo atómico y llamada a Renting
+    const result = await procesarSincronizacionRenting({
+      ingresoId: id as string,
+      empresaId: req.empresa_id,
+      placa: placaDb,
+      date,
+      description,
+      items
+    });
+
+    if (!result.ok) {
+      res.status(409).json({ error: result.message });
+      return;
+    }
+
+    // Registrar en bitácora local
+    await registrarEventoBitacora(
+      req.empresa_id,
+      id as string,
+      'nota',
+      'Gasto Sincronizado en Renting',
+      `Se crearon ${result.expenseIds?.length || 0} gastos en AllAtYou Renting Hub. Placa: ${placaDb}`,
+      { expense_ids: result.expenseIds }
+    );
+
+    res.json({
+      ok: true,
+      message: 'Gasto registrado exitosamente en AllAtYou Renting',
+      expense_ids: result.expenseIds
+    });
+  } catch (err: any) {
+    console.error('[syncIngresoToRenting] Error:', err.message);
+    res.status(500).json({ error: err.message || 'Error al sincronizar gasto con Renting' });
   }
 };

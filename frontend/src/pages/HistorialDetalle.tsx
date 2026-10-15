@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, XCircle, Receipt, Wrench, Edit, FileEdit, Gauge, Fuel, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, XCircle, Receipt, Wrench, Edit, FileEdit, Gauge, Fuel, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
+import { RentingSyncModal } from '../components/RentingSyncModal';
 
 interface ItemFactura {
   id: string;
@@ -26,6 +27,7 @@ const HistorialDetalle: React.FC = () => {
   const [gastos, setGastos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEditIngresoModal, setShowEditIngresoModal] = useState(false);
+  const [showRentingModal, setShowRentingModal] = useState(false);
 
   useEffect(() => {
     api.get(`/ingresos/${id}`)
@@ -58,6 +60,21 @@ const HistorialDetalle: React.FC = () => {
         <span className={`text-xs font-bold px-3 py-1 rounded-full border ${isCancelado ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
           {isCancelado ? `✗ ${t('estado.cancelado')}` : `✓ ${t('estado.entregado')}`}
         </span>
+        {!isCancelado && ingreso?.aplica_renting && (
+          ingreso.renting_sync_at ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+              <CheckCircle2 size={13} className="text-emerald-700" /> Renting Sincronizado
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowRentingModal(true)}
+              className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            >
+              <AlertCircle size={13} className="text-amber-700" /> Gasto Renting Pendiente (Crear Gasto)
+            </button>
+          )
+        )}
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setShowEditIngresoModal(true)}
@@ -218,6 +235,29 @@ const HistorialDetalle: React.FC = () => {
           onClose={() => setShowEditIngresoModal(false)}
           onSuccess={() => {
             setShowEditIngresoModal(false);
+            api.get(`/ingresos/${id}`)
+              .then(r => setIngreso(r.data))
+              .catch(console.error);
+          }}
+        />
+      )}
+
+      {showRentingModal && id && (
+        <RentingSyncModal
+          isOpen={showRentingModal}
+          onClose={() => setShowRentingModal(false)}
+          ingresoId={id}
+          placa={vehiculo?.placa || ''}
+          initialDate={new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())}
+          initialDescription={`[Taller Orden #${id}] ${ingreso.motivo_visita || ''}`.trim()}
+          initialItems={items
+            .filter((it: any) => typeof it?.total === 'number' && it.total > 0 && it.descripcion)
+            .map((it: any) => ({
+              item: it.descripcion,
+              category: 'Mantenimiento',
+              amount: it.total
+            }))}
+          onSuccess={() => {
             api.get(`/ingresos/${id}`)
               .then(r => setIngreso(r.data))
               .catch(console.error);

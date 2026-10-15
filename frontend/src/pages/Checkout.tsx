@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users, FileEdit, Gauge, Fuel } from 'lucide-react';
+import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users, FileEdit, Gauge, Fuel, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
 import { ModalVincularGasto } from '../components/ModalVincularGasto';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
+import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
 
 interface ItemFactura {
   id: string;
@@ -71,6 +72,15 @@ const Checkout: React.FC = () => {
   const [showModalTecnicos, setShowModalTecnicos] = useState(false);
   const [showConfirmEntregarSinTecnico, setShowConfirmEntregarSinTecnico] = useState(false);
   const [showModalEditarIngreso, setShowModalEditarIngreso] = useState(false);
+
+  // Sincronización Renting
+  const [showRentingModal, setShowRentingModal] = useState(false);
+  const [rentingModalData, setRentingModalData] = useState<{
+    placa: string;
+    date?: string;
+    description?: string;
+    items: RentingSyncItem[];
+  }>({ placa: '', items: [] });
 
   // Fix #5: Close popover on outside click
   useEffect(() => {
@@ -446,11 +456,24 @@ const Checkout: React.FC = () => {
       if (isEditMode) {
         navigate(`/${slug}/historial/${id}`);
       } else {
-        await api.put(`/ingresos/${id}`, {
+        const res = await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
           estado: 'entregado',
         });
+
+        // Si la orden califica para Renting y no está sincronizada, abrir modal de confirmación
+        if (res.data?.renting_info?.aplica_renting && !res.data?.renting_info?.ya_sincronizado) {
+          setRentingModalData({
+            placa: res.data.renting_info.prefill?.placa || vehiculo?.placa || '',
+            date: res.data.renting_info.prefill?.date,
+            description: res.data.renting_info.prefill?.description,
+            items: res.data.renting_info.prefill?.items || []
+          });
+          setShowRentingModal(true);
+          return;
+        }
+
         navigate(`/${slug}`);
       }
     } catch {
@@ -497,6 +520,36 @@ const Checkout: React.FC = () => {
               {entregando ? <Loader2 className="animate-spin" size={16} /> : <CheckSquare size={16} />}
               {t('checkout.btn_entregar')}
             </button>
+          )}
+
+          {/* Badge o Botón de Renting Flota Propia */}
+          {estadoActual === 'entregado' && ingreso?.aplica_renting && (
+            ingreso.renting_sync_at ? (
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-xs">
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                Gasto Renting Sincronizado
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  const validItems = items
+                    .filter(it => it.total > 0)
+                    .map(it => ({ item: it.descripcion, category: 'Mantenimiento', amount: it.total }));
+                  setRentingModalData({
+                    placa: vehiculo?.placa || '',
+                    date: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date()),
+                    description: `[Taller Orden #${id}] ${ingreso.motivo_visita || ''}`.trim(),
+                    items: validItems
+                  });
+                  setShowRentingModal(true);
+                }}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+              >
+                <AlertCircle size={16} className="text-slate-950" />
+                Gasto Renting Pendiente (Crear Gasto)
+              </button>
+            )
           )}
 
           {/* Aprobar Orden — visible solo cuando hay ítems guardados */}
@@ -1137,6 +1190,31 @@ const Checkout: React.FC = () => {
           onSuccess={() => {
             setShowModalEditarIngreso(false);
             cargarIngreso();
+          }}
+        />
+      )}
+
+      {showRentingModal && id && (
+        <RentingSyncModal
+          isOpen={showRentingModal}
+          onClose={() => {
+            setShowRentingModal(false);
+            if (estadoActual === 'entregado') {
+              cargarIngreso();
+            } else {
+              navigate(`/${slug}`);
+            }
+          }}
+          ingresoId={id}
+          placa={rentingModalData.placa}
+          initialDate={rentingModalData.date}
+          initialDescription={rentingModalData.description}
+          initialItems={rentingModalData.items}
+          onSuccess={() => {
+            cargarIngreso();
+            if (estadoActual !== 'entregado') {
+              navigate(`/${slug}`);
+            }
           }}
         />
       )}

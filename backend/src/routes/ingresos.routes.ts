@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getIngresosActivos, getHistorial, createIngreso, getIngresoById, updateIngreso, getReportesFinanzas, getReportesFinanzasDetalle, getReportesOperaciones, asignarTecnicos, rediagnosticarIngreso, getBitacora, buscarIngresosPorPlaca } from '../controllers/ingresos.controller';
+import { getIngresosActivos, getHistorial, createIngreso, getIngresoById, updateIngreso, getReportesFinanzas, getReportesFinanzasDetalle, getReportesOperaciones, asignarTecnicos, rediagnosticarIngreso, getBitacora, buscarIngresosPorPlaca, syncIngresoToRenting } from '../controllers/ingresos.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -15,6 +15,7 @@ router.get('/reportes/finanzas/detalle', getReportesFinanzasDetalle);
 router.get('/reportes/operaciones', getReportesOperaciones);
 router.get('/:id', getIngresoById);
 router.put('/:id', updateIngreso);
+router.post('/:id/renting-sync', syncIngresoToRenting);
 router.post('/:id/tecnicos', asignarTecnicos);
 router.post('/:id/rediagnosticar', rediagnosticarIngreso);
 router.get('/:id/bitacora', getBitacora);

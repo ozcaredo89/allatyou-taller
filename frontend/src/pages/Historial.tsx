@@ -18,6 +18,8 @@ interface HistorialIngreso {
     linea: string;
     taller_clientes: { nombre_completo: string; };
   };
+  aplica_renting?: boolean;
+  renting_sync_at?: string;
 }
 
 interface ItemFactura {
@@ -140,6 +142,17 @@ const Historial: React.FC = () => {
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${isCancelado ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                         {isCancelado ? t('estado.cancelado') : t('estado.entregado')}
                       </span>
+                      {reg.aplica_renting && !isCancelado && (
+                        reg.renting_sync_at ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Renting ✓
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            Renting pendiente ⚠️
+                          </span>
+                        )
+                      )}
                     </div>
                     <div className="flex items-center gap-4 text-sm text-slate-500">
                       <span className="flex items-center gap-1">

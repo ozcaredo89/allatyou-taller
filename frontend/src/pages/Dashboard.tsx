@@ -10,6 +10,7 @@ import CronometroInteligente from '../components/CronometroInteligente';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import TimelineDrawer from '../components/TimelineDrawer';
+import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
 
 interface Cliente {
   id: string;
@@ -38,6 +39,8 @@ interface Ingreso {
   notas_factura?: string;
   taller_vehiculos: Vehiculo;
   taller_ingresos_tecnicos?: { taller_tecnicos: { id: string; nombre: string } }[];
+  aplica_renting?: boolean;
+  renting_sync_at?: string;
 }
 
 const estadoColors: Record<string, string> = {
@@ -186,6 +189,16 @@ const Dashboard: React.FC = () => {
   // Editar Entrada state
   const [ingresoParaEditar, setIngresoParaEditar] = useState<Ingreso | null>(null);
 
+  // Sincronización Renting state
+  const [showRentingModal, setShowRentingModal] = useState(false);
+  const [rentingModalData, setRentingModalData] = useState<{
+    ingresoId: string;
+    placa: string;
+    date?: string;
+    description?: string;
+    items: RentingSyncItem[];
+  }>({ ingresoId: '', placa: '', items: [] });
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
@@ -267,9 +280,23 @@ const Dashboard: React.FC = () => {
     if (!entregarTarget) return;
     try {
       setEntregando(true);
-      await api.put(`/ingresos/${entregarTarget.id}`, { estado: 'entregado' });
+      const res = await api.put(`/ingresos/${entregarTarget.id}`, { estado: 'entregado' });
       fetchIngresos();
+      
+      const targetBackup = entregarTarget;
       setEntregarTarget(null);
+
+      // Si califica para Renting y no está sincronizado, abrir modal de confirmación
+      if (res.data?.renting_info?.aplica_renting && !res.data?.renting_info?.ya_sincronizado) {
+        setRentingModalData({
+          ingresoId: targetBackup.id,
+          placa: res.data.renting_info.prefill?.placa || targetBackup.taller_vehiculos?.placa || '',
+          date: res.data.renting_info.prefill?.date,
+          description: res.data.renting_info.prefill?.description,
+          items: res.data.renting_info.prefill?.items || []
+        });
+        setShowRentingModal(true);
+      }
     } catch (err: any) {
       alert('Error al entregar el vehículo');
     } finally {
@@ -951,6 +978,25 @@ const Dashboard: React.FC = () => {
           onClose={() => setIngresoParaEditar(null)}
           onSuccess={() => {
             setIngresoParaEditar(null);
+            fetchIngresos();
+          }}
+        />
+      )}
+
+      {/* ── Modal Sincronizar con Renting ── */}
+      {showRentingModal && rentingModalData.ingresoId && (
+        <RentingSyncModal
+          isOpen={showRentingModal}
+          onClose={() => {
+            setShowRentingModal(false);
+            fetchIngresos();
+          }}
+          ingresoId={rentingModalData.ingresoId}
+          placa={rentingModalData.placa}
+          initialDate={rentingModalData.date}
+          initialDescription={rentingModalData.description}
+          initialItems={rentingModalData.items}
+          onSuccess={() => {
             fetchIngresos();
           }}
         />
