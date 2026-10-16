@@ -7,7 +7,7 @@ import { sendEmail } from '../services/emailService';
 import crypto from 'crypto';
 import { generateDeviceFingerprint, getDeviceName } from '../utils/device';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'allatyou-super-secret-key';
+import { JWT_SECRET } from '../config/jwt';
 
 export const registro = async (req: Request, res: Response): Promise<void> => {
   try {

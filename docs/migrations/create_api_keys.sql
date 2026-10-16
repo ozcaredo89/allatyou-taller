@@ -34,3 +34,11 @@ ALTER TABLE taller_api_keys DISABLE ROW LEVEL SECURITY;
 
 GRANT ALL ON taller_api_keys TO anon;
 GRANT ALL ON taller_api_keys TO authenticated;
+
+-- ------------------------------------------------------------------------------
+-- FIX (2026-10-16): Supabase puede habilitar RLS automáticamente en tablas nuevas,
+-- lo que bloquea los inserts del backend ("new row violates row-level security
+-- policy"). Se repite el DISABLE de forma explícita e idempotente.
+-- Verificación: SELECT relrowsecurity FROM pg_class WHERE relname = 'taller_api_keys'; -- debe ser false
+-- ------------------------------------------------------------------------------
+ALTER TABLE taller_api_keys DISABLE ROW LEVEL SECURITY;

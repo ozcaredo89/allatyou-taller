@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { Request } from 'express';
 
-const DEVICE_SALT = process.env.JWT_SECRET || 'allatyou-super-secret-key';
+import { JWT_SECRET } from '../config/jwt';
+
+const DEVICE_SALT = JWT_SECRET;
 
 export const generateDeviceFingerprint = (req: Request): string => {
   // En base a la recomendación, usamos el User-Agent + Salt secreto

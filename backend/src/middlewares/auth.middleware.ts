@@ -11,7 +11,7 @@ declare module 'express-serve-static-core' {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'allatyou-super-secret-key';
+import { JWT_SECRET } from '../config/jwt';
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
