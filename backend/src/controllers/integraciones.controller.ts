@@ -162,11 +162,34 @@ export const getHistorialVehiculo = async (req: Request, res: Response): Promise
     const ahora = Date.now();
     const historial = (ingresos || []).map((ing: any) => {
       const activo = !ESTADOS_CERRADOS.includes(ing.estado);
+      const eventos = bitacora.filter(b => b.ingreso_id === ing.id);
+
+      // Fecha de salida: el evento 'entrega'/'cancelacion' de la bitácora es la fuente
+      // de verdad (bitácora ordenada asc → primer evento). Fallback a updated_at para
+      // registros anteriores a la bitácora, marcado como 'estimada'.
+      let fechaSalida: string | null = null;
+      let fechaSalidaFuente: 'bitacora' | 'estimada' | null = null;
+      if (!activo) {
+        const tipoCierre = ing.estado === 'entregado' ? 'entrega' : 'cancelacion';
+        const eventoCierre = eventos.find(b => b.tipo_evento === tipoCierre);
+        fechaSalida = eventoCierre?.created_at ?? ing.updated_at ?? null;
+        fechaSalidaFuente = eventoCierre ? 'bitacora' : (fechaSalida ? 'estimada' : null);
+      }
+
+      const finMs = fechaSalida ? new Date(fechaSalida).getTime() : ahora;
+      const duracionMinutos = ing.fecha_ingreso
+        ? Math.max(0, Math.round((finMs - new Date(ing.fecha_ingreso).getTime()) / 60000))
+        : null;
+
       return {
         id: ing.id,
         estado: ing.estado,
         activo,
         fecha_ingreso: ing.fecha_ingreso,
+        fecha_salida: fechaSalida,
+        fecha_salida_fuente: fechaSalidaFuente,
+        duracion_estadia_minutos: duracionMinutos,
+        duracion_estadia_dias: duracionMinutos !== null ? Math.round((duracionMinutos / 1440) * 10) / 10 : null,
         estado_desde: ing.estado_desde,
         minutos_en_estado_actual: activo && ing.estado_desde
           ? Math.round((ahora - new Date(ing.estado_desde).getTime()) / 60000)
@@ -179,9 +202,7 @@ export const getHistorialVehiculo = async (req: Request, res: Response): Promise
         tiempos_por_estado: tiempos
           .filter(t => t.ingreso_id === ing.id)
           .map(t => ({ estado: t.estado, duracion_minutos: t.duracion_minutos, registrado_at: t.created_at ?? null })),
-        bitacora: bitacora
-          .filter(b => b.ingreso_id === ing.id)
-          .map(b => ({ tipo_evento: b.tipo_evento, titulo: b.titulo, descripcion: b.descripcion, fecha: b.created_at })),
+        bitacora: eventos.map(b => ({ tipo_evento: b.tipo_evento, titulo: b.titulo, descripcion: b.descripcion, fecha: b.created_at })),
       };
     });
 
