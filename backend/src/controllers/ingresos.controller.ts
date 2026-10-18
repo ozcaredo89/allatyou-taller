@@ -594,18 +594,183 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
   }
 };
 
+// ─── Helpers para consulta escalable de ingresos por fechas ──────────────────
+async function fetchIngresosEnChunks(empresaId: string, ids: string[], selectCols: string): Promise<any[]> {
+  if (ids.length === 0) return [];
+  const CHUNK_SIZE = 100;
+  const results: any[] = [];
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from('taller_ingresos')
+      .select(selectCols)
+      .eq('empresa_id', empresaId)
+      .eq('estado', 'entregado')
+      .in('id', chunk);
+
+    if (error) {
+      console.error('[fetchIngresosEnChunks] Error consultando lote de ingresos:', error.message);
+      throw error;
+    }
+    if (data) results.push(...data);
+  }
+  return results;
+}
+
+async function fetchBitacoraIdsEnRango(empresaId: string, startISO: string, endExclusiveISO: string): Promise<string[]> {
+  const ids: string[] = [];
+  let offset = 0;
+  const PAGE_SIZE = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('taller_ingresos_bitacora')
+      .select('ingreso_id')
+      .eq('empresa_id', empresaId)
+      .eq('tipo_evento', 'entrega')
+      .gte('created_at', startISO)
+      .lt('created_at', endExclusiveISO)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error('[fetchBitacoraIdsEnRango] Error consultando bitacora en rango:', error.message);
+      throw error;
+    }
+
+    if (!data || data.length === 0) break;
+    data.forEach((r: any) => ids.push(r.ingreso_id));
+    if (data.length < PAGE_SIZE) {
+      hasMore = false;
+    } else {
+      offset += PAGE_SIZE;
+    }
+  }
+  return ids;
+}
+
+async function fetchFallbackIdsEnRango(empresaId: string, startISO: string, endExclusiveISO: string): Promise<string[]> {
+  const ids: string[] = [];
+  let offset = 0;
+  const PAGE_SIZE = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('taller_ingresos')
+      .select('id')
+      .eq('empresa_id', empresaId)
+      .eq('estado', 'entregado')
+      .gte('updated_at', startISO)
+      .lt('updated_at', endExclusiveISO)
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error('[fetchFallbackIdsEnRango] Error consultando fallback por updated_at:', error.message);
+      throw error;
+    }
+
+    if (!data || data.length === 0) break;
+    data.forEach((r: any) => ids.push(r.id));
+    if (data.length < PAGE_SIZE) {
+      hasMore = false;
+    } else {
+      offset += PAGE_SIZE;
+    }
+  }
+  return ids;
+}
+
+async function fetchPrimerasEntregasBitacora(
+  empresaId: string,
+  candidateIds: string[]
+): Promise<Record<string, string>> {
+  if (candidateIds.length === 0) return {};
+  const CHUNK_SIZE = 100;
+  const bitacoraMap: Record<string, string> = {};
+
+  for (let i = 0; i < candidateIds.length; i += CHUNK_SIZE) {
+    const chunk = candidateIds.slice(i, i + CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from('taller_ingresos_bitacora')
+      .select('ingreso_id, created_at')
+      .eq('empresa_id', empresaId)
+      .eq('tipo_evento', 'entrega')
+      .in('ingreso_id', chunk)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[fetchPrimerasEntregasBitacora] Error consultando bitacora sin filtro de fecha:', error.message);
+      throw error;
+    }
+
+    (data || []).forEach((b: any) => {
+      // Al venir ordenado ascendentemente por created_at, la primera aparición
+      // de ingreso_id corresponde a la primera entrega histórica real de la orden.
+      if (!bitacoraMap[b.ingreso_id]) {
+        bitacoraMap[b.ingreso_id] = toBogotaDateStr(b.created_at);
+      }
+    });
+  }
+
+  return bitacoraMap;
+}
+
+async function getIngresosEntregadosEnRango(
+  empresaId: string,
+  startStr: string,
+  endStr: string,
+  selectCols: string
+): Promise<{ ingresos: any[]; bitacoraMap: Record<string, string> }> {
+  const { startISO, endExclusiveISO } = bogotaDayBounds(startStr, endStr);
+
+  // 1. Bitácora de eventos 'entrega' en el rango solicitado (paginado para evitar corte de 1000)
+  const bitacoraIds = await fetchBitacoraIdsEnRango(empresaId, startISO, endExclusiveISO);
+
+  // 2. Fallback: órdenes entregadas según updated_at en el rango (paginado)
+  const fallbackIds = await fetchFallbackIdsEnRango(empresaId, startISO, endExclusiveISO);
+
+  const candidateIds = Array.from(new Set([...bitacoraIds, ...fallbackIds]));
+
+  if (candidateIds.length === 0) {
+    return { ingresos: [], bitacoraMap: {} };
+  }
+
+  // 3. Buscar en la bitácora la primera entrega de esas órdenes sin filtrar por fecha.
+  // Esto previene que una orden entregada en el pasado que se edite hoy (o se re-entregue)
+  // tome falsamente la fecha de hoy.
+  const bitacoraMap = await fetchPrimerasEntregasBitacora(empresaId, candidateIds);
+
+  // 4. Traer los datos de las candidatas
+  const candidatos = await fetchIngresosEnChunks(empresaId, candidateIds, selectCols);
+
+  // 5. Filtrar estrictamente solo aquellas cuya fecha real de primera entrega caiga dentro de [startStr, endStr]
+  const ingresos = candidatos.filter((ing: any) => {
+    const diaEfectivo = bitacoraMap[ing.id] ?? toBogotaDateStr(ing.updated_at);
+    return diaEfectivo >= startStr && diaEfectivo <= endStr;
+  });
+
+  return { ingresos, bitacoraMap };
+}
+
 export const getReportesFinanzas = async (req: Request, res: Response): Promise<void> => {
   try {
     const { start, end } = req.query;
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
-    // ── Determinar rango de fechas en zona America/Bogota ──────────
     let startStr: string;
     let endStr: string;
-    if (start && end) {
-      startStr = start as string;
-      endStr = end as string;
+
+    if (start !== undefined || end !== undefined) {
+      if (typeof start !== 'string' || typeof end !== 'string' || !dateRe.test(start) || !dateRe.test(end)) {
+        res.status(400).json({ error: 'Los parámetros start y end deben tener formato YYYY-MM-DD.' });
+        return;
+      }
+      startStr = start;
+      endStr = end;
     } else {
-      // Fallback: últimos 30 días calculados en zona Bogotá
       const range = getBogotaRange('mes');
       startStr = range.startStr;
       endStr = range.endStr;
@@ -613,81 +778,131 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
 
     const hoyStr = bogotaToday();
 
-    // ── 1. Obtener todos los ingresos entregados ─────────────────
-    // Traemos también el id para cruzar con la bitácora.
-    const { data: todos, error } = await supabase
-      .from('taller_ingresos')
-      .select('id, updated_at, items_factura')
-      .eq('empresa_id', req.empresa_id)
-      .eq('estado', 'entregado');
-    if (error) throw error;
-
-    const ingresos = todos || [];
-    const ingresoIds = ingresos.map((i: any) => i.id);
-
-    // ── 2. Obtener fechas reales de entrega desde la bitácora ────
-    // taller_ingresos_bitacora (evento 'entrega') es la fuente de
-    // verdad: inmune a ediciones posteriores del registro.
-    // Fallback: si un ingreso no tiene evento en bitácora (registros
-    // anteriores a la implementación), usaremos su updated_at.
-    let bitacoraMap: Record<string, string> = {};
-
-    if (ingresoIds.length > 0) {
-      const { data: bitRows } = await supabase
-        .from('taller_ingresos_bitacora')
-        .select('ingreso_id, created_at')
-        .eq('empresa_id', req.empresa_id)
-        .eq('tipo_evento', 'entrega')
-        .in('ingreso_id', ingresoIds)
-        .order('created_at', { ascending: true }); // primera entrega por ingreso
-
-      (bitRows || []).forEach((b: any) => {
-        // Solo guarda la primera entrega por ingreso (por si hay re-entregas)
-        if (!bitacoraMap[b.ingreso_id]) {
-          bitacoraMap[b.ingreso_id] = toBogotaDateStr(b.created_at);
-        }
-      });
-    }
-
-    // ── 3. Calcular métricas históricas y del período ────────────
-    let totalHistorico = 0;
-    const diasUnicos = new Set<string>();
-    let facturadoHoy = 0;
+    // ── 1. Obtener órdenes entregadas en el período ──────────────
+    const { ingresos: ingresosPeriodo, bitacoraMap } = await getIngresosEntregadosEnRango(
+      req.empresa_id!,
+      startStr,
+      endStr,
+      'id, updated_at, items_factura'
+    );
 
     const chartDataMap: Record<string, number> = {};
     let totalPeriodo = 0;
+    let facturadoHoy = 0;
 
-    ingresos.forEach((ing: any) => {
+    ingresosPeriodo.forEach((ing: any) => {
       const total = (ing.items_factura || []).reduce(
         (acc: number, item: any) => acc + (item.total || 0), 0
       );
       if (total <= 0) return;
 
-      // Fecha de entrega: bitácora con fallback a updated_at
       const dia = bitacoraMap[ing.id] ?? toBogotaDateStr(ing.updated_at);
-
-      totalHistorico += total;
-      diasUnicos.add(dia);
-      if (dia === hoyStr) facturadoHoy += total;
-
-      // Filtrar para el período y gráfico
       if (dia >= startStr && dia <= endStr) {
         chartDataMap[dia] = (chartDataMap[dia] || 0) + total;
         totalPeriodo += total;
       }
+      if (dia === hoyStr) {
+        facturadoHoy += total;
+      }
     });
 
-    const promedioDiarioHistorico =
-      diasUnicos.size > 0 ? totalHistorico / diasUnicos.size : 0;
+    // Si hoy no estaba incluido en el período consultado, consultar hoy de forma acotada
+    if (hoyStr < startStr || hoyStr > endStr) {
+      const { ingresos: ingresosHoy, bitacoraMap: bitacoraHoy } = await getIngresosEntregadosEnRango(
+        req.empresa_id!,
+        hoyStr,
+        hoyStr,
+        'id, updated_at, items_factura'
+      );
+      facturadoHoy = ingresosHoy.reduce((acc: number, ing: any) => {
+        const dia = bitacoraHoy[ing.id] ?? toBogotaDateStr(ing.updated_at);
+        if (dia !== hoyStr) return acc;
+        return acc + (ing.items_factura || []).reduce((s: number, i: any) => s + (i.total || 0), 0);
+      }, 0);
+    }
 
     const chartData = Object.keys(chartDataMap).sort().map(fecha => ({
       fecha,
       total: chartDataMap[fecha],
     }));
 
-    // ── 4. Gastos ejecutados en el mismo período ─────────────────
-    // taller_gastos.fecha es una columna DATE explícita (YYYY-MM-DD),
-    // por lo que no tiene issues de timezone.
+    // ── 2. Calcular promedio diario histórico con bitácora y paginación ordenada ──
+    const bitacoraHistoricaMap: Record<string, string> = {};
+    let bitOffset = 0;
+    const PAGE_SIZE = 1000;
+    let hasMoreBit = true;
+
+    while (hasMoreBit) {
+      const { data: bitPage, error: bitHistError } = await supabase
+        .from('taller_ingresos_bitacora')
+        .select('ingreso_id, created_at')
+        .eq('empresa_id', req.empresa_id)
+        .eq('tipo_evento', 'entrega')
+        .order('created_at', { ascending: true })
+        .range(bitOffset, bitOffset + PAGE_SIZE - 1);
+
+      if (bitHistError) {
+        console.error('[getReportesFinanzas] Error consultando bitacora historica para promedio:', bitHistError.message);
+        throw bitHistError;
+      }
+
+      if (!bitPage || bitPage.length === 0) break;
+
+      bitPage.forEach((b: any) => {
+        if (!bitacoraHistoricaMap[b.ingreso_id]) {
+          bitacoraHistoricaMap[b.ingreso_id] = toBogotaDateStr(b.created_at);
+        }
+      });
+
+      if (bitPage.length < PAGE_SIZE) {
+        hasMoreBit = false;
+      } else {
+        bitOffset += PAGE_SIZE;
+      }
+    }
+
+    let totalHistorico = 0;
+    const diasUnicos = new Set<string>();
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: pageRows, error: histError } = await supabase
+        .from('taller_ingresos')
+        .select('id, updated_at, items_factura')
+        .eq('empresa_id', req.empresa_id)
+        .eq('estado', 'entregado')
+        .order('id', { ascending: true })
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (histError) {
+        console.error('[getReportesFinanzas] Error consultando historico para promedio:', histError.message);
+        throw histError;
+      }
+
+      if (!pageRows || pageRows.length === 0) break;
+
+      pageRows.forEach((ing: any) => {
+        const total = (ing.items_factura || []).reduce(
+          (acc: number, item: any) => acc + (item.total || 0), 0
+        );
+        if (total <= 0) return;
+        totalHistorico += total;
+        const dia = bitacoraHistoricaMap[ing.id] ?? toBogotaDateStr(ing.updated_at);
+        diasUnicos.add(dia);
+      });
+
+      if (pageRows.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        offset += PAGE_SIZE;
+      }
+    }
+
+    const promedioDiarioHistorico =
+      diasUnicos.size > 0 ? totalHistorico / diasUnicos.size : 0;
+
+    // ── 3. Gastos ejecutados en el mismo período ─────────────────
     const { data: gastosData, error: gastosError } = await supabase
       .from('taller_gastos')
       .select(`
@@ -700,6 +915,7 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
 
     if (gastosError) {
       console.error('[getReportesFinanzas] Error fetching gastos:', gastosError.message);
+      throw gastosError;
     }
 
     const gastos = gastosData || [];
@@ -725,7 +941,7 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
     const gastosPorCategoria = Object.values(gastosPorCategoriaMap)
       .sort((a, b) => b.total - a.total);
 
-    // ── 5. Cálculos de rentabilidad ──────────────────────────────
+    // ── 4. Cálculos de rentabilidad ──────────────────────────────
     const utilidadBruta = totalPeriodo - totalGastos;
     const margenPct = totalPeriodo > 0 ? Math.round((utilidadBruta / totalPeriodo) * 100) : 0;
 
@@ -750,77 +966,150 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
 
 export const getReportesFinanzasDetalle = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { fecha } = req.query;
+    const { fecha, start, end } = req.query;
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
-    // Validar param
-    if (!fecha || typeof fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-      res.status(400).json({ error: 'Se requiere el param fecha en formato YYYY-MM-DD' });
+    let startStr: string;
+    let endStr: string;
+
+    if (fecha !== undefined) {
+      if (typeof fecha !== 'string' || !dateRe.test(fecha)) {
+        res.status(400).json({ error: 'El parámetro fecha debe tener formato YYYY-MM-DD.' });
+        return;
+      }
+      startStr = fecha;
+      endStr = fecha;
+    } else if (start !== undefined || end !== undefined) {
+      if (typeof start !== 'string' || typeof end !== 'string' || !dateRe.test(start) || !dateRe.test(end)) {
+        res.status(400).json({ error: 'Los parámetros start y end deben tener formato YYYY-MM-DD.' });
+        return;
+      }
+      startStr = start;
+      endStr = end;
+    } else {
+      res.status(400).json({ error: 'Se requiere el parámetro fecha o los parámetros start y end en formato YYYY-MM-DD.' });
       return;
     }
 
-    // ── Timezone America/Bogota (UTC-5, sin DST) ─────────────────
-    // "fecha 00:00:00 COT" = "fecha 05:00:00 UTC"
-    // "fecha 24:00:00 COT" = "(fecha+1) 05:00:00 UTC"
-    const startDate = new Date(fecha + 'T05:00:00.000Z');
-    const endDate   = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
-    const startISO  = startDate.toISOString();
-    const endISOStr = endDate.toISOString();
+    // ── 1. Obtener órdenes entregadas en el rango acotado ──────────────
+    const { ingresos, bitacoraMap } = await getIngresosEntregadosEnRango(
+      req.empresa_id!,
+      startStr,
+      endStr,
+      `
+        id,
+        updated_at,
+        fecha_ingreso,
+        motivo_visita,
+        items_factura,
+        taller_vehiculos (
+          placa,
+          marca,
+          linea,
+          taller_clientes (
+            nombre_completo,
+            telefono
+          )
+        )
+      `
+    );
 
-    // ── Paso 1: Buscar en la bitácora los ingresos entregados ESE día ──
-    // taller_ingresos_bitacora es la fuente de verdad para la fecha de
-    // entrega real — inmune a ediciones posteriores del registro.
-    const { data: bitacoraEntregas, error: bitError } = await supabase
-      .from('taller_ingresos_bitacora')
-      .select('ingreso_id')
-      .eq('empresa_id', req.empresa_id)
-      .eq('tipo_evento', 'entrega')
-      .gte('created_at', startISO)
-      .lt('created_at', endISOStr);
+    // ── 2. Filtrar y formatear cada orden ─────────────────────────────
+    const ordenes: Array<{
+      id: string;
+      fecha_entrega: string;
+      placa: string;
+      marca: string;
+      linea: string;
+      cliente: string;
+      telefono: string;
+      motivo_visita: string;
+      total: number;
+      total_mano_obra: number;
+      total_repuestos: number;
+      items_count: number;
+      items: Array<{
+        id: string;
+        tipo: string;
+        descripcion: string;
+        cantidad: number;
+        precio_unitario: number;
+        total: number;
+      }>;
+    }> = [];
 
-    if (bitError) throw bitError;
-
-    // Deduplicar IDs: un ingreso puede tener múltiples eventos 'entrega'
-    // (ej: re-entrega por garantía). Usamos el ID único para no inflar el monto.
-    const ingresosEntregadosIds = [...new Set(
-      (bitacoraEntregas || []).map((b: any) => b.ingreso_id)
-    )];
-
-    if (ingresosEntregadosIds.length === 0) {
-      res.json({ fecha, totalDia: 0, detalle: [] });
-      return;
-    }
-
-    // ── Paso 2: Traer los datos de esos ingresos específicos ──────
-    const { data, error } = await supabase
-      .from('taller_ingresos')
-      .select('id, items_factura, taller_vehiculos(placa)')
-      .eq('empresa_id', req.empresa_id)
-      .in('id', ingresosEntregadosIds);
-
-    if (error) throw error; // Error real de DB → superficie como 500, no como empty state
-    const ingresos = data || [];
-
-    // ── Agrupar por placa, sumar montos ──────────────────────────
-    // Fallback usa el id del ingreso como clave para evitar fusionar
-    // vehículos huérfanos distintos (sin placa) bajo la misma entrada.
-    const byPlaca: Record<string, { placa: string; total: number }> = {};
-    let totalDia = 0;
+    let totalPeriodo = 0;
+    let totalManoObra = 0;
+    let totalRepuestos = 0;
 
     ingresos.forEach((ing: any) => {
-      const placa = ing.taller_vehiculos?.placa || null;
-      const key   = placa ?? `sin-placa-${ing.id}`;
-      const label = placa ?? 'Vehículo no registrado';
-      const total = (ing.items_factura || []).reduce((acc: number, item: any) => acc + (item.total || 0), 0);
+      const dia = bitacoraMap[ing.id] ?? toBogotaDateStr(ing.updated_at);
+      if (dia < startStr || dia > endStr) return;
 
-      if (!byPlaca[key]) byPlaca[key] = { placa: label, total: 0 };
-      byPlaca[key].total += total;
-      totalDia += total;
+      const itemsRaw = ing.items_factura || [];
+      let subTotalMO = 0;
+      let subTotalRep = 0;
+      const formattedItems: Array<any> = [];
+
+      itemsRaw.forEach((it: any) => {
+        const itemTot = Number(it.total || 0);
+        if (it.tipo === 'mano_obra') {
+          subTotalMO += itemTot;
+        } else {
+          subTotalRep += itemTot;
+        }
+        formattedItems.push({
+          id: it.id || '',
+          tipo: it.tipo || 'repuesto',
+          descripcion: it.descripcion || 'Sin descripción',
+          cantidad: Number(it.cantidad || 1),
+          precio_unitario: Number(it.precio_unitario || 0),
+          total: itemTot,
+        });
+      });
+
+      const ordenTotal = subTotalMO + subTotalRep;
+      if (ordenTotal <= 0 && formattedItems.length === 0) return;
+
+      totalPeriodo += ordenTotal;
+      totalManoObra += subTotalMO;
+      totalRepuestos += subTotalRep;
+
+      const placa = (ing.taller_vehiculos as any)?.placa || 'Sin placa';
+      const marca = (ing.taller_vehiculos as any)?.marca || '';
+      const linea = (ing.taller_vehiculos as any)?.linea || '';
+      const cliente = (ing.taller_vehiculos as any)?.taller_clientes?.nombre_completo || 'Cliente no registrado';
+      const telefono = (ing.taller_vehiculos as any)?.taller_clientes?.telefono || '';
+
+      ordenes.push({
+        id: ing.id,
+        fecha_entrega: dia,
+        placa,
+        marca,
+        linea,
+        cliente,
+        telefono,
+        motivo_visita: ing.motivo_visita || '',
+        total: ordenTotal,
+        total_mano_obra: subTotalMO,
+        total_repuestos: subTotalRep,
+        items_count: formattedItems.length,
+        items: formattedItems,
+      });
     });
 
-    const detalle = Object.values(byPlaca)
-      .sort((a, b) => b.total - a.total);
+    // Ordenar de más reciente a más antigua, y por monto mayor
+    ordenes.sort((a, b) => b.fecha_entrega.localeCompare(a.fecha_entrega) || b.total - a.total);
 
-    res.json({ fecha, totalDia, detalle });
+    res.json({
+      rango: { start: startStr, end: endStr },
+      fecha: startStr === endStr ? startStr : undefined,
+      totalPeriodo,
+      totalManoObra,
+      totalRepuestos,
+      totalOrdenes: ordenes.length,
+      ordenes,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
