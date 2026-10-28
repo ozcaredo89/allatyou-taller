@@ -1231,7 +1231,7 @@ export const getReportesOperaciones = async (req: Request, res: Response): Promi
 
         // Canceladas: aparecen en la tabla con — pero no suman al resumen
         if (estado === 'cancelado') {
-          return [{ placa, tiempos: porIngreso[ingresoId], totalFacturado: null }];
+          return [{ id: ingresoId, placa, tiempos: porIngreso[ingresoId], totalFacturado: null }];
         }
 
         totalOrdenes++;
@@ -1250,7 +1250,7 @@ export const getReportesOperaciones = async (req: Request, res: Response): Promi
           }
         }
 
-        return [{ placa, tiempos: porIngreso[ingresoId], totalFacturado }];
+        return [{ id: ingresoId, placa, tiempos: porIngreso[ingresoId], totalFacturado }];
       });
 
       resumen = {
