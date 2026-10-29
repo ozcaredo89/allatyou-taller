@@ -79,6 +79,52 @@ export const getIngresosActivos = async (req: Request, res: Response): Promise<v
   }
 };
 
+// ─── Centinela ultra-liviano para sincronización del Dashboard sin saturar la BD ─────────
+export const getCentinelaStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresa_id = req.empresa_id;
+    if (!empresa_id) {
+      res.status(401).json({ error: 'No autorizado' });
+      return;
+    }
+
+    // 1. Conteo exacto de vehículos activos
+    const { count: totalActivos, error: errCount } = await supabase
+      .from('taller_ingresos')
+      .select('*', { count: 'exact', head: true })
+      .eq('empresa_id', empresa_id)
+      .in('estado', ['recepcion', 'diagnostico', 'cotizacion', 'esperando_aprobacion', 'en_reparacion']);
+
+    if (errCount) throw errCount;
+
+    // 2. Última bitácora (cambio de estado, nota, técnicos, entregas, cancelaciones)
+    const { data: ultBitacora, error: errBitacora } = await supabase
+      .from('taller_ingresos_bitacora')
+      .select('created_at')
+      .eq('empresa_id', empresa_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (errBitacora) throw errBitacora;
+
+    const latestTimestamp = ultBitacora?.created_at || '0';
+
+    // Generar version token (conteo_timestamp)
+    const version = `${totalActivos ?? 0}_${latestTimestamp}`;
+
+    res.json({
+      version,
+      totalActivos: totalActivos ?? 0,
+      lastModified: latestTimestamp,
+      timestamp: Date.now()
+    });
+  } catch (error: any) {
+    console.error('[getCentinelaStatus] Error:', error?.message);
+    res.status(500).json({ error: 'Error interno consultando estado del centinela' });
+  }
+};
+
 export const getHistorial = async (req: Request, res: Response): Promise<void> => {
   try {
     const { data, error } = await supabase
@@ -515,6 +561,14 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         'Entrada de Vehículo Modificada',
         cambiosEntrada.join(' | '),
         { detalle_cambios: cambiosEntrada }
+      );
+    } else if (req.empresa_id && camposIngreso.items_factura !== undefined && (!camposIngreso.estado || camposIngreso.estado === current?.estado)) {
+      await registrarEventoBitacora(
+        req.empresa_id,
+        id as string,
+        'cotizacion',
+        'Cotización Actualizada',
+        'Se actualizaron los ítems de repuestos o mano de obra.'
       );
     }
 

@@ -27,7 +27,11 @@
     "limpiar_filtro": "Mostrar todos",
     "no_encontrados_estado": "No hay vehículos en este estado",
     "ver_todos": "Ver todos los vehículos",
-    "vehiculos_activos": "vehículos activos"
+    "vehiculos_activos": "vehículos activos",
+    "btn_refrescar": "Refrescar",
+    "refrescando": "Actualizando...",
+    "actualizado": "Actualizado",
+    "sincronizar_ahora": "Sincronizar cambios ahora"
   },
   "estado": {
     "recepcion": "Recepción",

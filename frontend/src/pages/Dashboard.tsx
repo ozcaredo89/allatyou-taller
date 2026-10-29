@@ -11,6 +11,7 @@ import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import TimelineDrawer from '../components/TimelineDrawer';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
+import { useDashboardCentinela } from '../hooks/useDashboardCentinela';
 
 interface Cliente {
   id: string;
@@ -210,20 +211,41 @@ const Dashboard: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  useEffect(() => { fetchIngresos(); }, []);
-
-  const fetchIngresos = async () => {
+  const fetchIngresos = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data } = await api.get('/ingresos/activos');
       setIngresos(data?.ingresos || []);
       setPromediosSLA(data?.promediosSLA || {});
     } catch (error) {
       console.error('Error fetching ingresos:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  const isAnyModalOpen = Boolean(
+    cancelTarget ||
+    ingresoParaAsignar ||
+    ingresoVerDiag ||
+    ingresoVerOrden ||
+    rediagTarget ||
+    entregarTarget ||
+    ingresoParaTimeline ||
+    ingresoParaEditar ||
+    showRentingModal
+  );
+
+  const { isManualRefreshing, lastSyncedAt, checkCentinela, registerUserActivity } = useDashboardCentinela({
+    onRefresh: () => fetchIngresos(true),
+    intervalMs: 30000,
+    minCheckIntervalMs: 8000,
+    pause: isAnyModalOpen,
+  });
+
+  useEffect(() => {
+    fetchIngresos();
+  }, []);
 
   // ── Identificar duplicados ──
   const findDuplicates = () => {
@@ -542,9 +564,33 @@ const Dashboard: React.FC = () => {
               </span>
             )}
           </h1>
-          <p className="text-slate-500 mt-1">{t('dashboard.subtitle')}</p>
+          <div className="flex flex-wrap items-center gap-3 mt-1">
+            <p className="text-slate-500 text-sm">{t('dashboard.subtitle')}</p>
+            {lastSyncedAt && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 border-l border-slate-200 pl-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>
+                  {t('dashboard.actualizado', 'Actualizado')}{' '}
+                  {lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          {/* Botón de Refresco Centinela */}
+          <button
+            onClick={() => checkCentinela(true)}
+            disabled={isManualRefreshing}
+            title={t('dashboard.sincronizar_ahora', 'Sincronizar cambios ahora')}
+            className="flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-3.5 py-2 rounded-xl font-medium text-sm transition shadow-sm w-full sm:w-auto disabled:opacity-60 cursor-pointer"
+          >
+            <RotateCcw size={15} className={isManualRefreshing ? 'animate-spin text-indigo-600' : ''} />
+            <span className="text-xs sm:text-sm">
+              {isManualRefreshing ? t('dashboard.refrescando', 'Actualizando...') : t('dashboard.btn_refrescar', 'Refrescar')}
+            </span>
+          </button>
+
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
@@ -552,7 +598,14 @@ const Dashboard: React.FC = () => {
               type="text" 
               placeholder="Buscar placa o cliente (Presiona '/')..." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onFocus={() => {
+                registerUserActivity();
+                checkCentinela();
+              }}
+              onChange={(e) => {
+                registerUserActivity();
+                setSearchTerm(e.target.value);
+              }}
               className="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow shadow-sm"
             />
             {searchTerm && (

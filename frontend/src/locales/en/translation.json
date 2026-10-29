@@ -27,7 +27,11 @@
     "limpiar_filtro": "Show all",
     "no_encontrados_estado": "No vehicles in this status",
     "ver_todos": "View all vehicles",
-    "vehiculos_activos": "active vehicles"
+    "vehiculos_activos": "active vehicles",
+    "btn_refrescar": "Refresh",
+    "refrescando": "Updating...",
+    "actualizado": "Updated",
+    "sincronizar_ahora": "Sync changes now"
   },
   "estado": {
     "recepcion": "Reception",
