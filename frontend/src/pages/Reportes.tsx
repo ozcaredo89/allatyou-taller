@@ -195,6 +195,12 @@ const Reportes: React.FC = () => {
     }, 2800);
   };
 
+  const finanzasAbortControllerRef = useRef<AbortController | null>(null);
+  const opAbortControllerRef = useRef<AbortController | null>(null);
+
+  const isCustomRangeIncomplete =
+    filtro === 'personalizado' && (!customStart || !customEnd);
+
   const isCustomRangeInvalid =
     filtro === 'personalizado' && Boolean(customStart && customEnd && customStart > customEnd);
 
@@ -240,19 +246,26 @@ const Reportes: React.FC = () => {
         next.delete('start');
         next.delete('end');
       }
+      if (next.toString() === prev.toString()) {
+        return prev;
+      }
       return next;
     }, { replace: true });
   }, [activeTab, filtro, customStart, customEnd, setSearchParams]);
 
   useEffect(() => {
-    if (!isCustomRangeInvalid) cargarFinanciero();
+    if (filtro === 'personalizado' && (isCustomRangeIncomplete || isCustomRangeInvalid)) return;
+    cargarFinanciero();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtro, customStart, customEnd, isCustomRangeInvalid]);
+  }, [filtro, customStart, customEnd, isCustomRangeIncomplete, isCustomRangeInvalid]);
 
   useEffect(() => {
-    if (activeTab === 'operativo' && !isCustomRangeInvalid) cargarOperativo();
+    if (activeTab === 'operativo') {
+      if (filtro === 'personalizado' && (isCustomRangeIncomplete || isCustomRangeInvalid)) return;
+      cargarOperativo();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, filtro, customStart, customEnd, isCustomRangeInvalid]);
+  }, [activeTab, filtro, customStart, customEnd, isCustomRangeIncomplete, isCustomRangeInvalid]);
 
   // ── Drill-down Ingresos: fetch de órdenes para el período o día actual ──
   const fetchIngresosDetalle = async (start: string, end: string, fechaPuntual?: string) => {
@@ -298,6 +311,9 @@ const Reportes: React.FC = () => {
         next.delete('start');
         next.delete('end');
       }
+      if (next.toString() === prev.toString()) {
+        return prev;
+      }
       return next;
     }, { replace: true });
     fetchIngresosDetalle(start, end);
@@ -330,6 +346,9 @@ const Reportes: React.FC = () => {
         next.delete('start');
         next.delete('end');
       }
+      if (next.toString() === prev.toString()) {
+        return prev;
+      }
       return next;
     }, { replace: true });
     fetchIngresosDetalle(fecha, fecha, fecha);
@@ -351,6 +370,9 @@ const Reportes: React.FC = () => {
       if (filtro !== 'personalizado') {
         next.delete('start');
         next.delete('end');
+      }
+      if (next.toString() === prev.toString()) {
+        return prev;
       }
       return next;
     }, { replace: true });
@@ -398,6 +420,9 @@ const Reportes: React.FC = () => {
         next.delete('start');
         next.delete('end');
       }
+      if (next.toString() === prev.toString()) {
+        return prev;
+      }
       return next;
     }, { replace: true });
     fetchGastosDetalle();
@@ -414,6 +439,9 @@ const Reportes: React.FC = () => {
       if (filtro !== 'personalizado') {
         next.delete('start');
         next.delete('end');
+      }
+      if (next.toString() === prev.toString()) {
+        return prev;
       }
       return next;
     }, { replace: true });
@@ -1253,41 +1281,65 @@ const Reportes: React.FC = () => {
   const totalFiltradoGastos = filteredGastos.reduce((acc, item) => acc + Number(item.monto || 0), 0);
 
   const cargarFinanciero = async () => {
+    if (finanzasAbortControllerRef.current) {
+      finanzasAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    finanzasAbortControllerRef.current = controller;
+
     try {
       setLoading(true);
       setFinanzasError(null);
       const { start, end } = getFechaRango();
-      const res = await api.get(`/ingresos/reportes/finanzas?start=${start}&end=${end}`);
+      const res = await api.get(`/ingresos/reportes/finanzas?start=${start}&end=${end}`, {
+        signal: controller.signal,
+      });
       setChartData(res.data.chartData || []);
       setKpis(res.data.kpis || {
         facturadoHoy: 0, promedioDiarioHistorico: 0, totalPeriodo: 0,
         totalGastos: 0, utilidadBruta: 0, margenPct: 0,
       });
       setGastosPorCategoria(res.data.gastosPorCategoria || []);
-    } catch (err) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; name?: string };
+      if (error?.code === 'ERR_CANCELED' || error?.name === 'AbortError' || error?.name === 'CanceledError') return;
       console.error(err);
       setFinanzasError(t('reportes.error_cargar_finanzas', 'No se pudieron cargar los datos financieros. Verifica tu conexión e intenta de nuevo.'));
     } finally {
-      setLoading(false);
+      if (finanzasAbortControllerRef.current === controller) {
+        setLoading(false);
+      }
     }
   };
 
   const cargarOperativo = async () => {
+    if (opAbortControllerRef.current) {
+      opAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    opAbortControllerRef.current = controller;
+
     try {
       setOpLoading(true);
       setOpError(null);
       const { start, end } = getFechaRango();
-      const res = await api.get(`/ingresos/reportes/operaciones?start=${start}&end=${end}`);
+      const res = await api.get(`/ingresos/reportes/operaciones?start=${start}&end=${end}`, {
+        signal: controller.signal,
+      });
       setOpData({
         promediosGlobales: res.data.promediosGlobales ?? [],
         detalleVehiculos: res.data.detalleVehiculos ?? [],
         resumen: res.data.resumen ?? { totalOrdenes: 0, ordenesFacturadas: 0, facturacionTotal: 0, ticketPromedio: 0 },
       });
-    } catch (err) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; name?: string };
+      if (error?.code === 'ERR_CANCELED' || error?.name === 'AbortError' || error?.name === 'CanceledError') return;
       console.error(err);
       setOpError(t('reportes.error_cargar_operativo', 'No se pudieron cargar las métricas operativas. Intenta de nuevo.'));
     } finally {
-      setOpLoading(false);
+      if (opAbortControllerRef.current === controller) {
+        setOpLoading(false);
+      }
     }
   };
 
@@ -1338,10 +1390,10 @@ const Reportes: React.FC = () => {
             <button
               key={opt.id}
               onClick={() => {
-                if (opt.id === 'personalizado' && !customStart && !customEnd) {
+                if (opt.id === 'personalizado' && (!customStart || !customEnd)) {
                   const r = getFechaRango();
-                  setCustomStart(r.start);
-                  setCustomEnd(r.end);
+                  setCustomStart(customStart || r.start);
+                  setCustomEnd(customEnd || r.end);
                 }
                 setFiltro(opt.id);
               }}
@@ -1425,7 +1477,15 @@ const Reportes: React.FC = () => {
         <>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">{t('reportes.title')}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-slate-900">{t('reportes.title')}</h1>
+                {loading && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 font-medium px-2.5 py-0.5 rounded-full animate-pulse">
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>{t('reportes.cargando', 'Actualizando...')}</span>
+                  </span>
+                )}
+              </div>
               <p className="text-slate-500">{t('reportes.subtitle')}</p>
             </div>
             {renderFiltros()}
@@ -1442,7 +1502,7 @@ const Reportes: React.FC = () => {
             </div>
           )}
 
-          {loading ? (
+          {loading && chartData.length === 0 && !finanzasError ? (
             <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin w-8 h-8 text-indigo-600" /></div>
           ) : finanzasError ? (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center gap-3">
@@ -1457,7 +1517,7 @@ const Reportes: React.FC = () => {
               </button>
             </div>
           ) : (
-            <>
+            <div className={`space-y-6 transition-opacity duration-200 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
               {/* ── KPI Cards Row 1: Ingresos ── */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
                 <div className="bg-white p-3.5 sm:p-6 rounded-xl sm:rounded-2xl border border-indigo-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors">
@@ -1583,45 +1643,53 @@ const Reportes: React.FC = () => {
               {/* ── Gráficos ── */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Gráfico de barras de ingresos */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="lg:col-span-2 min-w-0 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('reportes.ingresos_periodo')}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('reportes.ingresos_periodo')}</h3>
+                      {loading && <Loader2 size={13} className="animate-spin text-indigo-600" />}
+                    </div>
                     <span className="text-[11px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
                       {t('reportes.toca_dia_detalle', '💡 Toca una barra para ver el detalle')}
                     </span>
                   </div>
                   {chartData && chartData.length > 0 ? (
-                    <div className="h-64 w-full overflow-x-auto no-scrollbar">
-                      <div className={`h-full ${chartData.length > 12 ? 'min-w-[540px] sm:min-w-full' : 'w-full'}`}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={chartData}
-                            onClick={(state) => {
-                              const chartState = state as BarChartClickState | null | undefined;
-                              if (chartState?.activePayload && chartState.activePayload.length > 0) {
-                                handleBarClick(chartState);
-                              }
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <XAxis dataKey="fecha" tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={formatearDiaMes} />
-                            <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => `$${(v / 1000)}k`} />
-                            <Tooltip
-                              cursor={{ fill: '#e0e7ff', opacity: 0.4 }}
-                              formatter={(v: unknown) => [formatearDinero(Number(v || 0)), t('reportes.grafico_tooltip')]}
-                              labelFormatter={(l) => `${t('reportes.fecha_unica_label', 'Fecha')}: ${formatearFecha(String(l))}`}
-                            />
-                            <Bar
-                              dataKey="total"
-                              fill="#4f46e5"
-                              radius={[4, 4, 0, 0]}
-                              onClick={(entry) => handleBarClick(entry as unknown as { fecha?: string; total?: number; payload?: { fecha?: string; total?: number } })}
-                              cursor="pointer"
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
+                    (() => {
+                      const scrollWidth = chartData.length > 15 ? Math.max(chartData.length * 36, 540) : undefined;
+                      return (
+                        <div className={`h-64 w-full ${scrollWidth ? 'overflow-x-auto pb-1' : ''}`}>
+                          <div style={{ width: scrollWidth ? `${scrollWidth}px` : '100%', minWidth: '100%', height: '100%' }}>
+                            <ResponsiveContainer width="100%" height="100%" debounce={50}>
+                              <BarChart
+                                data={chartData}
+                                onClick={(state) => {
+                                  const chartState = state as BarChartClickState | null | undefined;
+                                  if (chartState?.activePayload && chartState.activePayload.length > 0) {
+                                    handleBarClick(chartState);
+                                  }
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <XAxis dataKey="fecha" tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={formatearDiaMes} />
+                                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => `$${(v / 1000)}k`} />
+                                <Tooltip
+                                  cursor={{ fill: '#e0e7ff', opacity: 0.4 }}
+                                  formatter={(v: unknown) => [formatearDinero(Number(v || 0)), t('reportes.grafico_tooltip')]}
+                                  labelFormatter={(l) => `${t('reportes.fecha_unica_label', 'Fecha')}: ${formatearFecha(String(l))}`}
+                                />
+                                <Bar
+                                  dataKey="total"
+                                  fill="#4f46e5"
+                                  radius={[4, 4, 0, 0]}
+                                  onClick={(entry) => handleBarClick(entry as unknown as { fecha?: string; total?: number; payload?: { fecha?: string; total?: number } })}
+                                  cursor="pointer"
+                                />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <div className="h-64 flex flex-col justify-center items-center text-slate-400">
                       <BarChart3 className="opacity-20 mb-3" size={48} />
@@ -1631,11 +1699,14 @@ const Reportes: React.FC = () => {
                 </div>
 
                 {/* Gráfico de dona: gastos por categoría */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">{t('reportes.gastos_categoria')}</h3>
+                <div className="min-w-0 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('reportes.gastos_categoria')}</h3>
+                    {loading && <Loader2 size={13} className="animate-spin text-indigo-600" />}
+                  </div>
                   {gastosPorCategoria.length > 0 ? (
                     <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" debounce={50}>
                         <PieChart>
                           <Pie
                             data={gastosPorCategoria}
@@ -1663,7 +1734,7 @@ const Reportes: React.FC = () => {
                   )}
                 </div>
               </div>
-            </>
+            </div>
           )}
         </>
       )}
@@ -1743,10 +1814,10 @@ const Reportes: React.FC = () => {
               ) : (
                 <>
                   {opSubView === 'total' && (
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-w-0">
                       {opData.promediosGlobales.length > 0 ? (
                         <div className="h-80 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" debounce={50}>
                             <BarChart data={opData.promediosGlobales} layout="vertical" margin={{ left: 20 }}>
                               <XAxis type="number" tick={{ fontSize: 12 }} stroke="#94a3b8" tickFormatter={(v) => formatearTiempo(v)} />
                               <YAxis
