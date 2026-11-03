@@ -3,6 +3,10 @@ import { supabase } from '../config/supabase';
 import { toBogotaDateStr, bogotaToday, getBogotaRange, bogotaDayBounds } from '../utils/dateUtils';
 import { sumarItemsFactura } from '../utils/facturaUtils';
 import {
+  obtenerVentanaConsultaGastos,
+  calcularGastosPeriodoConProrrateo,
+} from '../utils/gastosProrrateo';
+import {
   sincronizarPreciosOrdenEntregada,
   eliminarPreciosOrdenEntregada
 } from '../services/catalog.service';
@@ -875,11 +879,6 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
       }, 0);
     }
 
-    const chartData = Object.keys(chartDataMap).sort().map(fecha => ({
-      fecha,
-      total: chartDataMap[fecha],
-    }));
-
     // ── 2. Calcular promedio diario histórico con bitácora y paginación ordenada ──
     const bitacoraHistoricaMap: Record<string, string> = {};
     let bitOffset = 0;
@@ -956,44 +955,60 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
     const promedioDiarioHistorico =
       diasUnicos.size > 0 ? totalHistorico / diasUnicos.size : 0;
 
-    // ── 3. Gastos ejecutados en el mismo período ─────────────────
-    const { data: gastosData, error: gastosError } = await supabase
-      .from('taller_gastos')
-      .select(`
-        monto, fecha,
-        taller_categorias_gastos(id, nombre, color)
-      `)
-      .eq('empresa_id', req.empresa_id)
-      .gte('fecha', startStr)
-      .lte('fecha', endStr);
+    // ── 3. Gastos ejecutados + prorrateo de gastos fijos/mensuales ──
+    const { queryStart: gastosQueryStart, queryEnd: gastosQueryEnd } = obtenerVentanaConsultaGastos(
+      startStr,
+      endStr
+    );
 
-    if (gastosError) {
-      console.error('[getReportesFinanzas] Error fetching gastos:', gastosError.message);
-      throw gastosError;
+    // Paginado explícito: la ventana abarca ~13 meses y no debe truncarse por el límite
+    // de filas (max rows) de la API de Supabase.
+    const gastosData: any[] = [];
+    {
+      let gastosOffset = 0;
+      while (true) {
+        const { data: pagina, error: gastosError } = await supabase
+          .from('taller_gastos')
+          .select(`
+            id, monto, fecha, descripcion, tipo, plantilla_id, ingreso_id, item_id,
+            taller_categorias_gastos(id, nombre, color),
+            taller_gastos_recurrentes(id, nombre, frecuencia)
+          `)
+          .eq('empresa_id', req.empresa_id)
+          .gte('fecha', gastosQueryStart)
+          .lte('fecha', gastosQueryEnd)
+          .order('id', { ascending: true })
+          .range(gastosOffset, gastosOffset + PAGE_SIZE - 1);
+
+        if (gastosError) {
+          console.error('[getReportesFinanzas] Error fetching gastos:', gastosError.message);
+          throw gastosError;
+        }
+        const filas = pagina || [];
+        gastosData.push(...filas);
+        if (filas.length < PAGE_SIZE) break;
+        gastosOffset += PAGE_SIZE;
+      }
     }
 
-    const gastos = gastosData || [];
-    let totalGastos = 0;
-    const gastosPorCategoriaMap: Record<string, { nombre: string; color: string; total: number }> = {};
+    const prorrateo = calcularGastosPeriodoConProrrateo(gastosData || [], startStr, endStr);
+    const totalGastos = prorrateo.totalGastos;
+    const gastosPorCategoria = prorrateo.gastosPorCategoria;
 
-    gastos.forEach((g: any) => {
-      totalGastos += Number(g.monto || 0);
-      const cat = g.taller_categorias_gastos;
-      if (cat) {
-        if (!gastosPorCategoriaMap[cat.id]) {
-          gastosPorCategoriaMap[cat.id] = { nombre: cat.nombre, color: cat.color, total: 0 };
-        }
-        gastosPorCategoriaMap[cat.id].total += Number(g.monto || 0);
-      } else {
-        if (!gastosPorCategoriaMap['sin_categoria']) {
-          gastosPorCategoriaMap['sin_categoria'] = { nombre: 'Sin categoría', color: '#6b7280', total: 0 };
-        }
-        gastosPorCategoriaMap['sin_categoria'].total += Number(g.monto || 0);
-      }
+    // Construir serie diaria completa (todos los días del rango, con ingresos vs. gastos)
+    const chartData = prorrateo.diasRango.map((fecha) => {
+      const ingresosDia = chartDataMap[fecha] || 0;
+      const gastosDia = prorrateo.gastosPorDiaMap[fecha] || { total: 0, directos: 0, fijos: 0 };
+      return {
+        fecha,
+        total: ingresosDia,
+        ingresos: ingresosDia,
+        gastos: gastosDia.total,
+        gastosDirectos: gastosDia.directos,
+        gastosFijos: gastosDia.fijos,
+        utilidad: ingresosDia - gastosDia.total,
+      };
     });
-
-    const gastosPorCategoria = Object.values(gastosPorCategoriaMap)
-      .sort((a, b) => b.total - a.total);
 
     // ── 4. Cálculos de rentabilidad ──────────────────────────────
     const utilidadBruta = totalPeriodo - totalGastos;
@@ -1007,6 +1022,10 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
         promedioDiarioHistorico,
         totalPeriodo,
         totalGastos,
+        totalGastosDirectos: prorrateo.totalGastosDirectos,
+        totalGastosFijos: prorrateo.totalGastosFijosProrrateados,
+        cuotaFijaDiaria: prorrateo.cuotaFijaDiariaTotal,
+        diasPeriodo: prorrateo.diasPeriodo,
         utilidadBruta,
         margenPct,
       },

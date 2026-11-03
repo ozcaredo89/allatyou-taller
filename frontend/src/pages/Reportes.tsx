@@ -20,6 +20,10 @@ interface FinanzasKpis {
   promedioDiarioHistorico: number;
   totalPeriodo: number;
   totalGastos: number;
+  totalGastosDirectos?: number;
+  totalGastosFijos?: number;
+  cuotaFijaDiaria?: number;
+  diasPeriodo?: number;
   utilidadBruta: number;
   margenPct: number;
 }
@@ -28,6 +32,8 @@ interface GastoPorCategoria {
   nombre: string;
   color: string;
   total: number;
+  directos?: number;
+  fijos?: number;
 }
 
 interface FacturaItem {
@@ -58,8 +64,15 @@ interface OrdenIngresoItem {
 interface GastoItem {
   id: string;
   fecha: string;
+  fecha_pago_original?: string;
   descripcion: string;
   monto: number;
+  monto_original?: number;
+  es_fijo?: boolean;
+  es_prorrateado?: boolean;
+  dias_prorrateo?: number;
+  dias_ciclo?: number;
+  cuota_diaria?: number;
   proveedor?: string | null;
   comprobante_url?: string | null;
   tipo?: string;
@@ -84,12 +97,11 @@ interface GastoItem {
 interface ChartDataItem {
   fecha: string;
   total: number;
-  [key: string]: unknown;
-}
-
-interface BarChartClickState {
-  activePayload?: Array<{ payload?: { fecha?: string; total?: number } }>;
-  activeLabel?: string;
+  ingresos?: number;
+  gastos?: number;
+  gastosDirectos?: number;
+  gastosFijos?: number;
+  utilidad?: number;
   [key: string]: unknown;
 }
 
@@ -185,6 +197,7 @@ const Reportes: React.FC = () => {
   const [gastosError, setGastosError] = useState<string | null>(null);
   const [gastosSearch, setGastosSearch] = useState('');
   const [gastosSelectedCat, setGastosSelectedCat] = useState('todos');
+  const [modalGastosRango, setModalGastosRango] = useState<{ start: string; end: string; esDiaEspecifico?: boolean }>({ start: '', end: '' });
   const gastosAbortControllerRef = useRef<AbortController | null>(null);
 
   const showToast = (msg: string) => {
@@ -392,7 +405,7 @@ const Reportes: React.FC = () => {
       const range = getFechaRango();
       const s = startOverride || range.start;
       const e = endOverride || range.end;
-      const res = await api.get(`/gastos?desde=${s}&hasta=${e}&limit=1000`, {
+      const res = await api.get(`/gastos?desde=${s}&hasta=${e}&limit=1000&prorratear=true`, {
         signal: controller.signal,
       });
       setGastosItems(res.data.gastos || []);
@@ -407,6 +420,8 @@ const Reportes: React.FC = () => {
 
   const abrirModalGastos = () => {
     if (isCustomRangeInvalid) return;
+    const { start, end } = getFechaRango();
+    setModalGastosRango({ start, end, esDiaEspecifico: start === end && filtro !== 'personalizado' });
     setGastosSearch('');
     setGastosSelectedCat('todos');
     setIsGastosModalOpen(true);
@@ -425,7 +440,40 @@ const Reportes: React.FC = () => {
       }
       return next;
     }, { replace: true });
-    fetchGastosDetalle();
+    fetchGastosDetalle(start, end);
+  };
+
+  const handleGastoBarClick = (data: {
+    fecha?: string;
+    gastos?: number;
+    payload?: { fecha?: string; gastos?: number };
+    activePayload?: Array<{ payload?: { fecha?: string; gastos?: number } }>;
+    activeLabel?: string;
+  } | null | undefined) => {
+    const payloadFromChart = data?.activePayload?.[0]?.payload;
+    const item = (payloadFromChart?.fecha ? payloadFromChart : (data?.payload?.fecha ? data.payload : data)) as { fecha?: string; gastos?: number } | undefined;
+    const fecha = item?.fecha || data?.activeLabel;
+    if (!item || !item.gastos || item.gastos === 0 || !fecha) return;
+    setModalGastosRango({ start: fecha, end: fecha, esDiaEspecifico: true });
+    setGastosSearch('');
+    setGastosSelectedCat('todos');
+    setIsGastosModalOpen(true);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('view', 'gastos');
+      next.set('dia', fecha);
+      next.delete('orden');
+      next.delete('tipo');
+      if (filtro !== 'personalizado') {
+        next.delete('start');
+        next.delete('end');
+      }
+      if (next.toString() === prev.toString()) {
+        return prev;
+      }
+      return next;
+    }, { replace: true });
+    fetchGastosDetalle(fecha, fecha);
   };
 
   const closeGastosModal = () => {
@@ -435,6 +483,7 @@ const Reportes: React.FC = () => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete('view');
+      next.delete('dia');
       next.delete('cat');
       if (filtro !== 'personalizado') {
         next.delete('start');
@@ -462,11 +511,18 @@ const Reportes: React.FC = () => {
 
     if (viewParam === 'gastos') {
       if (catParam) setGastosSelectedCat(catParam);
-      const range = getFechaRango();
-      const s = startParam || range.start;
-      const e = endParam || range.end;
-      setIsGastosModalOpen(true);
-      fetchGastosDetalle(s, e);
+      if (diaParam) {
+        setModalGastosRango({ start: diaParam, end: diaParam, esDiaEspecifico: true });
+        setIsGastosModalOpen(true);
+        fetchGastosDetalle(diaParam, diaParam);
+      } else {
+        const range = getFechaRango();
+        const s = startParam || range.start;
+        const e = endParam || range.end;
+        setModalGastosRango({ start: s, end: e, esDiaEspecifico: s === e && filtro !== 'personalizado' });
+        setIsGastosModalOpen(true);
+        fetchGastosDetalle(s, e);
+      }
       return;
     }
 
@@ -631,11 +687,17 @@ const Reportes: React.FC = () => {
     if (currentSlug) url.pathname = `/${currentSlug}/reportes`;
     url.search = '';
     url.searchParams.set('view', 'gastos');
-    url.searchParams.set('filtro', filtro);
-    if (filtro === 'personalizado') {
-      const { start, end } = getFechaRango();
-      url.searchParams.set('start', start);
-      url.searchParams.set('end', end);
+    if (modalGastosRango.esDiaEspecifico && modalGastosRango.start) {
+      url.searchParams.set('dia', modalGastosRango.start);
+      if (filtro !== 'mes') url.searchParams.set('filtro', filtro);
+    } else {
+      url.searchParams.set('filtro', filtro);
+      if (filtro === 'personalizado') {
+        const s = modalGastosRango.start || getFechaRango().start;
+        const e = modalGastosRango.end || getFechaRango().end;
+        url.searchParams.set('start', s);
+        url.searchParams.set('end', e);
+      }
     }
     if (gastosSelectedCat !== 'todos') {
       url.searchParams.set('cat', gastosSelectedCat);
@@ -1040,9 +1102,25 @@ const Reportes: React.FC = () => {
   };
 
   // ── Funciones de Exportación para el Modal de Gastos ──
+  const formatearCicloCompleto = (diasCiclo?: number, montoOriginal?: number) => {
+    const montoFmt = formatearDinero(montoOriginal || 0);
+    if (diasCiclo === 7) {
+      return t('reportes.semana_completa_label', { monto: montoFmt, defaultValue: `Semana completa: ${montoFmt}` });
+    }
+    if (diasCiclo === 15) {
+      return t('reportes.quincena_completa_label', { monto: montoFmt, defaultValue: `Quincena completa: ${montoFmt}` });
+    }
+    if (diasCiclo === 365) {
+      return t('reportes.anio_completo_label', { monto: montoFmt, defaultValue: `Año completo: ${montoFmt}` });
+    }
+    return t('reportes.mes_completo_label', { monto: montoFmt, defaultValue: `Mes completo: ${montoFmt}` });
+  };
+
   const getGastosExportBaseName = () => {
     const slugPart = currentSlug || 'taller';
-    const { start, end } = getFechaRango();
+    const range = getFechaRango();
+    const start = modalGastosRango.start || range.start;
+    const end = modalGastosRango.end || range.end;
     return start === end
       ? `reporte-gastos-${slugPart}-${start}`
       : `reporte-gastos-${slugPart}-${start}-a-${end}`;
@@ -1062,14 +1140,22 @@ const Reportes: React.FC = () => {
 
     const escapeCell = (val: unknown) => `"${String(val ?? '').replace(/"/g, '""')}"`;
 
-    const rows = filteredGastos.map((g) => [
-      formatearFecha(g.fecha),
-      g.taller_categorias_gastos?.nombre || t('reportes.sin_categoria', 'Sin categoría'),
-      g.descripcion || '',
-      g.proveedor || '',
-      g.taller_ingresos?.taller_vehiculos?.placa || '',
-      Number(g.monto || 0),
-    ].map(escapeCell).join(sep));
+    const rows = filteredGastos.map((g) => {
+      const descConNota = g.es_prorrateado && g.monto_original
+        ? `${g.descripcion || ''} [${t('reportes.prorrateado_badge', { dias: g.dias_prorrateo, ciclo: g.dias_ciclo, defaultValue: `Prorrateado (${g.dias_prorrateo}/${g.dias_ciclo} días)` })} - ${formatearCicloCompleto(g.dias_ciclo, g.monto_original)}]`
+        : (g.descripcion || '');
+      const fechaCelda = g.fecha_pago_original && g.fecha_pago_original !== g.fecha
+        ? `${formatearFecha(g.fecha)} (${t('reportes.pagado_el_label', { fecha: formatearFecha(g.fecha_pago_original), defaultValue: `Pagado: ${formatearFecha(g.fecha_pago_original)}` })})`
+        : formatearFecha(g.fecha);
+      return [
+        fechaCelda,
+        g.taller_categorias_gastos?.nombre || t('reportes.sin_categoria', 'Sin categoría'),
+        descConNota,
+        g.proveedor || '',
+        g.taller_ingresos?.taller_vehiculos?.placa || '',
+        Number(g.monto || 0),
+      ].map(escapeCell).join(sep);
+    });
 
     const summaryRow = [
       t('reportes.totales_periodo', 'TOTALES DEL PERÍODO'),
@@ -1106,14 +1192,22 @@ const Reportes: React.FC = () => {
         t('reportes.col_monto', 'Monto'),
       ];
 
-      const rows = filteredGastos.map((g) => [
-        formatearFecha(g.fecha),
-        g.taller_categorias_gastos?.nombre || t('reportes.sin_categoria', 'Sin categoría'),
-        g.descripcion || '',
-        g.proveedor || '',
-        g.taller_ingresos?.taller_vehiculos?.placa || '',
-        Number(g.monto || 0),
-      ]);
+      const rows = filteredGastos.map((g) => {
+        const descConNota = g.es_prorrateado && g.monto_original
+          ? `${g.descripcion || ''} [${t('reportes.prorrateado_badge', { dias: g.dias_prorrateo, ciclo: g.dias_ciclo, defaultValue: `Prorrateado (${g.dias_prorrateo}/${g.dias_ciclo} días)` })} - ${formatearCicloCompleto(g.dias_ciclo, g.monto_original)}]`
+          : (g.descripcion || '');
+        const fechaCelda = g.fecha_pago_original && g.fecha_pago_original !== g.fecha
+          ? `${formatearFecha(g.fecha)} (${t('reportes.pagado_el_label', { fecha: formatearFecha(g.fecha_pago_original), defaultValue: `Pagado: ${formatearFecha(g.fecha_pago_original)}` })})`
+          : formatearFecha(g.fecha);
+        return [
+          fechaCelda,
+          g.taller_categorias_gastos?.nombre || t('reportes.sin_categoria', 'Sin categoría'),
+          descConNota,
+          g.proveedor || '',
+          g.taller_ingresos?.taller_vehiculos?.placa || '',
+          Number(g.monto || 0),
+        ];
+      });
 
       const summaryRow = [
         `${t('reportes.totales_periodo', 'TOTALES DEL PERÍODO')} (${filteredGastos.length})`,
@@ -1136,21 +1230,32 @@ const Reportes: React.FC = () => {
 
   const exportGastosToPDF = () => {
     setIsGastosExportMenuOpen(false);
-    const { start, end } = getFechaRango();
+    const range = getFechaRango();
+    const start = modalGastosRango.start || range.start;
+    const end = modalGastosRango.end || range.end;
     const periodoTexto = start === end
       ? `${t('reportes.fecha_unica_label', 'Fecha')}: ${formatearFecha(start)}`
       : t('reportes.periodo_rango_label', { start: formatearFecha(start), end: formatearFecha(end), defaultValue: `Período: ${formatearFecha(start)} al ${formatearFecha(end)}` });
 
     const rowsHtml = filteredGastos.map((g) => `
       <tr>
-        <td>${escapeHtml(formatearFecha(g.fecha))}</td>
+        <td>
+          <div>${escapeHtml(formatearFecha(g.fecha))}</div>
+          ${g.fecha_pago_original && g.fecha_pago_original !== g.fecha ? `<div class="sub">${escapeHtml(t('reportes.pagado_el_label', { fecha: formatearFecha(g.fecha_pago_original), defaultValue: `Pagado: ${formatearFecha(g.fecha_pago_original)}` }))}</div>` : ''}
+        </td>
         <td>${escapeHtml(g.taller_categorias_gastos?.nombre || t('reportes.sin_categoria', 'Sin categoría'))}</td>
         <td>
-          <div class="strong">${escapeHtml(g.descripcion)}</div>
+          <div class="strong">
+            ${escapeHtml(g.descripcion)}
+            ${g.es_prorrateado ? `<span class="badge-prorrateo">${escapeHtml(t('reportes.prorrateado_badge', { dias: g.dias_prorrateo, ciclo: g.dias_ciclo, defaultValue: `Prorrateado (${g.dias_prorrateo}/${g.dias_ciclo} días)` }))}</span>` : ''}
+          </div>
           ${g.proveedor ? `<div class="sub">${escapeHtml(t('reportes.proveedor_label', 'Proveedor'))}: ${escapeHtml(g.proveedor)}</div>` : ''}
         </td>
         <td>${g.taller_ingresos?.taller_vehiculos?.placa ? `<span class="placa">${escapeHtml(g.taller_ingresos.taller_vehiculos.placa)}</span>` : '—'}</td>
-        <td class="num total-col">${formatearDinero(g.monto)}</td>
+        <td class="num">
+          <div class="total-col">${formatearDinero(g.monto)}</div>
+          ${g.es_prorrateado && g.monto_original ? `<div class="sub">${escapeHtml(formatearCicloCompleto(g.dias_ciclo, g.monto_original))}</div>` : ''}
+        </td>
       </tr>
     `).join('');
 
@@ -1170,6 +1275,7 @@ const Reportes: React.FC = () => {
           th { background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 10px; text-align: left; border-bottom: 2px solid #cbd5e1; }
           td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
           .placa { display: inline-block; background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; font-weight: 800; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+          .badge-prorrateo { display: inline-block; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-weight: 700; padding: 1px 6px; border-radius: 4px; font-size: 9px; margin-left: 6px; vertical-align: middle; }
           .strong { font-weight: 600; color: #1e293b; }
           .sub { font-size: 10px; color: #64748b; margin-top: 2px; }
           .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1585,6 +1691,13 @@ const Reportes: React.FC = () => {
                         </span>
                       </div>
                       <p className="text-base sm:text-2xl font-bold text-red-600 truncate">{formatearDinero(totalGastos)}</p>
+                      {(kpis.totalGastosFijos ?? 0) > 0 && (
+                        <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5 truncate" title={`${t('reportes.gastos_fijos_label', 'Fijos')}: ${formatearDinero(kpis.totalGastosFijos || 0)} · ${t('reportes.gastos_directos_label', 'Directos')}: ${formatearDinero(kpis.totalGastosDirectos || 0)}`}>
+                          {t('reportes.gastos_fijos_label', 'Fijos')}{(kpis.diasPeriodo ?? 30) < 30 ? ` (${kpis.diasPeriodo}d)` : ''}: <span className="font-semibold text-slate-600">{formatearDinero(kpis.totalGastosFijos || 0)}</span>
+                          {' · '}
+                          {t('reportes.gastos_directos_label', 'Directos')}: <span className="font-semibold text-slate-600">{formatearDinero(kpis.totalGastosDirectos || 0)}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1642,46 +1755,109 @@ const Reportes: React.FC = () => {
 
               {/* ── Gráficos ── */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Gráfico de barras de ingresos */}
+                {/* Gráfico de barras comparativo: Ingresos vs. Gastos */}
                 <div className="lg:col-span-2 min-w-0 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('reportes.ingresos_periodo')}</h3>
-                      {loading && <Loader2 size={13} className="animate-spin text-indigo-600" />}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('reportes.ingresos_periodo')}</h3>
+                        {loading && <Loader2 size={13} className="animate-spin text-indigo-600" />}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-semibold">
+                        <span className="inline-flex items-center gap-1.5 text-indigo-700">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-indigo-600 inline-block" />
+                          {t('reportes.grafico_tooltip', 'Ingresos')}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-rose-600">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" />
+                          {t('reportes.gastos_label', 'Gastos')}
+                        </span>
+                      </div>
                     </div>
                     <span className="text-[11px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
                       {t('reportes.toca_dia_detalle', '💡 Toca una barra para ver el detalle')}
                     </span>
                   </div>
-                  {chartData && chartData.length > 0 ? (
+                  {chartData && chartData.some((d) => Number(d.total || 0) > 0 || Number(d.gastos || 0) > 0) ? (
                     (() => {
-                      const scrollWidth = chartData.length > 15 ? Math.max(chartData.length * 36, 540) : undefined;
+                      const scrollWidth = chartData.length > 15 ? Math.max(chartData.length * 42, 560) : undefined;
                       return (
                         <div className={`h-64 w-full ${scrollWidth ? 'overflow-x-auto pb-1' : ''}`}>
                           <div style={{ width: scrollWidth ? `${scrollWidth}px` : '100%', minWidth: '100%', height: '100%' }}>
                             <ResponsiveContainer width="100%" height="100%" debounce={50}>
                               <BarChart
                                 data={chartData}
-                                onClick={(state) => {
-                                  const chartState = state as BarChartClickState | null | undefined;
-                                  if (chartState?.activePayload && chartState.activePayload.length > 0) {
-                                    handleBarClick(chartState);
-                                  }
-                                }}
-                                className="cursor-pointer"
+                                barGap={3}
                               >
                                 <XAxis dataKey="fecha" tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={formatearDiaMes} />
-                                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => `$${(v / 1000)}k`} />
+                                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
                                 <Tooltip
-                                  cursor={{ fill: '#e0e7ff', opacity: 0.4 }}
-                                  formatter={(v: unknown) => [formatearDinero(Number(v || 0)), t('reportes.grafico_tooltip')]}
-                                  labelFormatter={(l) => `${t('reportes.fecha_unica_label', 'Fecha')}: ${formatearFecha(String(l))}`}
+                                  cursor={{ fill: '#e0e7ff', opacity: 0.35 }}
+                                  content={({ active, payload, label }) => {
+                                    if (!active || !payload || payload.length === 0) return null;
+                                    const row = (payload[0]?.payload || {}) as ChartDataItem;
+                                    const ing = Number(row.total || 0);
+                                    const gas = Number(row.gastos || 0);
+                                    const gasFijos = Number(row.gastosFijos || 0);
+                                    const gasDir = Number(row.gastosDirectos || 0);
+                                    const balance = ing - gas;
+                                    return (
+                                      <div className="bg-white/95 backdrop-blur border border-slate-200 rounded-xl shadow-lg p-3 text-xs space-y-1.5 min-w-[210px]">
+                                        <p className="font-bold text-slate-800 border-b border-slate-100 pb-1">
+                                          {t('reportes.fecha_unica_label', 'Fecha')}: {formatearFecha(String(row.fecha || label || ''))}
+                                        </p>
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="flex items-center gap-1.5 font-semibold text-indigo-700">
+                                            <span className="w-2 h-2 rounded-full bg-indigo-600" />
+                                            {t('reportes.grafico_tooltip', 'Ingresos')}:
+                                          </span>
+                                          <span className="font-bold text-slate-900">{formatearDinero(ing)}</span>
+                                        </div>
+                                        <div className="space-y-0.5">
+                                          <div className="flex items-center justify-between gap-4">
+                                            <span className="flex items-center gap-1.5 font-semibold text-rose-600">
+                                              <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                              {t('reportes.gastos_label', 'Gastos')}:
+                                            </span>
+                                            <span className="font-bold text-rose-600">{formatearDinero(gas)}</span>
+                                          </div>
+                                          {gasFijos > 0 && (
+                                            <div className="flex items-center justify-between gap-3 pl-3.5 text-[11px] text-slate-500">
+                                              <span>↳ {t('reportes.cuota_fija_diaria', 'Cuota fija diaria')}:</span>
+                                              <span className="font-medium">{formatearDinero(gasFijos)}</span>
+                                            </div>
+                                          )}
+                                          {gasDir > 0 && (
+                                            <div className="flex items-center justify-between gap-3 pl-3.5 text-[11px] text-slate-500">
+                                              <span>↳ {t('reportes.gastos_directos_dia', 'Directos del día')}:</span>
+                                              <span className="font-medium">{formatearDinero(gasDir)}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="pt-1 border-t border-slate-100 flex items-center justify-between gap-4">
+                                          <span className="font-semibold text-slate-600">{t('reportes.balance_dia', 'Balance del día')}:</span>
+                                          <span className={`font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                            {balance >= 0 ? '+' : ''}{formatearDinero(balance)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  }}
                                 />
                                 <Bar
                                   dataKey="total"
+                                  name={t('reportes.grafico_tooltip', 'Ingresos')}
                                   fill="#4f46e5"
                                   radius={[4, 4, 0, 0]}
                                   onClick={(entry) => handleBarClick(entry as unknown as { fecha?: string; total?: number; payload?: { fecha?: string; total?: number } })}
+                                  cursor="pointer"
+                                />
+                                <Bar
+                                  dataKey="gastos"
+                                  name={t('reportes.gastos_label', 'Gastos')}
+                                  fill="#f43f5e"
+                                  radius={[4, 4, 0, 0]}
+                                  onClick={(entry) => handleGastoBarClick(entry as unknown as { fecha?: string; gastos?: number; payload?: { fecha?: string; gastos?: number } })}
                                   cursor="pointer"
                                 />
                               </BarChart>
@@ -2515,7 +2691,7 @@ const Reportes: React.FC = () => {
                     {t('reportes.total_gastos')}
                   </span>
                   <span className="text-[10px] bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">
-                    {filtroBadge}
+                    {modalGastosRango.esDiaEspecifico ? t('reportes.dia_especifico_badge', 'Día específico') : filtroBadge}
                   </span>
                   {!isGastosLoading && !gastosError && (
                     <span className="text-xs text-slate-500 font-medium">
@@ -2542,9 +2718,9 @@ const Reportes: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                  {getFechaRango().start === getFechaRango().end
-                    ? `${t('reportes.fecha_unica_label', 'Fecha')}: ${formatearFecha(getFechaRango().start)}`
-                    : `${t('reportes.desde', 'Desde')}: ${formatearFecha(getFechaRango().start)} — ${t('reportes.hasta', 'Hasta')}: ${formatearFecha(getFechaRango().end)}`}
+                  {(modalGastosRango.start || getFechaRango().start) === (modalGastosRango.end || getFechaRango().end)
+                    ? `${t('reportes.fecha_unica_label', 'Fecha')}: ${formatearFecha(modalGastosRango.start || getFechaRango().start)}`
+                    : `${t('reportes.desde', 'Desde')}: ${formatearFecha(modalGastosRango.start || getFechaRango().start)} — ${t('reportes.hasta', 'Hasta')}: ${formatearFecha(modalGastosRango.end || getFechaRango().end)}`}
                 </p>
               </div>
 
@@ -2706,7 +2882,7 @@ const Reportes: React.FC = () => {
                 <div className="flex flex-col items-center justify-center py-12 text-red-500 gap-3">
                   <p className="text-sm text-center font-medium">{gastosError}</p>
                   <button
-                    onClick={() => fetchGastosDetalle()}
+                    onClick={() => fetchGastosDetalle(modalGastosRango.start || undefined, modalGastosRango.end || undefined)}
                     className="px-4 py-2 text-sm font-semibold bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition"
                   >
                     {t('reportes.reintentar', 'Intentar de nuevo')}
@@ -2761,7 +2937,15 @@ const Reportes: React.FC = () => {
                           return (
                             <tr key={gasto.id} className="hover:bg-slate-50/70 transition-colors">
                               <td className="py-3 px-3.5 text-slate-500 whitespace-nowrap text-xs font-medium">
-                                {formatearFecha(gasto.fecha)}
+                                <div>{formatearFecha(gasto.fecha)}</div>
+                                {gasto.fecha_pago_original && gasto.fecha_pago_original !== gasto.fecha && (
+                                  <div className="text-[10px] text-slate-400 font-normal">
+                                    {t('reportes.pagado_el_label', {
+                                      fecha: formatearFecha(gasto.fecha_pago_original),
+                                      defaultValue: `Pagado: ${formatearFecha(gasto.fecha_pago_original)}`,
+                                    })}
+                                  </div>
+                                )}
                               </td>
                               <td className="py-3 px-3 whitespace-nowrap">
                                 <span
@@ -2775,7 +2959,18 @@ const Reportes: React.FC = () => {
                                 </span>
                               </td>
                               <td className="py-3 px-3">
-                                <p className="font-semibold text-slate-800 line-clamp-2">{gasto.descripcion}</p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="font-semibold text-slate-800 line-clamp-2">{gasto.descripcion}</p>
+                                  {gasto.es_prorrateado && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold">
+                                      {t('reportes.prorrateado_badge', {
+                                        dias: gasto.dias_prorrateo,
+                                        ciclo: gasto.dias_ciclo,
+                                        defaultValue: `Prorrateado (${gasto.dias_prorrateo}/${gasto.dias_ciclo} días)`,
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
                                 {gasto.proveedor && (
                                   <p className="text-[11px] text-slate-400 mt-0.5">
                                     <span className="font-medium">{t('reportes.proveedor_label', 'Proveedor')}:</span> {gasto.proveedor}
@@ -2792,8 +2987,13 @@ const Reportes: React.FC = () => {
                                   <span className="text-slate-300 text-xs">—</span>
                                 )}
                               </td>
-                              <td className="py-3 px-3.5 text-right font-bold text-red-600 whitespace-nowrap">
-                                {formatearDinero(gasto.monto)}
+                              <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                                <p className="font-bold text-red-600">{formatearDinero(gasto.monto)}</p>
+                                {gasto.es_prorrateado && gasto.monto_original && (
+                                  <p className="text-[10px] text-slate-400 font-medium">
+                                    {formatearCicloCompleto(gasto.dias_ciclo, gasto.monto_original)}
+                                  </p>
+                                )}
                               </td>
                             </tr>
                           );
@@ -2813,7 +3013,17 @@ const Reportes: React.FC = () => {
                           className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2 hover:border-slate-200 transition"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-medium text-slate-400">{formatearFecha(gasto.fecha)}</span>
+                            <div>
+                              <span className="text-xs font-medium text-slate-400">{formatearFecha(gasto.fecha)}</span>
+                              {gasto.fecha_pago_original && gasto.fecha_pago_original !== gasto.fecha && (
+                                <span className="text-[10px] text-slate-400 ml-1.5">
+                                  ({t('reportes.pagado_el_label', {
+                                    fecha: formatearFecha(gasto.fecha_pago_original),
+                                    defaultValue: `Pagado: ${formatearFecha(gasto.fecha_pago_original)}`,
+                                  })})
+                                </span>
+                              )}
+                            </div>
                             <span
                               className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
                               style={{
@@ -2826,7 +3036,18 @@ const Reportes: React.FC = () => {
                           </div>
 
                           <div>
-                            <p className="text-sm font-semibold text-slate-800 leading-snug">{gasto.descripcion}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-semibold text-slate-800 leading-snug">{gasto.descripcion}</p>
+                              {gasto.es_prorrateado && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold">
+                                  {t('reportes.prorrateado_badge', {
+                                    dias: gasto.dias_prorrateo,
+                                    ciclo: gasto.dias_ciclo,
+                                    defaultValue: `Prorrateado (${gasto.dias_prorrateo}/${gasto.dias_ciclo} días)`,
+                                  })}
+                                </span>
+                              )}
+                            </div>
                             {gasto.proveedor && (
                               <p className="text-xs text-slate-500 mt-0.5">
                                 <span className="text-slate-400">{t('reportes.proveedor_corto', 'Prov')}:</span> {gasto.proveedor}
@@ -2843,9 +3064,16 @@ const Reportes: React.FC = () => {
                             ) : (
                               <span />
                             )}
-                            <span className="text-sm font-bold text-red-600">
-                              {formatearDinero(gasto.monto)}
-                            </span>
+                            <div className="text-right">
+                              <span className="text-sm font-bold text-red-600 block">
+                                {formatearDinero(gasto.monto)}
+                              </span>
+                              {gasto.es_prorrateado && gasto.monto_original && (
+                                <span className="text-[10px] text-slate-400 font-medium block">
+                                  {formatearCicloCompleto(gasto.dias_ciclo, gasto.monto_original)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
