@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "backfill:precios": "ts-node src/scripts/backfill-precios.ts",
-    "test": "ts-node src/utils/gastosProrrateo.test.ts"
+    "test": "ts-node src/utils/gastosProrrateo.test.ts && ts-node src/utils/dateUtils.test.ts"
   },
   "keywords": [],
   "author": "",

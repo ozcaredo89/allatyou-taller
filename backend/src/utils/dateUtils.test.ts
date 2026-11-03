@@ -6,6 +6,8 @@
 
 import { toBogotaDateStr, getBogotaRange, bogotaToday } from './dateUtils';
 
+declare const process: any;
+
 // ── Utilidades de test ────────────────────────────────────────────────────────
 
 let passed = 0;
@@ -122,14 +124,56 @@ expect(
 
 const rangeSemana = getBogotaRange('semana', baseDay);
 expect(
-  'semana (base 2026-08-26) → start 2026-08-20 (6 días atrás)',
+  'semana (base miércoles 2026-08-26) → start lunes 2026-08-24',
   rangeSemana.startStr,
-  '2026-08-20'
+  '2026-08-24'
 );
 expect(
-  'semana → end 2026-08-26',
+  'semana (base miércoles 2026-08-26) → end domingo 2026-08-30',
   rangeSemana.endStr,
-  '2026-08-26'
+  '2026-08-30'
+);
+
+// Caso reportado por el usuario: martes 3 de nov 2026 -> no debe mostrar octubre
+const baseMartesNov = new Date('2026-11-03T15:00:00.000Z');
+const rangeSemanaNov = getBogotaRange('semana', baseMartesNov);
+expect(
+  'semana (base martes 2026-11-03) → start lunes 2026-11-02 (no 28 de oct)',
+  rangeSemanaNov.startStr,
+  '2026-11-02'
+);
+expect(
+  'semana (base martes 2026-11-03) → end domingo 2026-11-08',
+  rangeSemanaNov.endStr,
+  '2026-11-08'
+);
+
+// Lunes 2026-11-02 como base
+const baseLunesNov = new Date('2026-11-02T15:00:00.000Z');
+const rangeSemanaLunes = getBogotaRange('semana', baseLunesNov);
+expect(
+  'semana (base lunes 2026-11-02) → start lunes 2026-11-02',
+  rangeSemanaLunes.startStr,
+  '2026-11-02'
+);
+expect(
+  'semana (base lunes 2026-11-02) → end domingo 2026-11-08',
+  rangeSemanaLunes.endStr,
+  '2026-11-08'
+);
+
+// Domingo 2026-11-08 como base
+const baseDomingoNov = new Date('2026-11-08T15:00:00.000Z');
+const rangeSemanaDomingo = getBogotaRange('semana', baseDomingoNov);
+expect(
+  'semana (base domingo 2026-11-08) → start lunes 2026-11-02',
+  rangeSemanaDomingo.startStr,
+  '2026-11-02'
+);
+expect(
+  'semana (base domingo 2026-11-08) → end domingo 2026-11-08',
+  rangeSemanaDomingo.endStr,
+  '2026-11-08'
 );
 
 const rangeMes = getBogotaRange('mes', baseDay);

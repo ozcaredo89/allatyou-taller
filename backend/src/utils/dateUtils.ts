@@ -56,8 +56,15 @@ export function getBogotaRange(
   }
 
   if (filtro === 'semana') {
-    const d = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-    return { startStr: toBogotaDateStr(d), endStr };
+    // Semana calendario de lunes a domingo en zona Bogotá
+    const todayBogota = toBogotaDateStr(now);
+    const [year, month, day] = todayBogota.split('-').map(Number);
+    const dt = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    const dayOfWeek = dt.getUTCDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    const mondayUTC = new Date(Date.UTC(year, month - 1, day - diffToMonday, 12, 0, 0));
+    const sundayUTC = new Date(Date.UTC(year, month - 1, day - diffToMonday + 6, 12, 0, 0));
+    return { startStr: toBogotaDateStr(mondayUTC), endStr: toBogotaDateStr(sundayUTC) };
   }
 
   // 'mes' → últimos 29 días + hoy = 30 días
