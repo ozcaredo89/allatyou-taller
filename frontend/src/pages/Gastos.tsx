@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Plus, Trash2, Loader2, Receipt, AlertCircle, Check, X,
-  Repeat, Upload, Tag, CalendarClock, Car, Package,
+  Repeat, Upload, Tag, CalendarClock, Car, Package, Pencil,
 } from 'lucide-react';
 import api from '../services/api';
 import { getBogotaRange, bogotaToday } from '../utils/dateUtils';
@@ -48,9 +48,13 @@ interface Recurrente {
   nombre: string;
   monto_estimado: number;
   frecuencia: string;
+  dia_del_mes?: number | null;
+  fecha_inicio?: string;
+  notas?: string | null;
   activa: boolean;
   ultimo_registro?: string;
-  proxima_fecha?: string;
+  proxima_fecha?: string | null;
+  vencido?: boolean;
   taller_categorias_gastos?: Categoria;
 }
 
@@ -74,7 +78,9 @@ const Gastos: React.FC = () => {
   // ── Estado principal ──
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [recurrentes, setRecurrentes] = useState<Recurrente[]>([]);
   const [pendientes, setPendientes] = useState<Recurrente[]>([]);
+  const [vistaActiva, setVistaActiva] = useState<'historial' | 'programados'>('historial');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -85,9 +91,11 @@ const Gastos: React.FC = () => {
   const [filtroHasta, setFiltroHasta] = useState(() => getBogotaRange('mes').end);
   const [totalMonto, setTotalMonto] = useState(0);
 
-  // ── Modal nuevo gasto ──
+  // ── Modal nuevo / editar gasto o plantilla ──
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<'unico' | 'recurrente'>('unico');
+  const [editingGastoId, setEditingGastoId] = useState<string | null>(null);
+  const [editingRecurrenteId, setEditingRecurrenteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Campos del formulario (gasto único)
@@ -124,6 +132,7 @@ const Gastos: React.FC = () => {
   // ── Modal de confirmación de recurrente pendiente ──
   const [confirmRecurrente, setConfirmRecurrente] = useState<Recurrente | null>(null);
   const [montoConfirm, setMontoConfirm] = useState('');
+  const [fechaConfirm, setFechaConfirm] = useState(() => bogotaToday());
 
   // Mensaje de confirmación tras "Guardar y agregar otro" + foco en la descripción
   const [aviso, setAviso] = useState('');
@@ -148,8 +157,9 @@ const Gastos: React.FC = () => {
   const cargarTodo = async () => {
     setLoading(true);
     try {
-      const [catRes, pendRes] = await Promise.all([
+      const [catRes, recRes, pendRes] = await Promise.all([
         api.get('/gastos/categorias').catch(() => ({ data: [] })),
+        api.get('/gastos/recurrentes').catch(() => ({ data: [] })),
         api.get('/gastos/recurrentes/pendientes').catch(() => ({ data: [] })),
       ]);
       // Si no hay categorías, inicializar las por defecto
@@ -160,6 +170,7 @@ const Gastos: React.FC = () => {
       } else {
         setCategorias(catRes.data || []);
       }
+      setRecurrentes(recRes.data || []);
       setPendientes(pendRes.data || []);
       await cargarGastos();
     } catch (err: any) {
@@ -270,7 +281,7 @@ const Gastos: React.FC = () => {
     });
   };
 
-  // ── Guardar gasto único ──
+  // ── Guardar o actualizar gasto único ──
   // agregarOtro = true: guarda y deja el formulario abierto conservando fecha, proveedor,
   // categoría, recibo y carro; solo se limpian descripción y monto (facturas con varios repuestos).
   const handleGuardar = async (agregarOtro = false) => {
@@ -281,20 +292,36 @@ const Gastos: React.FC = () => {
       setSaving(true);
       setError('');
       setAviso('');
-      await api.post('/gastos', {
-        ...form,
-        monto,
-        tipo: 'unico',
-        ingreso_id: form.ingreso_id || null,
-        item_id: form.item_id || null,
-      });
-      if (agregarOtro) {
-        setForm(f => ({ ...f, descripcion: '', monto: '', notas: '', item_id: '' }));
-        setAviso(t('gastos.gasto_guardado_siguiente'));
-        descripcionRef.current?.focus();
-      } else {
+      if (editingGastoId) {
+        await api.put(`/gastos/${editingGastoId}`, {
+          fecha: form.fecha,
+          categoria_id: form.categoria_id || null,
+          descripcion: form.descripcion,
+          monto,
+          proveedor: form.proveedor || null,
+          notas: form.notas || null,
+          comprobante_url: form.comprobante_url || null,
+          ingreso_id: form.ingreso_id || null,
+          item_id: form.item_id || null,
+        });
         setModalOpen(false);
         resetForm();
+      } else {
+        await api.post('/gastos', {
+          ...form,
+          monto,
+          tipo: 'unico',
+          ingreso_id: form.ingreso_id || null,
+          item_id: form.item_id || null,
+        });
+        if (agregarOtro) {
+          setForm(f => ({ ...f, descripcion: '', monto: '', notas: '', item_id: '' }));
+          setAviso(t('gastos.gasto_guardado_siguiente'));
+          descripcionRef.current?.focus();
+        } else {
+          setModalOpen(false);
+          resetForm();
+        }
       }
       await cargarGastos();
     } catch (err: any) {
@@ -304,7 +331,7 @@ const Gastos: React.FC = () => {
     }
   };
 
-  // ── Guardar plantilla recurrente ──
+  // ── Guardar o actualizar plantilla recurrente ──
   const handleGuardarRecurrente = async () => {
     if (!formRec.nombre.trim()) { setError(t('gastos.error_nombre')); return; }
     const monto = parseInt(formRec.monto_estimado.replace(/\D/g, ''), 10);
@@ -312,7 +339,21 @@ const Gastos: React.FC = () => {
     try {
       setSaving(true);
       setError('');
-      await api.post('/gastos/recurrentes', { ...formRec, monto_estimado: monto });
+      if (editingRecurrenteId) {
+        await api.put(`/gastos/recurrentes/${editingRecurrenteId}`, {
+          ...formRec,
+          monto_estimado: monto,
+          categoria_id: formRec.categoria_id || null,
+          dia_del_mes: formRec.dia_del_mes ? Number(formRec.dia_del_mes) : null,
+        });
+      } else {
+        await api.post('/gastos/recurrentes', {
+          ...formRec,
+          monto_estimado: monto,
+          categoria_id: formRec.categoria_id || null,
+          dia_del_mes: formRec.dia_del_mes ? Number(formRec.dia_del_mes) : null,
+        });
+      }
       setModalOpen(false);
       resetForm();
       await cargarTodo();
@@ -323,7 +364,66 @@ const Gastos: React.FC = () => {
     }
   };
 
-  // ── Confirmar recurrente pendiente ──
+  // ── Abrir edición de un gasto ejecutado ──
+  const handleAbrirEditarGasto = (g: Gasto) => {
+    resetForm();
+    setEditingGastoId(g.id);
+    setModalTab('unico');
+    setForm({
+      fecha: g.fecha || bogotaToday(),
+      categoria_id: g.taller_categorias_gastos?.id || '',
+      descripcion: g.descripcion || '',
+      monto: formatearMonto(String(g.monto || '')),
+      proveedor: g.proveedor || '',
+      notas: g.notas || '',
+      comprobante_url: g.comprobante_url || '',
+      ingreso_id: g.ingreso_id || '',
+      item_id: g.item_id || '',
+    });
+    if (g.ingreso_id && g.taller_ingresos?.taller_vehiculos?.placa) {
+      setOrdenSeleccionada({
+        id: g.ingreso_id,
+        estado: g.taller_ingresos.estado,
+        fecha_ingreso: g.taller_ingresos.fecha_ingreso,
+        placa: g.taller_ingresos.taller_vehiculos.placa,
+        marca: g.taller_ingresos.taller_vehiculos.marca,
+        linea: g.taller_ingresos.taller_vehiculos.linea,
+      });
+      setMostrarVehiculo(true);
+    }
+    setModalOpen(true);
+  };
+
+  // ── Abrir edición de una plantilla recurrente ──
+  const handleAbrirEditarRecurrente = (rec: Recurrente) => {
+    resetForm();
+    setEditingRecurrenteId(rec.id);
+    setModalTab('recurrente');
+    setFormRec({
+      nombre: rec.nombre || '',
+      categoria_id: rec.taller_categorias_gastos?.id || '',
+      monto_estimado: formatearMonto(String(rec.monto_estimado || '')),
+      frecuencia: rec.frecuencia || 'mensual',
+      dia_del_mes: rec.dia_del_mes ? String(rec.dia_del_mes) : '',
+      fecha_inicio: rec.fecha_inicio || bogotaToday(),
+      notas: rec.notas || '',
+    });
+    setModalOpen(true);
+  };
+
+  // ── Eliminar / Desactivar plantilla recurrente ──
+  const handleEliminarRecurrente = async (id: string) => {
+    if (!window.confirm(t('gastos.confirm_eliminar_plantilla', '¿Desactivar/eliminar esta plantilla de gasto programado? Los pagos ya registrados en el historial se conservarán.'))) return;
+    try {
+      await api.delete(`/gastos/recurrentes/${id}`);
+      setRecurrentes(prev => prev.filter(r => r.id !== id));
+      setPendientes(prev => prev.filter(r => r.id !== id));
+    } catch {
+      setError(t('gastos.error_eliminar'));
+    }
+  };
+
+  // ── Confirmar recurrente pendiente o registrar pago de plantilla ──
   const handleConfirmarRecurrente = async () => {
     if (!confirmRecurrente) return;
     const monto = parseInt(montoConfirm.replace(/\D/g, ''), 10);
@@ -332,16 +432,15 @@ const Gastos: React.FC = () => {
       setSaving(true);
       setError('');
       await api.post('/gastos', {
-        fecha: confirmRecurrente.proxima_fecha || bogotaToday(),
+        fecha: fechaConfirm || confirmRecurrente.proxima_fecha || bogotaToday(),
         categoria_id: confirmRecurrente.taller_categorias_gastos?.id || null,
         descripcion: confirmRecurrente.nombre,
         monto,
         tipo: 'recurrente',
         plantilla_id: confirmRecurrente.id,
       });
-      setPendientes(p => p.filter(x => x.id !== confirmRecurrente.id));
       setConfirmRecurrente(null);
-      await cargarGastos();
+      await cargarTodo();
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Error registrando gasto.');
     } finally {
@@ -370,6 +469,8 @@ const Gastos: React.FC = () => {
   };
 
   const resetForm = () => {
+    setEditingGastoId(null);
+    setEditingRecurrenteId(null);
     setForm({
       fecha: bogotaToday(),
       categoria_id: '',
@@ -441,38 +542,116 @@ const Gastos: React.FC = () => {
           </h1>
           <p className="text-slate-500 text-sm">{t('gastos.subtitle')}</p>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              resetForm();
+              setModalTab(vistaActiva === 'programados' ? 'recurrente' : 'unico');
+              setModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl transition shadow-md cursor-pointer"
+          >
+            <Plus size={18} />
+            {vistaActiva === 'programados'
+              ? t('gastos.btn_nueva_plantilla', 'Nueva Plantilla')
+              : t('gastos.btn_nuevo')}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Selector de Vista: Historial de Gastos vs Gastos Programados ── */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
         <button
-          onClick={() => { resetForm(); setModalOpen(true); }}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl transition shadow-md"
+          type="button"
+          onClick={() => setVistaActiva('historial')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-bold border-b-2 transition cursor-pointer ${
+            vistaActiva === 'historial'
+              ? 'border-indigo-600 text-indigo-700 bg-indigo-50/60'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
         >
-          <Plus size={18} /> {t('gastos.btn_nuevo')}
+          <Receipt size={16} />
+          <span>{t('gastos.vista_historial', 'Historial de Gastos')}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setVistaActiva('programados')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-bold border-b-2 transition cursor-pointer ${
+            vistaActiva === 'programados'
+              ? 'border-indigo-600 text-indigo-700 bg-indigo-50/60'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <Repeat size={16} />
+          <span>{t('gastos.vista_programados', 'Gastos Programados')}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+            pendientes.length > 0
+              ? 'bg-amber-100 text-amber-800'
+              : 'bg-slate-100 text-slate-600'
+          }`}>
+            {recurrentes.length}
+          </span>
         </button>
       </div>
 
       {/* ── Banner de Recurrentes Pendientes ── */}
-      {pendientes.length > 0 && (
+      {pendientes.length > 0 && vistaActiva === 'historial' && (
         <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2 font-semibold text-amber-800">
-            <CalendarClock size={18} />
-            {t('gastos.pendientes_banner', { count: pendientes.length })}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 font-semibold text-amber-800">
+              <CalendarClock size={18} />
+              {t('gastos.pendientes_banner', { count: pendientes.length })}
+            </div>
+            <button
+              type="button"
+              onClick={() => setVistaActiva('programados')}
+              className="text-xs font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+            >
+              {t('gastos.vista_programados', 'Gastos Programados')} ({recurrentes.length})
+            </button>
           </div>
           <div className="space-y-2">
             {pendientes.map(p => (
-              <div key={p.id} className="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-amber-100 shadow-sm">
+              <div key={p.id} className="flex items-center justify-between gap-3 bg-white rounded-xl px-4 py-3 border border-amber-100 shadow-sm flex-wrap">
                 <div>
                   <p className="font-semibold text-slate-800">{p.nombre}</p>
                   <p className="text-xs text-slate-400">
-                    <span className="capitalize">{p.frecuencia}</span>
+                    <span className="capitalize">{t(`gastos.frecuencia_${p.frecuencia}`, p.frecuencia)}</span>
                     {' · '} Estimado: {formatearDinero(p.monto_estimado)}
                     {p.proxima_fecha && ` · Fecha: ${p.proxima_fecha}`}
                   </p>
                 </div>
-                <button
-                  onClick={() => { setConfirmRecurrente(p); setMontoConfirm(p.monto_estimado.toString()); setError(''); }}
-                  className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"
-                >
-                  <Check size={14} /> {t('gastos.btn_confirmar')}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAbrirEditarRecurrente(p)}
+                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                    title={t('gastos.btn_editar', 'Editar')}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleEliminarRecurrente(p.id)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                    title={t('gastos.btn_eliminar', 'Eliminar')}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmRecurrente(p);
+                      setMontoConfirm(formatearMonto(p.monto_estimado.toString()));
+                      setFechaConfirm(bogotaToday());
+                      setError('');
+                    }}
+                    className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer"
+                  >
+                    <Check size={14} /> {t('gastos.btn_confirmar')}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -486,6 +665,157 @@ const Gastos: React.FC = () => {
         </div>
       )}
 
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* VISTA: Gastos Programados (Plantillas Recurrentes)               */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {vistaActiva === 'programados' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          {recurrentes.length > 0 ? (
+            <div className="divide-y divide-slate-100">
+              {recurrentes.map((rec) => {
+                const cat = rec.taller_categorias_gastos;
+                const esVencido = Boolean(rec.vencido);
+                return (
+                  <div
+                    key={rec.id}
+                    className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 transition ${
+                      esVencido ? 'bg-amber-50/30' : ''
+                    }`}
+                  >
+                    <div className="space-y-1.5 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-slate-900 text-base">{rec.nombre}</h3>
+                        {cat && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                            style={{
+                              backgroundColor: (cat.color || '#6366f1') + '20',
+                              color: cat.color || '#6366f1',
+                            }}
+                          >
+                            <Tag size={10} /> {cat.nombre}
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 capitalize">
+                          <Repeat size={11} />
+                          {t(`gastos.frecuencia_${rec.frecuencia}`, rec.frecuencia)}
+                        </span>
+                        {esVencido ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            <CalendarClock size={11} />
+                            {t('gastos.estado_pendiente', 'Pendiente de pago')}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Check size={11} />
+                            {t('gastos.estado_al_dia', 'Al día')}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                        {rec.frecuencia === 'mensual' && rec.dia_del_mes && (
+                          <span>
+                            {t('gastos.dia_cobro_label', {
+                              dia: rec.dia_del_mes,
+                              defaultValue: `Día ${rec.dia_del_mes} de cada mes`,
+                            })}
+                          </span>
+                        )}
+                        <span>
+                          <strong className="text-slate-600">{t('gastos.ultimo_pago_label', 'Último pago')}:</strong>{' '}
+                          {rec.ultimo_registro || t('gastos.sin_pagos_previos', 'Sin pagos registrados')}
+                        </span>
+                        {rec.proxima_fecha && (
+                          <span>
+                            <strong className="text-slate-600">{t('gastos.proximo_cobro_label', 'Próximo cobro')}:</strong>{' '}
+                            <span className={esVencido ? 'text-amber-700 font-bold' : ''}>{rec.proxima_fecha}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {rec.notas && (
+                        <p className="text-xs text-slate-400 italic">{rec.notas}</p>
+                      )}
+                    </div>
+
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between gap-3 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100">
+                      <div className="text-left sm:text-right">
+                        <p className="text-[10px] font-bold uppercase text-slate-400">{t('gastos.label_monto_est')}</p>
+                        <p className="text-lg font-extrabold text-slate-900">{formatearDinero(rec.monto_estimado)}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmRecurrente(rec);
+                            setMontoConfirm(formatearMonto(rec.monto_estimado.toString()));
+                            setFechaConfirm(bogotaToday());
+                            setError('');
+                          }}
+                          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                            esVencido
+                              ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
+                              : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
+                          }`}
+                        >
+                          <Check size={13} />
+                          <span>{t('gastos.btn_registrar_pago', 'Registrar pago')}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirEditarRecurrente(rec)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 transition cursor-pointer"
+                          title={t('gastos.btn_editar', 'Editar')}
+                        >
+                          <Pencil size={13} />
+                          <span className="hidden md:inline">{t('gastos.btn_editar', 'Editar')}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarRecurrente(rec.id)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 text-red-500 hover:text-red-700 hover:border-red-200 hover:bg-red-50 transition cursor-pointer"
+                          title={t('gastos.btn_eliminar', 'Eliminar')}
+                        >
+                          <Trash2 size={13} />
+                          <span className="hidden md:inline">{t('gastos.btn_eliminar', 'Eliminar')}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center text-slate-400">
+              <Repeat size={48} className="opacity-20 mb-3" />
+              <p className="font-semibold text-slate-600">{t('gastos.sin_plantillas', 'No tienes gastos programados')}</p>
+              <p className="text-sm max-w-md mt-1">{t('gastos.sin_plantillas_desc', 'Crea plantillas para arriendo, servicios, nómina fija o suscripciones y lleva el control de sus fechas de pago.')}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setModalTab('recurrente');
+                  setModalOpen(true);
+                }}
+                className="mt-4 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm cursor-pointer"
+              >
+                <Plus size={15} />
+                {t('gastos.btn_nueva_plantilla', 'Nueva Plantilla')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* VISTA: Historial de Gastos Ejecutados                            */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {vistaActiva === 'historial' && (
+        <>
       {/* ── Filtros + Resumen ── */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
         {/* Presets rápidos */}
@@ -666,9 +996,24 @@ const Gastos: React.FC = () => {
                       {formatearDinero(g.monto)}
                     </td>
                     <td className="px-5 py-3 text-center print:hidden">
-                      <button onClick={() => handleEliminar(g.id)} className="text-red-400 hover:text-red-600 transition p-1">
-                        <Trash2 size={15} />
-                      </button>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirEditarGasto(g)}
+                          className="text-slate-400 hover:text-indigo-600 transition p-1 cursor-pointer"
+                          title={t('gastos.btn_editar', 'Editar')}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEliminar(g.id)}
+                          className="text-red-400 hover:text-red-600 transition p-1 cursor-pointer"
+                          title={t('gastos.btn_eliminar', 'Eliminar')}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -683,6 +1028,8 @@ const Gastos: React.FC = () => {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* ── Barra Flotante de Selección Masiva (Fase 2) ── */}
       {seleccionados.size > 0 && (
@@ -729,27 +1076,35 @@ const Gastos: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             {/* Header Modal */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-900">{t('gastos.modal_title')}</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                {editingGastoId
+                  ? t('gastos.modal_editar_gasto', 'Editar Gasto')
+                  : editingRecurrenteId
+                  ? t('gastos.modal_editar_plantilla', 'Editar Gasto Programado')
+                  : t('gastos.modal_title')}
+              </h2>
               <button onClick={() => { setModalOpen(false); resetForm(); }} className="p-1 rounded-full hover:bg-slate-100 transition">
                 <X size={20} className="text-slate-500" />
               </button>
             </div>
 
-            {/* Tabs: Único / Recurrente */}
-            <div className="flex gap-1 p-3 bg-slate-50 border-b border-slate-100">
-              <button
-                onClick={() => setModalTab('unico')}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${modalTab === 'unico' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
-              >
-                <Receipt size={14} className="inline mr-1" /> {t('gastos.tab_unico')}
-              </button>
-              <button
-                onClick={() => setModalTab('recurrente')}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${modalTab === 'recurrente' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
-              >
-                <Repeat size={14} className="inline mr-1" /> {t('gastos.tab_recurrente')}
-              </button>
-            </div>
+            {/* Tabs: Único / Recurrente (ocultos cuando se está editando un registro existente) */}
+            {!editingGastoId && !editingRecurrenteId && (
+              <div className="flex gap-1 p-3 bg-slate-50 border-b border-slate-100">
+                <button
+                  onClick={() => setModalTab('unico')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${modalTab === 'unico' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
+                >
+                  <Receipt size={14} className="inline mr-1" /> {t('gastos.tab_unico')}
+                </button>
+                <button
+                  onClick={() => setModalTab('recurrente')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${modalTab === 'recurrente' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}
+                >
+                  <Repeat size={14} className="inline mr-1" /> {t('gastos.tab_recurrente')}
+                </button>
+              </div>
+            )}
 
             <div className="p-5 space-y-4">
               {error && (
@@ -950,7 +1305,7 @@ const Gastos: React.FC = () => {
                 >
                   {t('gastos.btn_cancelar')}
                 </button>
-                {modalTab === 'unico' && (
+                {modalTab === 'unico' && !editingGastoId && (
                   <button
                     onClick={() => handleGuardar(true)}
                     disabled={saving}
@@ -965,7 +1320,11 @@ const Gastos: React.FC = () => {
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-bold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                  {modalTab === 'unico' ? t('gastos.btn_guardar') : t('gastos.btn_crear_plantilla')}
+                  {editingGastoId || editingRecurrenteId
+                    ? t('gastos.btn_guardar_cambios', 'Guardar Cambios')
+                    : modalTab === 'unico'
+                    ? t('gastos.btn_guardar')
+                    : t('gastos.btn_crear_plantilla')}
                 </button>
               </div>
             </div>
@@ -986,15 +1345,26 @@ const Gastos: React.FC = () => {
                 <p className="text-sm text-slate-500">{confirmRecurrente.nombre}</p>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_monto_real')}</label>
-              <input
-                type="text"
-                value={montoConfirm}
-                onChange={e => setMontoConfirm(formatearMonto(e.target.value))}
-                className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-400 outline-none text-center"
-              />
-              <p className="text-xs text-slate-400 mt-1 text-center">{t('gastos.ajustar_monto')}</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_fecha')}</label>
+                <input
+                  type="date"
+                  value={fechaConfirm}
+                  onChange={e => setFechaConfirm(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-amber-400 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">{t('gastos.label_monto_real')}</label>
+                <input
+                  type="text"
+                  value={montoConfirm}
+                  onChange={e => setMontoConfirm(formatearMonto(e.target.value))}
+                  className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-400 outline-none text-center"
+                />
+                <p className="text-xs text-slate-400 mt-1 text-center">{t('gastos.ajustar_monto')}</p>
+              </div>
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex gap-3">

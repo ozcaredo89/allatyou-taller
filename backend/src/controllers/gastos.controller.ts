@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { bogotaToday } from '../utils/dateUtils';
+import {
+  obtenerVentanaConsultaGastos,
+  calcularGastosPeriodoConProrrateo,
+} from '../utils/gastosProrrateo';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -197,8 +201,74 @@ async function validarVinculo(
  */
 export const getGastos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { desde, hasta, categoria_id, ingreso_id, sin_vincular, page = '1', limit = '50' } = req.query;
-    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const {
+      desde,
+      hasta,
+      categoria_id,
+      ingreso_id,
+      sin_vincular,
+      prorratear,
+      page = '1',
+      limit = '50',
+    } = req.query;
+    const limitNum = Math.max(1, parseInt(limit as string) || 50);
+    const offset = (parseInt(page as string) - 1) * limitNum;
+
+    // ── Modo Prorrateado (para Reportes Financieros en vistas cortas/semanales) ──
+    if (
+      prorratear === 'true' &&
+      typeof desde === 'string' &&
+      typeof hasta === 'string' &&
+      esFechaValida(desde) &&
+      esFechaValida(hasta)
+    ) {
+      const { queryStart, queryEnd } = obtenerVentanaConsultaGastos(desde, hasta);
+
+      // Paginado explícito para no truncar la ventana de ~13 meses por el límite de filas de Supabase.
+      const PAGE_SIZE = 1000;
+      const gastosVentana: any[] = [];
+      let pageOffset = 0;
+      while (true) {
+        let prorrateoQuery = supabase
+          .from('taller_gastos')
+          .select(`
+            id, fecha, descripcion, monto, proveedor, comprobante_url,
+            tipo, plantilla_id, notas, created_at, ingreso_id, item_id,
+            taller_categorias_gastos(id, nombre, color, icono),
+            taller_gastos_recurrentes(id, nombre, frecuencia),
+            taller_ingresos(id, estado, fecha_ingreso, taller_vehiculos(placa, marca, linea))
+          `)
+          .eq('empresa_id', req.empresa_id)
+          .gte('fecha', queryStart)
+          .lte('fecha', queryEnd)
+          .order('id', { ascending: true })
+          .range(pageOffset, pageOffset + PAGE_SIZE - 1);
+
+        if (categoria_id) prorrateoQuery = prorrateoQuery.eq('categoria_id', categoria_id as string);
+        if (ingreso_id) prorrateoQuery = prorrateoQuery.eq('ingreso_id', ingreso_id as string);
+        if (sin_vincular === 'true') prorrateoQuery = prorrateoQuery.is('ingreso_id', null);
+
+        const { data: pagina, error: errProrrateo } = await prorrateoQuery;
+        if (errProrrateo) throw errProrrateo;
+        const filas = pagina || [];
+        gastosVentana.push(...filas);
+        if (filas.length < PAGE_SIZE) break;
+        pageOffset += PAGE_SIZE;
+      }
+
+      const resultado = calcularGastosPeriodoConProrrateo(gastosVentana, desde, hasta);
+      const paginados = resultado.gastosDetalle.slice(offset, offset + limitNum);
+
+      res.json({
+        gastos: paginados,
+        total: resultado.gastosDetalle.length,
+        totalMonto: resultado.totalGastos,
+        totalGastosDirectos: resultado.totalGastosDirectos,
+        totalGastosFijos: resultado.totalGastosFijosProrrateados,
+        diasPeriodo: resultado.diasPeriodo,
+      });
+      return;
+    }
 
     // ── Query base (sin paginación) para obtener el total monetario real ──
     // Así el totalMonto siempre refleja el período completo, no solo la página actual.
@@ -328,13 +398,22 @@ export const createGasto = async (req: Request, res: Response): Promise<void> =>
       .single();
     if (error) throw error;
 
-    // Si viene de una plantilla recurrente, actualizar su último_registro
-    if (plantilla_id) {
-      await supabase
+    // Si viene de una plantilla recurrente, actualizar su último_registro solo si la fecha es mayor
+    if (plantilla_id && fecha) {
+      const { data: recData } = await supabase
         .from('taller_gastos_recurrentes')
-        .update({ ultimo_registro: fecha || bogotaToday() })
+        .select('ultimo_registro')
         .eq('id', plantilla_id)
-        .eq('empresa_id', req.empresa_id);
+        .eq('empresa_id', req.empresa_id)
+        .maybeSingle();
+
+      if (!recData?.ultimo_registro || fecha > recData.ultimo_registro) {
+        await supabase
+          .from('taller_gastos_recurrentes')
+          .update({ ultimo_registro: fecha })
+          .eq('id', plantilla_id)
+          .eq('empresa_id', req.empresa_id);
+      }
     }
 
     res.status(201).json(data);
@@ -682,6 +761,39 @@ export const patchVinculoGastoBatch = async (req: Request, res: Response): Promi
 export const updateGasto = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+
+    // Verificar si el gasto corresponde a una liquidación de comisiones de técnicos
+    const { data: gastoActual, error: findError } = await supabase
+      .from('taller_gastos')
+      .select('id, descripcion')
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id)
+      .maybeSingle();
+
+    if (findError || !gastoActual) {
+      res.status(404).json({ error: 'El gasto no existe o no pertenece a tu taller.' });
+      return;
+    }
+
+    const { data: comisionVinculada, error: comisionError } = await supabase
+      .from('taller_ingresos_tecnicos')
+      .select('id')
+      .eq('gasto_id', id)
+      .limit(1)
+      .maybeSingle();
+
+    if (comisionError) {
+      res.status(500).json({ error: 'Error al verificar restricciones del gasto.' });
+      return;
+    }
+
+    if (comisionVinculada) {
+      res.status(400).json({
+        error: 'Este gasto corresponde a una liquidación de técnicos y no puede modificarse manualmente.',
+      });
+      return;
+    }
+
     const {
       fecha,
       categoria_id,
@@ -898,7 +1010,7 @@ export const deleteGasto = async (req: Request, res: Response): Promise<void> =>
 
 /**
  * GET /api/gastos/recurrentes
- * Lista las plantillas de gastos recurrentes activas.
+ * Lista las plantillas de gastos recurrentes activas con su próxima fecha estimada.
  */
 export const getRecurrentes = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -913,7 +1025,20 @@ export const getRecurrentes = async (req: Request, res: Response): Promise<void>
       .eq('activa', true)
       .order('nombre');
     if (error) throw error;
-    res.json(data || []);
+
+    const hoy = bogotaToday();
+
+    const enriquecidas = (data || []).map((p: any) => {
+      const proxima = calcularProximaFecha(p);
+      const proximaStr = proxima ? proxima.toISOString().split('T')[0] : null;
+      return {
+        ...p,
+        proxima_fecha: proximaStr,
+        vencido: Boolean(proximaStr && proximaStr <= hoy),
+      };
+    });
+
+    res.json(enriquecidas);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -938,12 +1063,12 @@ export const getPendientes = async (req: Request, res: Response): Promise<void> 
 
     if (error) throw error;
 
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
+    const hoy = bogotaToday();
 
     const pendientes = (plantillas || []).filter((p: any) => {
       const proxima = calcularProximaFecha(p);
-      return proxima !== null && proxima <= hoy;
+      const proximaStr = proxima ? proxima.toISOString().split('T')[0] : null;
+      return Boolean(proximaStr && proximaStr <= hoy);
     }).map((p: any) => ({
       ...p,
       proxima_fecha: calcularProximaFecha(p)?.toISOString().split('T')[0]
@@ -957,37 +1082,54 @@ export const getPendientes = async (req: Request, res: Response): Promise<void> 
 
 /**
  * Helper: calcula la próxima fecha de cobro de una plantilla recurrente.
- * Si ya venció (hoy >= proxima_fecha), retorna esa fecha.
+ * Utiliza aritmética de calendario UTC pura para evitar desbordamientos de fin de mes
+ * (ej. 31 de octubre + 1 mes pasa a 30 de noviembre en lugar de saltar a 31 de diciembre).
  */
 function calcularProximaFecha(plantilla: any): Date | null {
-  const base = plantilla.ultimo_registro
-    ? new Date(plantilla.ultimo_registro + 'T00:00:00')
-    : new Date(plantilla.fecha_inicio + 'T00:00:00');
+  const baseStr = (plantilla.ultimo_registro || plantilla.fecha_inicio || '').split('T')[0];
+  if (!baseStr || !/^\d{4}-\d{2}-\d{2}$/.test(baseStr)) return null;
 
-  const proxima = new Date(base);
+  const [y, m, d] = baseStr.split('-').map(Number);
 
   switch (plantilla.frecuencia) {
-    case 'diario':
-      proxima.setDate(proxima.getDate() + 1);
-      break;
-    case 'semanal':
-      proxima.setDate(proxima.getDate() + 7);
-      break;
-    case 'quincenal':
-      proxima.setDate(proxima.getDate() + 15);
-      break;
-    case 'mensual':
-      proxima.setMonth(proxima.getMonth() + 1);
-      if (plantilla.dia_del_mes) proxima.setDate(plantilla.dia_del_mes);
-      break;
-    case 'anual':
-      proxima.setFullYear(proxima.getFullYear() + 1);
-      break;
+    case 'diario': {
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + 1);
+      return dt;
+    }
+    case 'semanal': {
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + 7);
+      return dt;
+    }
+    case 'quincenal': {
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + 15);
+      return dt;
+    }
+    case 'mensual': {
+      let targetY = y;
+      let targetM = m + 1; // siguiente mes (1-12)
+      if (targetM > 12) {
+        targetM = 1;
+        targetY += 1;
+      }
+      // Días que tiene el mes destino
+      const diasEnMesDestino = new Date(Date.UTC(targetY, targetM, 0)).getUTCDate();
+      const targetDia = plantilla.dia_del_mes
+        ? Math.min(Number(plantilla.dia_del_mes), diasEnMesDestino)
+        : Math.min(d, diasEnMesDestino);
+      return new Date(Date.UTC(targetY, targetM - 1, targetDia));
+    }
+    case 'anual': {
+      const targetY = y + 1;
+      const diasEnMesDestino = new Date(Date.UTC(targetY, m, 0)).getUTCDate();
+      const targetDia = Math.min(d, diasEnMesDestino);
+      return new Date(Date.UTC(targetY, m - 1, targetDia));
+    }
     default:
       return null;
   }
-
-  return proxima;
 }
 
 /**
@@ -999,6 +1141,14 @@ export const createRecurrente = async (req: Request, res: Response): Promise<voi
     if (!nombre?.trim() || !monto_estimado || !frecuencia) {
       res.status(400).json({ error: 'nombre, monto_estimado y frecuencia son obligatorios.' });
       return;
+    }
+
+    if (categoria_id) {
+      const validacionCat = await validarCategoria(req.empresa_id!, categoria_id);
+      if (!validacionCat.ok) {
+        res.status(400).json({ error: validacionCat.error });
+        return;
+      }
     }
     const { data, error } = await supabase
       .from('taller_gastos_recurrentes')
@@ -1029,13 +1179,43 @@ export const createRecurrente = async (req: Request, res: Response): Promise<voi
 export const updateRecurrente = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { nombre, categoria_id, monto_estimado, frecuencia, dia_del_mes, activa, fecha_fin, notas } = req.body;
+    const { nombre, categoria_id, monto_estimado, frecuencia, dia_del_mes, fecha_inicio, activa, fecha_fin, notas } = req.body;
+
+    if (!nombre?.trim() || !monto_estimado || !frecuencia) {
+      res.status(400).json({ error: 'nombre, monto_estimado y frecuencia son obligatorios.' });
+      return;
+    }
+
+    if (categoria_id) {
+      const validacionCat = await validarCategoria(req.empresa_id!, categoria_id);
+      if (!validacionCat.ok) {
+        res.status(400).json({ error: validacionCat.error });
+        return;
+      }
+    }
+
+    const updatePayload: Record<string, any> = {
+      nombre: nombre.trim(),
+      categoria_id: categoria_id || null,
+      monto_estimado: Number(monto_estimado),
+      frecuencia,
+      dia_del_mes: dia_del_mes ? Number(dia_del_mes) : null,
+      notas: typeof notas === 'string' ? notas.trim() || null : null,
+    };
+    if (fecha_inicio) updatePayload.fecha_inicio = fecha_inicio;
+    if (fecha_fin !== undefined) updatePayload.fecha_fin = fecha_fin || null;
+    if (activa !== undefined) updatePayload.activa = Boolean(activa);
+
     const { data, error } = await supabase
       .from('taller_gastos_recurrentes')
-      .update({ nombre, categoria_id, monto_estimado: Number(monto_estimado), frecuencia, dia_del_mes, activa, fecha_fin, notas })
+      .update(updatePayload)
       .eq('id', id)
       .eq('empresa_id', req.empresa_id)
-      .select()
+      .select(`
+        id, nombre, monto_estimado, frecuencia, dia_del_mes, dia_semana,
+        activa, fecha_inicio, fecha_fin, ultimo_registro, notas,
+        taller_categorias_gastos(id, nombre, color, icono)
+      `)
       .single();
     if (error) throw error;
     res.json(data);
