@@ -261,6 +261,7 @@
     "gastos_fijos_label": "Fixed",
     "gastos_directos_label": "Direct",
     "prorrateado_badge": "Prorated ({{dias}}/{{ciclo}} days)",
+    "aprovisionado_badge": "Provisioned",
     "mes_completo_label": "Full month: {{monto}}",
     "semana_completa_label": "Full week: {{monto}}",
     "quincena_completa_label": "Full fortnight: {{monto}}",

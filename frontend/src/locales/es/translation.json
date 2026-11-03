@@ -305,6 +305,7 @@
     "gastos_fijos_label": "Fijos",
     "gastos_directos_label": "Directos",
     "prorrateado_badge": "Prorrateado ({{dias}}/{{ciclo}} días)",
+    "aprovisionado_badge": "Aprovisionado",
     "mes_completo_label": "Mes completo: {{monto}}",
     "semana_completa_label": "Semana completa: {{monto}}",
     "quincena_completa_label": "Quincena completa: {{monto}}",

@@ -70,6 +70,7 @@ interface GastoItem {
   monto_original?: number;
   es_fijo?: boolean;
   es_prorrateado?: boolean;
+  es_provision?: boolean;
   dias_prorrateo?: number;
   dias_ciclo?: number;
   cuota_diaria?: number;
@@ -1141,7 +1142,9 @@ const Reportes: React.FC = () => {
     const escapeCell = (val: unknown) => `"${String(val ?? '').replace(/"/g, '""')}"`;
 
     const rows = filteredGastos.map((g) => {
-      const descConNota = g.es_prorrateado && g.monto_original
+      const descConNota = g.es_provision
+        ? `${g.descripcion || ''} [${t('reportes.aprovisionado_badge', 'Aprovisionado')}${g.es_prorrateado && g.monto_original ? ` (${g.dias_prorrateo}/${g.dias_ciclo}d) - ${formatearCicloCompleto(g.dias_ciclo, g.monto_original)}` : ''}]`
+        : g.es_prorrateado && g.monto_original
         ? `${g.descripcion || ''} [${t('reportes.prorrateado_badge', { dias: g.dias_prorrateo, ciclo: g.dias_ciclo, defaultValue: `Prorrateado (${g.dias_prorrateo}/${g.dias_ciclo} días)` })} - ${formatearCicloCompleto(g.dias_ciclo, g.monto_original)}]`
         : (g.descripcion || '');
       const fechaCelda = g.fecha_pago_original && g.fecha_pago_original !== g.fecha
@@ -1193,7 +1196,9 @@ const Reportes: React.FC = () => {
       ];
 
       const rows = filteredGastos.map((g) => {
-        const descConNota = g.es_prorrateado && g.monto_original
+        const descConNota = g.es_provision
+          ? `${g.descripcion || ''} [${t('reportes.aprovisionado_badge', 'Aprovisionado')}${g.es_prorrateado && g.monto_original ? ` (${g.dias_prorrateo}/${g.dias_ciclo}d) - ${formatearCicloCompleto(g.dias_ciclo, g.monto_original)}` : ''}]`
+          : g.es_prorrateado && g.monto_original
           ? `${g.descripcion || ''} [${t('reportes.prorrateado_badge', { dias: g.dias_prorrateo, ciclo: g.dias_ciclo, defaultValue: `Prorrateado (${g.dias_prorrateo}/${g.dias_ciclo} días)` })} - ${formatearCicloCompleto(g.dias_ciclo, g.monto_original)}]`
           : (g.descripcion || '');
         const fechaCelda = g.fecha_pago_original && g.fecha_pago_original !== g.fecha
@@ -1247,14 +1252,18 @@ const Reportes: React.FC = () => {
         <td>
           <div class="strong">
             ${escapeHtml(g.descripcion)}
-            ${g.es_prorrateado ? `<span class="badge-prorrateo">${escapeHtml(t('reportes.prorrateado_badge', { dias: g.dias_prorrateo, ciclo: g.dias_ciclo, defaultValue: `Prorrateado (${g.dias_prorrateo}/${g.dias_ciclo} días)` }))}</span>` : ''}
+            ${g.es_provision
+              ? `<span class="badge-provision">${escapeHtml(t('reportes.aprovisionado_badge', 'Aprovisionado'))}${g.es_prorrateado && g.dias_prorrateo ? ` (${g.dias_prorrateo}/${g.dias_ciclo}d)` : ''}</span>`
+              : g.es_prorrateado
+              ? `<span class="badge-prorrateo">${escapeHtml(t('reportes.prorrateado_badge', { dias: g.dias_prorrateo, ciclo: g.dias_ciclo, defaultValue: `Prorrateado (${g.dias_prorrateo}/${g.dias_ciclo} días)` }))}</span>`
+              : ''}
           </div>
           ${g.proveedor ? `<div class="sub">${escapeHtml(t('reportes.proveedor_label', 'Proveedor'))}: ${escapeHtml(g.proveedor)}</div>` : ''}
         </td>
         <td>${g.taller_ingresos?.taller_vehiculos?.placa ? `<span class="placa">${escapeHtml(g.taller_ingresos.taller_vehiculos.placa)}</span>` : '—'}</td>
         <td class="num">
           <div class="total-col">${formatearDinero(g.monto)}</div>
-          ${g.es_prorrateado && g.monto_original ? `<div class="sub">${escapeHtml(formatearCicloCompleto(g.dias_ciclo, g.monto_original))}</div>` : ''}
+          ${(g.es_prorrateado || g.es_provision) && g.monto_original ? `<div class="sub">${escapeHtml(formatearCicloCompleto(g.dias_ciclo, g.monto_original))}</div>` : ''}
         </td>
       </tr>
     `).join('');
@@ -1276,6 +1285,7 @@ const Reportes: React.FC = () => {
           td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
           .placa { display: inline-block; background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; font-weight: 800; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
           .badge-prorrateo { display: inline-block; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-weight: 700; padding: 1px 6px; border-radius: 4px; font-size: 9px; margin-left: 6px; vertical-align: middle; }
+          .badge-provision { display: inline-block; background: #faf5ff; border: 1px solid #e9d5ff; color: #6b21a8; font-weight: 700; padding: 1px 6px; border-radius: 4px; font-size: 9px; margin-left: 6px; vertical-align: middle; }
           .strong { font-weight: 600; color: #1e293b; }
           .sub { font-size: 10px; color: #64748b; margin-top: 2px; }
           .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -2961,7 +2971,12 @@ const Reportes: React.FC = () => {
                               <td className="py-3 px-3">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <p className="font-semibold text-slate-800 line-clamp-2">{gasto.descripcion}</p>
-                                  {gasto.es_prorrateado && (
+                                  {gasto.es_provision ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-800 text-[10px] font-bold">
+                                      {t('reportes.aprovisionado_badge', 'Aprovisionado')}
+                                      {gasto.es_prorrateado && ` (${gasto.dias_prorrateo}/${gasto.dias_ciclo}d)`}
+                                    </span>
+                                  ) : gasto.es_prorrateado ? (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold">
                                       {t('reportes.prorrateado_badge', {
                                         dias: gasto.dias_prorrateo,
@@ -2969,7 +2984,7 @@ const Reportes: React.FC = () => {
                                         defaultValue: `Prorrateado (${gasto.dias_prorrateo}/${gasto.dias_ciclo} días)`,
                                       })}
                                     </span>
-                                  )}
+                                  ) : null}
                                 </div>
                                 {gasto.proveedor && (
                                   <p className="text-[11px] text-slate-400 mt-0.5">
@@ -2989,7 +3004,7 @@ const Reportes: React.FC = () => {
                               </td>
                               <td className="py-3 px-3.5 text-right whitespace-nowrap">
                                 <p className="font-bold text-red-600">{formatearDinero(gasto.monto)}</p>
-                                {gasto.es_prorrateado && gasto.monto_original && (
+                                {(gasto.es_prorrateado || gasto.es_provision) && gasto.monto_original && (
                                   <p className="text-[10px] text-slate-400 font-medium">
                                     {formatearCicloCompleto(gasto.dias_ciclo, gasto.monto_original)}
                                   </p>
@@ -3038,7 +3053,12 @@ const Reportes: React.FC = () => {
                           <div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="text-sm font-semibold text-slate-800 leading-snug">{gasto.descripcion}</p>
-                              {gasto.es_prorrateado && (
+                              {gasto.es_provision ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-50 border border-purple-200 text-purple-800 text-[10px] font-bold">
+                                  {t('reportes.aprovisionado_badge', 'Aprovisionado')}
+                                  {gasto.es_prorrateado && ` (${gasto.dias_prorrateo}/${gasto.dias_ciclo}d)`}
+                                </span>
+                              ) : gasto.es_prorrateado ? (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold">
                                   {t('reportes.prorrateado_badge', {
                                     dias: gasto.dias_prorrateo,
@@ -3046,7 +3066,7 @@ const Reportes: React.FC = () => {
                                     defaultValue: `Prorrateado (${gasto.dias_prorrateo}/${gasto.dias_ciclo} días)`,
                                   })}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                             {gasto.proveedor && (
                               <p className="text-xs text-slate-500 mt-0.5">
@@ -3068,7 +3088,7 @@ const Reportes: React.FC = () => {
                               <span className="text-sm font-bold text-red-600 block">
                                 {formatearDinero(gasto.monto)}
                               </span>
-                              {gasto.es_prorrateado && gasto.monto_original && (
+                              {(gasto.es_prorrateado || gasto.es_provision) && gasto.monto_original && (
                                 <span className="text-[10px] text-slate-400 font-medium block">
                                   {formatearCicloCompleto(gasto.dias_ciclo, gasto.monto_original)}
                                 </span>

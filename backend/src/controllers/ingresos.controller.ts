@@ -991,7 +991,26 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
       }
     }
 
-    const prorrateo = calcularGastosPeriodoConProrrateo(gastosData || [], startStr, endStr);
+    const { data: plantillasActivas, error: errPlantillas } = await supabase
+      .from('taller_gastos_recurrentes')
+      .select(`
+        id, nombre, monto_estimado, frecuencia, dia_del_mes, dia_semana,
+        activa, fecha_inicio, fecha_fin, categoria_id,
+        taller_categorias_gastos(id, nombre, color, icono)
+      `)
+      .eq('empresa_id', req.empresa_id)
+      .eq('activa', true);
+
+    if (errPlantillas) {
+      console.error('[getReportesFinanzas] Error fetching plantillas:', errPlantillas.message);
+    }
+
+    const prorrateo = calcularGastosPeriodoConProrrateo(
+      gastosData || [],
+      startStr,
+      endStr,
+      plantillasActivas || []
+    );
     const totalGastos = prorrateo.totalGastos;
     const gastosPorCategoria = prorrateo.gastosPorCategoria;
 

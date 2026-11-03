@@ -10,6 +10,7 @@ import {
   listarDiasEnRango,
   obtenerVentanaConsultaGastos,
   GastoRaw,
+  PlantillaRecurrenteRaw,
 } from './gastosProrrateo';
 
 let passed = 0;
@@ -268,14 +269,28 @@ const pagoSoloOctubre: GastoRaw[] = [
 
 const resCaso6 = calcularGastosPeriodoConProrrateo(pagoSoloOctubre, '2026-11-04', '2026-11-04');
 assertEqual(
-  'Caso 6: Arriendo pagado el 5 oct, vista del 4 nov (mes en curso aún sin pago) = $100.000 (no $0)',
+  'Caso 6: Sin plantilla, arriendo pagado el 5 oct en vista del 4 nov da $0 (deja de cobrarse el mes siguiente)',
   resCaso6.totalGastos,
+  0
+);
+
+const plantillaArriendoTest: PlantillaRecurrenteRaw = {
+  id: 'tpl-arr-suite',
+  nombre: 'Arriendo mensual',
+  monto_estimado: 3000000,
+  frecuencia: 'mensual',
+  activa: true,
+};
+const resCaso6ConPlantilla = calcularGastosPeriodoConProrrateo(pagoSoloOctubre, '2026-11-04', '2026-11-04', [plantillaArriendoTest]);
+assertEqual(
+  'Caso 6b: Con plantilla activa, arriendo no pagado en nov se aprovisiona = $100.000',
+  resCaso6ConPlantilla.totalGastos,
   100000
 );
 assertEqual(
-  'Caso 6b: Fecha del ítem se ajusta al período consultado (2026-11-04) y conserva fecha_pago_original (2026-10-05)',
-  `${resCaso6.gastosDetalle[0].fecha}|${resCaso6.gastosDetalle[0].fecha_pago_original}`,
-  '2026-11-04|2026-10-05'
+  'Caso 6c: Fila aprovisionada está marcada con es_provision === true',
+  Boolean(resCaso6ConPlantilla.gastosDetalle[0]?.es_provision),
+  true
 );
 
 // CASO 7: Consistencia Gráfica vs KPI en vista de 15 días con plantilla semanal
@@ -481,6 +496,153 @@ assertEqual(
   'Dos pagos semanales de $100k en la misma semana se suman y reportan $200k en la vista de 7 días',
   resSemanalRepetido.totalGastos,
   200000
+);
+
+console.log('\n📊 Suite 5: Casos de los 6 Cambios Nuevos (Regla 35d, Mes Completo, Semanas L-D, Aprovisionamiento)\n');
+
+// 1. Cambio 1: Quitar regla 35 días -> La reparación de octubre deja de cobrarse en noviembre
+const reparacionOctubre: GastoRaw[] = [
+  {
+    id: 'rep-oct',
+    fecha: '2026-10-20',
+    descripcion: 'Reparación compresor taller',
+    monto: 900000,
+    taller_categorias_gastos: { id: 'c-serv', nombre: 'Servicios', color: '#3b82f6' },
+  },
+];
+const resCambio1 = calcularGastosPeriodoConProrrateo(reparacionOctubre, '2026-11-01', '2026-11-07');
+assertEqual(
+  'Cambio 1: Reparación en categoría fija pagada el 20 oct en vista de noviembre da $0 (deja de cobrarse el mes siguiente)',
+  resCambio1.totalGastos,
+  0
+);
+
+// 2. Cambio 2: En vistas de 30 días o más, contar completo el gasto mensual pagado en el rango
+// Arriendo de $3M pagado el 1 de nov en vista móvil de 30 días (del 5 oct al 3 nov)
+const arriendoMesMovil: GastoRaw[] = [
+  {
+    id: 'arr-nov-movil',
+    fecha: '2026-11-01',
+    descripcion: 'Arriendo Noviembre',
+    monto: 3000000,
+    taller_categorias_gastos: { id: 'cat-arr', nombre: 'Arriendo', color: '#f59e0b' },
+  },
+];
+const resCambio2 = calcularGastosPeriodoConProrrateo(arriendoMesMovil, '2026-10-05', '2026-11-03');
+assertEqual(
+  'Cambio 2: En vista de 30 días, arriendo pagado el 1 nov cuenta completo = $3.000.000 (no $300k)',
+  resCambio2.totalGastos,
+  3000000
+);
+assertEqual(
+  'Cambio 2: Fila en detalle no está prorrateada (es_prorrateado === false, 30 días)',
+  resCambio2.gastosDetalle[0].es_prorrateado,
+  false
+);
+
+// 3. Cambio 3: Agrupar pagos semanales por semana lunes-domingo (no por < 7 días)
+// Pago adelantado semana 1 (viernes 23 oct) y pago semana 2 (miércoles 28 oct)
+const pagosSemanalesAdelantados: GastoRaw[] = [
+  {
+    id: 'sem-w1',
+    fecha: '2026-10-23', // Viernes (Semana: 19 oct - 25 oct)
+    descripcion: 'Vigilancia semanal W1',
+    monto: 100000,
+    tipo: 'recurrente',
+    plantilla_id: 'tpl-vig-semanal',
+    taller_gastos_recurrentes: { id: 'tpl-vig-semanal', nombre: 'Vigilancia semanal', frecuencia: 'semanal' },
+  },
+  {
+    id: 'sem-w2',
+    fecha: '2026-10-28', // Miércoles (Semana: 26 oct - 1 nov) - 5 días después
+    descripcion: 'Vigilancia semanal W2',
+    monto: 100000,
+    tipo: 'recurrente',
+    plantilla_id: 'tpl-vig-semanal',
+    taller_gastos_recurrentes: { id: 'tpl-vig-semanal', nombre: 'Vigilancia semanal', frecuencia: 'semanal' },
+  },
+];
+// Vista de la semana 2 (lunes 26 oct a domingo 1 nov, 7 días)
+const resCambio3 = calcularGastosPeriodoConProrrateo(pagosSemanalesAdelantados, '2026-10-26', '2026-11-01');
+assertEqual(
+  'Cambio 3: Pago semanal adelantado 5 días después no se junta en el mismo ciclo: semana 2 reporta $100k (no $186k)',
+  resCambio3.totalGastos,
+  100000
+);
+
+// 4. Cambio 4: Aprovisionamiento de plantilla activa si no hay pago en el período
+const plantillasTaller: PlantillaRecurrenteRaw[] = [
+  {
+    id: 'tpl-arriendo-prov',
+    nombre: 'Arriendo Taller Principal',
+    monto_estimado: 3000000,
+    frecuencia: 'mensual',
+    activa: true,
+  },
+];
+const resCambio4 = calcularGastosPeriodoConProrrateo([], '2026-11-01', '2026-11-30', plantillasTaller);
+assertEqual(
+  'Cambio 4: Plantilla activa sin pago en el período se aprovisiona con monto_estimado ($3.000.000)',
+  resCambio4.totalGastos,
+  3000000
+);
+assertEqual(
+  'Cambio 4: La fila aprovisionada tiene es_provision === true y fecha_pago_original === null',
+  Boolean(resCambio4.gastosDetalle[0].es_provision && resCambio4.gastosDetalle[0].fecha_pago_original === null),
+  true
+);
+
+// 5. Cambio 4b: Pagado no se duplica (si hay pago en el período, no se aprovisiona)
+const pagoArriendoReal: GastoRaw[] = [
+  {
+    id: 'arr-pagado-real',
+    fecha: '2026-11-05',
+    descripcion: 'Arriendo Taller Principal',
+    monto: 3000000,
+    plantilla_id: 'tpl-arriendo-prov',
+    tipo: 'recurrente',
+    taller_gastos_recurrentes: { id: 'tpl-arriendo-prov', nombre: 'Arriendo Taller Principal', frecuencia: 'mensual' },
+  },
+];
+const resCambio4b = calcularGastosPeriodoConProrrateo(pagoArriendoReal, '2026-11-01', '2026-11-30', plantillasTaller);
+assertEqual(
+  'Cambio 4b: Si la plantilla ya tiene pago en el período, no se duplica con aprovisionamiento = $3.000.000',
+  resCambio4b.totalGastos,
+  3000000
+);
+assertEqual(
+  'Cambio 4b: Solo existe 1 ítem en el detalle (el pago real, no la provisión)',
+  resCambio4b.gastosDetalle.length,
+  1
+);
+assertEqual(
+  'Cambio 4b: El ítem en detalle es el pago real (es_provision !== true)',
+  Boolean(resCambio4b.gastosDetalle[0].es_provision),
+  false
+);
+
+// 6. Cambio 4c: No contar días antes de fecha_inicio ni después de fecha_fin
+const plantillaVigencia: PlantillaRecurrenteRaw[] = [
+  {
+    id: 'tpl-vigente-parcial',
+    nombre: 'Vigilancia temporal',
+    monto_estimado: 700000,
+    frecuencia: 'semanal', // $100k/día
+    activa: true,
+    fecha_inicio: '2026-11-04', // Inicia a mitad de la semana
+    fecha_fin: '2026-11-06',    // Termina el 6 nov (3 días: 4, 5, 6 nov)
+  },
+];
+const resCambio4c = calcularGastosPeriodoConProrrateo([], '2026-11-02', '2026-11-08', plantillaVigencia);
+assertEqual(
+  'Cambio 4c: Solo aprovisiona los 3 días dentro de [fecha_inicio, fecha_fin] = $300.000 (3 de 7 días)',
+  resCambio4c.totalGastos,
+  300000
+);
+assertEqual(
+  'Cambio 4c: Días de prorrateo son exactamente 3',
+  resCambio4c.gastosDetalle[0].dias_prorrateo,
+  3
 );
 
 console.log(`\n─────────────────────────────────────────`);

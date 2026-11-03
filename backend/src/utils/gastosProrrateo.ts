@@ -38,6 +38,7 @@ export interface GastoRaw {
   fecha: string;
   descripcion: string;
   monto: number | string;
+  categoria_id?: string | null;
   proveedor?: string | null;
   comprobante_url?: string | null;
   tipo?: 'unico' | 'recurrente' | string;
@@ -54,12 +55,27 @@ export interface GastoRaw {
 export interface GastoProcesadoPeriodo extends GastoRaw {
   monto: number;
   monto_original: number;
-  fecha_pago_original: string;
+  fecha_pago_original: string | null;
   es_fijo: boolean;
   es_prorrateado: boolean;
+  es_provision?: boolean;
   dias_prorrateo: number;
   dias_ciclo: number;
   cuota_diaria: number;
+}
+
+export interface PlantillaRecurrenteRaw {
+  id: string;
+  nombre: string;
+  monto_estimado: number | string;
+  frecuencia?: string;
+  dia_del_mes?: number | null;
+  dia_semana?: number | null;
+  activa?: boolean;
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
+  categoria_id?: string | null;
+  taller_categorias_gastos?: CategoriaGastoRef | CategoriaGastoRef[] | null;
 }
 
 export interface ProrrateoResultado {
@@ -270,6 +286,19 @@ export function obtenerClaveFlujoFijo(gasto: GastoRaw, diasCiclo: number): strin
 }
 
 /**
+ * Devuelve la fecha del lunes (YYYY-MM-DD) para cualquier fecha dada,
+ * definiendo la semana calendario estándar de lunes a domingo.
+ */
+export function obtenerLunesSemanaStr(fechaStr: string): string {
+  const [year, month, day] = fechaStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const dayOfWeek = dt.getUTCDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+  const diffToMonday = (dayOfWeek + 6) % 7;
+  const mondayUTC = new Date(Date.UTC(year, month - 1, day - diffToMonday, 12, 0, 0));
+  return mondayUTC.toISOString().slice(0, 10);
+}
+
+/**
  * Dado el historial de pagos ordenados ascendentemente por fecha de un mismo flujo fijo,
  * determina cuál es el ÚNICO pago activo que cubre el día `diaStr` (o `null` si ninguno lo cubre).
  */
@@ -281,32 +310,19 @@ function seleccionarPagoActivoEnDia(
   if (pagosOrdenados.length === 0) return null;
 
   // ── Caso Mensual (30 días) ──
+  // Si hay pagos en el mismo mes calendario que `diaStr`, usar el pago de ese mes.
+  // Sin regla de 35 días: si en ese mes no hubo pago, retorna null (se aprovisiona si tiene plantilla).
   if (diasCiclo === 30) {
     const ymDia = diaStr.slice(0, 7);
     const pagosMismoMes = pagosOrdenados.filter((p) => p.fecha.slice(0, 7) === ymDia);
 
     if (pagosMismoMes.length > 0) {
-      // Si hay pagos en el mismo mes calendario que `diaStr`, usar el más reciente <= diaStr,
-      // o el primero del mes si el pago se registró días después dentro del mismo mes.
       const previosEnMes = pagosMismoMes.filter((p) => p.fecha <= diaStr);
       return previosEnMes.length > 0
         ? previosEnMes[previosEnMes.length - 1]
         : pagosMismoMes[0];
     }
 
-    // Si en el mes calendario de `diaStr` aún no se ha registrado el pago (ej. 4 de nov
-    // cuando el último pago fue el 5 de oct), buscar el último pago previo dentro de
-    // una ventana de gracia de hasta 35 días.
-    for (let i = pagosOrdenados.length - 1; i >= 0; i--) {
-      const p = pagosOrdenados[i];
-      if (p.fecha <= diaStr) {
-        const diff = diffDiasStr(p.fecha, diaStr);
-        if (diff <= 35) {
-          return p;
-        }
-        break;
-      }
-    }
     return null;
   }
 
@@ -326,32 +342,44 @@ function seleccionarPagoActivoEnDia(
   }
 
   // ── Caso Semanal (7 días) / Quincenal (15 días) u otros ciclos cortos ──
-  // 1. Pago activo cuya ventana natural [p.fecha, p.fecha + diasCiclo - 1] cubre `diaStr`
-  for (let i = pagosOrdenados.length - 1; i >= 0; i--) {
-    const p = pagosOrdenados[i];
-    if (p.fecha <= diaStr) {
-      const diff = diffDiasStr(p.fecha, diaStr);
-      if (diff < diasCiclo) {
-        return p;
+  // 1. Pago activo cuya semana calendario (si es semanal) o ventana natural cubre `diaStr`
+  if (diasCiclo === 7) {
+    const lunesDia = obtenerLunesSemanaStr(diaStr);
+    const pagosMismaSemana = pagosOrdenados.filter(
+      (p) => obtenerLunesSemanaStr(p.fecha) === lunesDia
+    );
+    if (pagosMismaSemana.length > 0) {
+      const previosEnSemana = pagosMismaSemana.filter((p) => p.fecha <= diaStr);
+      return previosEnSemana.length > 0
+        ? previosEnSemana[previosEnSemana.length - 1]
+        : pagosMismaSemana[0];
+    }
+  } else {
+    for (let i = pagosOrdenados.length - 1; i >= 0; i--) {
+      const p = pagosOrdenados[i];
+      if (p.fecha <= diaStr) {
+        const diff = diffDiasStr(p.fecha, diaStr);
+        if (diff < diasCiclo) {
+          return p;
+        }
+        break;
       }
-      break;
+    }
+
+    for (let i = 0; i < pagosOrdenados.length; i++) {
+      const p = pagosOrdenados[i];
+      if (p.fecha > diaStr) {
+        const diffForward = diffDiasStr(diaStr, p.fecha);
+        if (diffForward < diasCiclo) {
+          return p;
+        }
+        break;
+      }
     }
   }
 
-  // 2. Si `diaStr` está justo antes de un pago dentro del mismo ciclo corto
-  //    (ej. vista de la semana actual donde el pago semanal se registró al final de la semana)
-  for (let i = 0; i < pagosOrdenados.length; i++) {
-    const p = pagosOrdenados[i];
-    if (p.fecha > diaStr) {
-      const diffForward = diffDiasStr(diaStr, p.fecha);
-      if (diffForward < diasCiclo) {
-        return p;
-      }
-      break;
-    }
-  }
-
-  // 3. Ventana de gracia corta (hasta 4 días adicionales) si el siguiente pago semanal/quincenal aún no se registra
+  // 2. Ventana de gracia corta (hasta 4 días adicionales) si en este ciclo no hay pago
+  // pero el pago anterior aún tiene días disponibles dentro de su cuota
   for (let i = pagosOrdenados.length - 1; i >= 0; i--) {
     const p = pagosOrdenados[i];
     if (p.fecha <= diaStr) {
@@ -377,7 +405,8 @@ function seleccionarPagoActivoEnDia(
 export function calcularGastosPeriodoConProrrateo(
   gastosVentana: GastoRaw[],
   startStr: string,
-  endStr: string
+  endStr: string,
+  plantillasActivas: PlantillaRecurrenteRaw[] = []
 ): ProrrateoResultado {
   const diasRango = listarDiasEnRango(startStr, endStr);
   const diasPeriodo = Math.max(diasRango.length, 1);
@@ -439,17 +468,13 @@ export function calcularGastosPeriodoConProrrateo(
     // consolidarlos por bloque de ciclo para que sus montos se sumen.
     let pagosOrdenados: GastoRaw[] = pagosRawOrdenados;
     if (pagosRawOrdenados.length > 1) {
-      const agruparClaveCiclo = (p: GastoRaw): string => {
-        if (diasCiclo === 30) return p.fecha.slice(0, 7); // Mismo mes YYYY-MM
-        if (diasCiclo === 365) return p.fecha.slice(0, 4); // Mismo año YYYY
-        // Para ciclos cortos (7d o 15d), agrupar fechas separadas por menos de diasCiclo días respecto a la primera del grupo
-        return p.fecha;
-      };
-
-      if (diasCiclo === 30 || diasCiclo === 365) {
+      if (diasCiclo === 30 || diasCiclo === 365 || diasCiclo === 7) {
         const porCicloMap: Record<string, GastoRaw[]> = {};
         for (const p of pagosRawOrdenados) {
-          const key = agruparClaveCiclo(p);
+          let key: string;
+          if (diasCiclo === 30) key = p.fecha.slice(0, 7); // Mismo mes YYYY-MM
+          else if (diasCiclo === 365) key = p.fecha.slice(0, 4); // Mismo año YYYY
+          else key = obtenerLunesSemanaStr(p.fecha); // Misma semana lunes-domingo
           if (!porCicloMap[key]) porCicloMap[key] = [];
           porCicloMap[key].push(p);
         }
@@ -470,7 +495,7 @@ export function calcularGastosPeriodoConProrrateo(
             };
           });
       } else {
-        // Semanal (7d) o Quincenal (15d): agrupar pagos sucesivos que caen dentro de la misma ventana de diasCiclo
+        // Quincenal (15d): agrupar pagos sucesivos que caen dentro de la misma ventana de diasCiclo
         const grupos: GastoRaw[][] = [];
         for (const p of pagosRawOrdenados) {
           const ultimoGrupo = grupos[grupos.length - 1];
@@ -496,6 +521,47 @@ export function calcularGastosPeriodoConProrrateo(
             descripcion: `${ultimo.descripcion} ${sufijo}`,
           };
         });
+      }
+    }
+
+    // ── Cambio 2: En vistas de 30 días o más, contar completo el gasto mensual pagado en el rango ──
+    if (diasPeriodo >= 30 && diasCiclo === 30) {
+      const pagosEnRango = pagosOrdenados.filter((p) => p.fecha >= startStr && p.fecha <= endStr);
+      if (pagosEnRango.length > 0) {
+        for (const pago of pagosEnRango) {
+          const montoPago = Number(pago.monto || 0);
+          const mesPago = pago.fecha.slice(0, 7);
+          let diasAsignados = diasRango.filter((d) => d.slice(0, 7) === mesPago);
+          if (
+            diasAsignados.length < 28 &&
+            pagosEnRango.length === 1 &&
+            diasPeriodo >= 28 &&
+            diasPeriodo <= 31
+          ) {
+            diasAsignados = diasRango;
+          }
+          const baseCuota = Math.floor(montoPago / Math.max(diasAsignados.length, 1));
+          let residuo = Math.round(montoPago) - (baseCuota * diasAsignados.length);
+          for (const dia of diasAsignados) {
+            const extra = residuo > 0 ? 1 : 0;
+            if (residuo > 0) residuo--;
+            fijosSinRedondearPorDia[dia] += (baseCuota + extra);
+          }
+
+          fijosProcesados.push({
+            ...pago,
+            fecha: pago.fecha,
+            fecha_pago_original: pago.fecha,
+            monto: Math.round(montoPago),
+            monto_original: Math.round(montoPago),
+            es_fijo: true,
+            es_prorrateado: false,
+            dias_prorrateo: 30,
+            dias_ciclo: 30,
+            cuota_diaria: Math.round(montoPago / 30),
+          });
+        }
+        continue;
       }
     }
 
@@ -602,6 +668,84 @@ export function calcularGastosPeriodoConProrrateo(
         );
       }
     }
+  }
+
+  // ── Cambio 4: Aprovisionamiento de plantillas activas no pagadas en el período ──
+  for (const plantilla of plantillasActivas) {
+    if (!plantilla || (plantilla.activa !== undefined && !plantilla.activa)) continue;
+    const montoEstimado = Number(plantilla.monto_estimado || 0);
+    if (montoEstimado <= 0) continue;
+
+    // Verificar si ya existe un pago de esta plantilla o concepto en el período (pagado no se duplica)
+    const catPlantilla = unwrapSingle(plantilla.taller_categorias_gastos);
+    const catId = plantilla.categoria_id || catPlantilla?.id;
+    const yaPagado = fijosProcesados.some(
+      (fp) =>
+        fp.plantilla_id === plantilla.id ||
+        (fp as any).taller_gastos_recurrentes?.id === plantilla.id ||
+        (catId &&
+          fp.categoria_id === catId &&
+          fp.descripcion.toLowerCase().includes(plantilla.nombre.toLowerCase()))
+    );
+
+    if (yaPagado) continue; // Si ya se pagó en el período, no se aprovisiona
+
+    const frec = (plantilla.frecuencia || 'mensual').toLowerCase();
+    const diasCiclo =
+      frec === 'semanal'
+        ? 7
+        : frec === 'quincenal'
+        ? 15
+        : frec === 'anual'
+        ? 365
+        : frec === 'diario'
+        ? 1
+        : 30;
+
+    // Filtrar días elegibles sin contar antes de fecha_inicio ni después de fecha_fin
+    const diasElegibles = diasRango.filter((dia) => {
+      if (plantilla.fecha_inicio && dia < plantilla.fecha_inicio) return false;
+      if (plantilla.fecha_fin && dia > plantilla.fecha_fin) return false;
+      return true;
+    });
+
+    if (diasElegibles.length === 0) continue;
+
+    const cuotaDiaria = montoEstimado / diasCiclo;
+    let sumaAprovisionada = cuotaDiaria * diasElegibles.length;
+
+    if (diasPeriodo >= 30 && diasCiclo === 30 && diasElegibles.length >= 28) {
+      sumaAprovisionada = montoEstimado;
+    }
+
+    const baseCuotaDist = Math.floor(sumaAprovisionada / diasElegibles.length);
+    let residuoDist = Math.round(sumaAprovisionada) - (baseCuotaDist * diasElegibles.length);
+    for (const dia of diasElegibles) {
+      const extra = residuoDist > 0 ? 1 : 0;
+      if (residuoDist > 0) residuoDist--;
+      fijosSinRedondearPorDia[dia] += (baseCuotaDist + extra);
+    }
+
+    const fechaItem = diasElegibles[0];
+    fijosProcesados.push({
+      id: `prov-${plantilla.id}`,
+      fecha: fechaItem,
+      fecha_pago_original: null,
+      descripcion: plantilla.nombre,
+      monto: Math.round(sumaAprovisionada),
+      monto_original: Math.round(montoEstimado),
+      proveedor: null,
+      tipo: 'recurrente',
+      plantilla_id: plantilla.id,
+      categoria_id: catId || null,
+      taller_categorias_gastos: plantilla.taller_categorias_gastos || null,
+      es_fijo: true,
+      es_provision: true,
+      es_prorrateado: diasElegibles.length < diasCiclo,
+      dias_prorrateo: diasElegibles.length,
+      dias_ciclo: diasCiclo,
+      cuota_diaria: Math.round(cuotaDiaria),
+    });
   }
 
   // Poblar gastos directos por día

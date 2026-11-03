@@ -256,7 +256,29 @@ export const getGastos = async (req: Request, res: Response): Promise<void> => {
         pageOffset += PAGE_SIZE;
       }
 
-      const resultado = calcularGastosPeriodoConProrrateo(gastosVentana, desde, hasta);
+      let plantillasQuery = supabase
+        .from('taller_gastos_recurrentes')
+        .select(`
+          id, nombre, monto_estimado, frecuencia, dia_del_mes, dia_semana,
+          activa, fecha_inicio, fecha_fin, categoria_id,
+          taller_categorias_gastos(id, nombre, color, icono)
+        `)
+        .eq('empresa_id', req.empresa_id)
+        .eq('activa', true);
+
+      if (categoria_id) {
+        plantillasQuery = plantillasQuery.eq('categoria_id', categoria_id as string);
+      }
+
+      const { data: plantillasActivas, error: errPlantillas } = await plantillasQuery;
+      if (errPlantillas) throw errPlantillas;
+
+      const resultado = calcularGastosPeriodoConProrrateo(
+        gastosVentana,
+        desde,
+        hasta,
+        plantillasActivas || []
+      );
       const paginados = resultado.gastosDetalle.slice(offset, offset + limitNum);
 
       res.json({
@@ -370,6 +392,44 @@ export const createGasto = async (req: Request, res: Response): Promise<void> =>
       if (!validacion.ok) {
         res.status(validacion.status || 400).json({ error: validacion.error });
         return;
+      }
+    }
+
+    // ── Cambio 6: Rechazar un segundo pago del mismo gasto en el mes si tiene el mismo monto o no tiene nota ──
+    if (plantilla_id) {
+      const fechaGasto = fecha || bogotaToday();
+      const mesStr = fechaGasto.slice(0, 7);
+      const mesInicio = `${mesStr}-01`;
+      const [y, m] = mesStr.split('-').map(Number);
+      const ultimoDia = new Date(Date.UTC(y, m, 0, 12, 0, 0)).getUTCDate();
+      const mesFin = `${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
+
+      const { data: pagosExistentes, error: errExistentes } = await supabase
+        .from('taller_gastos')
+        .select('id, monto, notas')
+        .eq('empresa_id', req.empresa_id)
+        .eq('plantilla_id', plantilla_id)
+        .gte('fecha', mesInicio)
+        .lte('fecha', mesFin);
+
+      if (errExistentes) throw errExistentes;
+
+      if (pagosExistentes && pagosExistentes.length > 0) {
+        const mismoMonto = pagosExistentes.some((p: any) => Number(p.monto) === montoNum);
+        const tieneNota = typeof notas === 'string' && notas.trim().length > 0;
+
+        if (mismoMonto) {
+          res.status(400).json({
+            error: 'Ya existe un pago registrado para este gasto en el mes con el mismo monto. Si es un abono, debe tener un monto diferente y una nota explicativa.',
+          });
+          return;
+        }
+        if (!tieneNota) {
+          res.status(400).json({
+            error: 'Para registrar un segundo pago de este gasto en el mismo mes, debes incluir una nota explicativa (ej. motivo del abono o pago parcial).',
+          });
+          return;
+        }
       }
     }
 
@@ -765,7 +825,7 @@ export const updateGasto = async (req: Request, res: Response): Promise<void> =>
     // Verificar si el gasto corresponde a una liquidación de comisiones de técnicos
     const { data: gastoActual, error: findError } = await supabase
       .from('taller_gastos')
-      .select('id, descripcion')
+      .select('id, descripcion, monto, fecha, notas, plantilla_id')
       .eq('id', id)
       .eq('empresa_id', req.empresa_id)
       .maybeSingle();
@@ -895,6 +955,49 @@ export const updateGasto = async (req: Request, res: Response): Promise<void> =>
           }
         }
         payload.item_id = item_id || null;
+      }
+    }
+
+    // ── Cambio 6: Rechazar duplicados del mismo gasto en el mes en updateGasto ──
+    const effectivePlantillaId = gastoActual.plantilla_id;
+    const effectiveFecha = payload.fecha || gastoActual.fecha;
+    const effectiveMonto = payload.monto !== undefined ? payload.monto : Number(gastoActual.monto);
+    const effectiveNotas = payload.notas !== undefined ? payload.notas : gastoActual.notas;
+
+    if (effectivePlantillaId && effectiveFecha) {
+      const mesStr = effectiveFecha.slice(0, 7);
+      const mesInicio = `${mesStr}-01`;
+      const [y, m] = mesStr.split('-').map(Number);
+      const ultimoDia = new Date(Date.UTC(y, m, 0, 12, 0, 0)).getUTCDate();
+      const mesFin = `${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
+
+      const { data: otrosPagos, error: errOtros } = await supabase
+        .from('taller_gastos')
+        .select('id, monto, notas')
+        .eq('empresa_id', req.empresa_id)
+        .eq('plantilla_id', effectivePlantillaId)
+        .neq('id', id)
+        .gte('fecha', mesInicio)
+        .lte('fecha', mesFin);
+
+      if (errOtros) throw errOtros;
+
+      if (otrosPagos && otrosPagos.length > 0) {
+        const mismoMonto = otrosPagos.some((p: any) => Number(p.monto) === effectiveMonto);
+        const tieneNota = typeof effectiveNotas === 'string' && effectiveNotas.trim().length > 0;
+
+        if (mismoMonto) {
+          res.status(400).json({
+            error: 'Ya existe otro pago registrado para este gasto en el mes con el mismo monto. Si es un abono, debe tener un monto diferente y una nota explicativa.',
+          });
+          return;
+        }
+        if (!tieneNota) {
+          res.status(400).json({
+            error: 'Para mantener un pago adicional de este gasto en el mismo mes, debes incluir una nota explicativa.',
+          });
+          return;
+        }
       }
     }
 
