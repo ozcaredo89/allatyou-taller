@@ -556,3 +556,231 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ──────── RECUPERACIÓN / CREACIÓN DE CONTRASEÑA ────────
+
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { empresa_id, email } = req.body;
+
+    if (!empresa_id || !email) {
+      res.status(400).json({ error: 'Faltan campos requeridos (empresa_id, email).' });
+      return;
+    }
+
+    const emailNorm = email.toLowerCase().trim();
+
+    // 1. Validar que la empresa exista
+    const { data: empresa, error: empresaError } = await supabase
+      .from('taller_empresas')
+      .select('id, nombre, slug')
+      .eq('id', empresa_id)
+      .single();
+
+    if (empresaError || !empresa) {
+      res.status(404).json({ error: 'Empresa no encontrada.' });
+      return;
+    }
+
+    // 2. Buscar si el correo pertenece a la empresa
+    const { data: usuario, error: usuarioError } = await supabase
+      .from('taller_empresas_correos')
+      .select('id, email, is_verified')
+      .eq('empresa_id', empresa_id)
+      .eq('email', emailNorm)
+      .single();
+
+    if (usuarioError || !usuario) {
+      res.status(404).json({ error: 'No se encontró un usuario con ese correo registrado en esta sucursal.' });
+      return;
+    }
+
+    // 3. Verificar si el usuario está aprobado
+    if (!usuario.is_verified) {
+      res.status(403).json({ error: 'Tu usuario aún está pendiente de aprobación por el administrador.' });
+      return;
+    }
+
+    // 4. Generar código de 6 dígitos numérico criptográficamente seguro y expiración (15 minutos)
+    const resetCode = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    // 5. Guardar en BD (intento con columnas dedicadas y fallback seguro a otp_code)
+    let saveError = null;
+    try {
+      const { error } = await supabase
+        .from('taller_empresas_correos')
+        .update({
+          reset_password_token: resetCode,
+          reset_password_expires_at: expiresAt
+        })
+        .eq('id', usuario.id)
+        .eq('empresa_id', empresa_id);
+
+      saveError = error;
+    } catch (e: any) {
+      saveError = e;
+    }
+
+    if (saveError) {
+      console.warn('[forgotPassword] Fallback a otp_code:', saveError.message || saveError);
+      const { error: fallbackError } = await supabase
+        .from('taller_empresas_correos')
+        .update({ otp_code: resetCode })
+        .eq('id', usuario.id)
+        .eq('empresa_id', empresa_id);
+
+      if (fallbackError) {
+        throw new Error(`Error guardando código de recuperación: ${fallbackError.message}`);
+      }
+    }
+
+    // 6. Enviar correo vía Resend
+    await sendEmail({
+      to: emailNorm,
+      subject: `Restablecer o crear contraseña - ${empresa.nombre}`,
+      text: `Hola,\n\nHas solicitado restablecer o crear tu contraseña de acceso para ${empresa.nombre} en TallerPro.\n\nTu código de verificación de 6 dígitos es: ${resetCode}\n\nEste código es válido por 15 minutos.\n\nSi tú no realizaste esta solicitud, puedes ignorar este mensaje de forma segura.`
+    });
+
+    res.json({
+      success: true,
+      message: 'Código de verificación enviado a tu correo.'
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { empresa_id, email, code, new_password } = req.body;
+
+    if (!empresa_id || !email || !code || !new_password) {
+      res.status(400).json({ error: 'Faltan campos requeridos (empresa_id, email, code, new_password).' });
+      return;
+    }
+
+    if (typeof new_password !== 'string' || new_password.trim().length < 6) {
+      res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+      return;
+    }
+
+    const emailNorm = email.toLowerCase().trim();
+    const codeNorm = code.toString().trim();
+
+    // 1. Obtener la empresa
+    const { data: empresa, error: empresaError } = await supabase
+      .from('taller_empresas')
+      .select('id, nombre, slug')
+      .eq('id', empresa_id)
+      .single();
+
+    if (empresaError || !empresa) {
+      res.status(404).json({ error: 'Empresa no encontrada.' });
+      return;
+    }
+
+    // 2. Buscar el usuario
+    let usuario: any = null;
+    let usuarioError: any = null;
+
+    const initialQuery = await supabase
+      .from('taller_empresas_correos')
+      .select('id, email, is_verified, reset_password_token, reset_password_expires_at, otp_code')
+      .eq('empresa_id', empresa_id)
+      .eq('email', emailNorm)
+      .single();
+
+    usuario = initialQuery.data;
+    usuarioError = initialQuery.error;
+
+    // Fallback si la columna reset_password_token aún no existe en DB
+    if (usuarioError && usuarioError.message?.includes('reset_password_token')) {
+      const fallbackQuery = await supabase
+        .from('taller_empresas_correos')
+        .select('id, email, is_verified, otp_code')
+        .eq('empresa_id', empresa_id)
+        .eq('email', emailNorm)
+        .single();
+      usuario = fallbackQuery.data;
+      usuarioError = fallbackQuery.error;
+    }
+
+    if (usuarioError || !usuario) {
+      res.status(404).json({ error: 'No se encontró un usuario con ese correo registrado en esta sucursal.' });
+      return;
+    }
+
+    if (!usuario.is_verified) {
+      res.status(403).json({ error: 'Tu usuario aún está pendiente de aprobación por el administrador.' });
+      return;
+    }
+
+    // 3. Validar código y expiración
+    let codeValid = false;
+    if (usuario.reset_password_token && usuario.reset_password_token === codeNorm) {
+      if (usuario.reset_password_expires_at) {
+        const expires = new Date(usuario.reset_password_expires_at).getTime();
+        if (Date.now() > expires) {
+          res.status(400).json({ error: 'El código ha expirado. Por favor solicita uno nuevo.' });
+          return;
+        }
+      }
+      codeValid = true;
+    } else if (usuario.otp_code && usuario.otp_code === codeNorm) {
+      codeValid = true;
+    }
+
+    if (!codeValid) {
+      res.status(400).json({ error: 'Código de verificación inválido.' });
+      return;
+    }
+
+    // 4. Hashear la nueva contraseña con bcrypt
+    const password_hash = await bcrypt.hash(new_password.trim(), 10);
+
+    // 5. Actualizar contraseña y limpiar tokens
+    const updatePayload: any = {
+      password_hash,
+      otp_code: null
+    };
+
+    if ('reset_password_token' in usuario) {
+      updatePayload.reset_password_token = null;
+      updatePayload.reset_password_expires_at = null;
+    }
+
+    const { error: updateError } = await supabase
+      .from('taller_empresas_correos')
+      .update(updatePayload)
+      .eq('id', usuario.id)
+      .eq('empresa_id', empresa_id);
+
+    if (updateError) {
+      // Fallback si la columna no existe aún
+      const { error: retryError } = await supabase
+        .from('taller_empresas_correos')
+        .update({ password_hash, otp_code: null })
+        .eq('id', usuario.id)
+        .eq('empresa_id', empresa_id);
+
+      if (retryError) throw retryError;
+    }
+
+    // 6. Generar JWT para login directo
+    const token = jwt.sign(
+      { empresa_id: empresa.id, email: usuario.email },
+      JWT_SECRET,
+      { expiresIn: '4h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Contraseña actualizada correctamente.',
+      token,
+      empresa: { id: empresa.id, nombre: empresa.nombre, slug: empresa.slug }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { 
   getEmpresas, requestOtp, verifyOtp, registro, updateEmpresaConfig, loginWithPassword, 
+  forgotPassword, resetPassword,
   getEquipo, crearMiembroEquipo, aprobarMiembro,
   getDispositivos, revocarDispositivo, logout
 } from '../controllers/auth.controller';
@@ -14,6 +15,8 @@ router.post('/request-otp', requestOtp);
 router.post('/verify-otp', verifyOtp);
 router.post('/registro', registro);
 router.post('/login-password', loginWithPassword);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 router.post('/logout', logout); // opcionalmente podría requerir auth pero mejor dejarlo abierto para limpiar siempre
 
 // Equipo (protegidos)

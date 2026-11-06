@@ -86,3 +86,14 @@ All commands are run from inside `backend/` or `frontend/` respectively (no root
 15. **Environment Variable Hygiene**:
     - Never hardcode secrets in services. Cloudflare R2 credentials, Turnstile keys, Gemini/OpenAI keys, and Resend keys must strictly come from `process.env`.
     - Do not commit real API keys to `.env.example` files.
+
+---
+
+## Technical Documentation & Traceability Standards
+
+16. **Technical Specifications (`docs/specs/`)**:
+    - Any new feature, API modification, or business workflow MUST have its spec in `docs/specs/<feature>.md` following [`docs/specs/TEMPLATE.md`](docs/specs/TEMPLATE.md).
+    - Specs must be high-signal and concise (no fluff): include exact file paths, explicit multi-tenant isolation rules (`empresa_id`), DDL migrations, and complete API contracts (request/response).
+17. **JIRA Tickets & Commit Traceability (`docs/jira/`)**:
+    - Every change must relate to a JIRA ticket formatted according to [`docs/jira/JIRA_ISSUE_TEMPLATE.md`](docs/jira/JIRA_ISSUE_TEMPLATE.md).
+    - Git commits must prefix the ticket key: `[TALLER-XXX] <type>(<scope>): <description>`.

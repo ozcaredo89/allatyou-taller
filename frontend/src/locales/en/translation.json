@@ -407,7 +407,21 @@
     "leyenda_otp": "For added security, we have sent an access code to your administrative email. You can also use your password if you have set one up.",
     "session_expired": "Your session has expired for security reasons. Please log in again.",
     "remember_me": "Trust this device for 24 hours",
-    "remember_me_desc": "Keeps your session active and protects from access from other browsers"
+    "remember_me_desc": "Keeps your session active and protects from access from other browsers",
+    "forgot_password_link": "Forgot password or need to create a new one?",
+    "reset_title": "Recover or Create Password",
+    "reset_desc": "Enter your registered email to receive a verification code.",
+    "btn_send_reset_code": "Send Verification Code",
+    "reset_code_label": "Verification Code (6 digits)",
+    "new_password_label": "New Password",
+    "confirm_password_label": "Confirm Password",
+    "btn_save_new_password": "Save Password & Sign In",
+    "btn_back_to_login": "Back to login",
+    "passwords_do_not_match": "Passwords do not match.",
+    "password_too_short": "Password must be at least 6 characters long.",
+    "reset_code_sent": "We have sent a code to",
+    "resend_code": "Resend code",
+    "change_email": "Change email"
   },
   "equipo": {
     "title": "Team Management",
