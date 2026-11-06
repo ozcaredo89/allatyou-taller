@@ -168,7 +168,7 @@ export function detectarResumenServicio(ingreso: ResenaIngreso): string {
 export function construirMensajeResena(
   ingreso: ResenaIngreso,
   nombreTaller: string,
-  googleUrl: string | null
+  googleUrl?: string | null
 ): string {
   const cliente = ingreso.taller_vehiculos?.taller_clientes;
   const nombreCliente = cliente?.nombre_completo?.trim() || 'estimado cliente';
