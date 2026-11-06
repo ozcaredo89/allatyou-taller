@@ -903,7 +903,16 @@ const TabResenas: React.FC<TabResenasProps> = ({
   onDescartar,
   onNoContactar,
 }) => {
-  const [mostrarDescartados, setMostrarDescartados] = useState(false);
+  const [colapsados, setColapsados] = useState<Record<string, boolean>>({
+    pendientes: false,
+    intentados: false,
+    confirmados: false,
+    descartados: true,
+  });
+
+  const toggleColapso = (key: string) => {
+    setColapsados(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-indigo-500 w-10 h-10" /></div>;
 
@@ -917,9 +926,42 @@ const TabResenas: React.FC<TabResenasProps> = ({
   const selectedCount = selectedIds.size;
 
   const grupos = [
-    { label: 'Pendientes de enviar', items: pendientes, color: 'text-slate-700' },
-    { label: 'Enviado — pendiente de confirmar', items: intentados, color: 'text-amber-700' },
-    { label: 'Confirmados ✅', items: confirmados, color: 'text-emerald-700' },
+    {
+      key: 'pendientes',
+      label: 'Pendientes de enviar',
+      items: pendientes,
+      color: 'text-slate-800',
+      badgeBg: 'bg-slate-100 text-slate-700',
+      isColapsado: !!colapsados.pendientes,
+      isDescartadoGroup: false,
+    },
+    {
+      key: 'intentados',
+      label: 'Enviado — pendiente de confirmar',
+      items: intentados,
+      color: 'text-amber-800',
+      badgeBg: 'bg-amber-100 text-amber-800',
+      isColapsado: !!colapsados.intentados,
+      isDescartadoGroup: false,
+    },
+    {
+      key: 'confirmados',
+      label: 'Confirmados ✅',
+      items: confirmados,
+      color: 'text-emerald-800',
+      badgeBg: 'bg-emerald-100 text-emerald-800',
+      isColapsado: !!colapsados.confirmados,
+      isDescartadoGroup: false,
+    },
+    {
+      key: 'descartados',
+      label: 'Descartadas',
+      items: descartados,
+      color: 'text-slate-500',
+      badgeBg: 'bg-slate-100 text-slate-600',
+      isColapsado: !!colapsados.descartados,
+      isDescartadoGroup: true,
+    },
   ];
 
   if (resenas.length === 0 || (pendientes.length === 0 && intentados.length === 0 && confirmados.length === 0 && descartados.length === 0)) {
@@ -981,46 +1023,36 @@ const TabResenas: React.FC<TabResenasProps> = ({
       )}
 
       {grupos.map(grupo => grupo.items.length > 0 && (
-        <div key={grupo.label}>
-          <h2 className={`text-sm font-bold uppercase tracking-wider mb-4 ${grupo.color}`}>{grupo.label}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {grupo.items.map(ingreso => (
-              <TarjetaResena
-                key={ingreso.id}
-                ingreso={ingreso}
-                updating={updatingId === ingreso.id}
-                isSelected={selectedIds.has(ingreso.id)}
-                onToggleSelect={onToggleSelect}
-                onAbrir={onAbrir}
-                onConfirmar={onConfirmar}
-                onDeshacer={onDeshacer}
-                onDescartar={onDescartar}
-                onNoContactar={onNoContactar}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-
-      {descartados.length > 0 && (
-        <div className="pt-6 border-t border-slate-200">
+        <div key={grupo.key} className={grupo.isDescartadoGroup ? 'pt-6 border-t border-slate-200' : ''}>
           <button
-            onClick={() => setMostrarDescartados(prev => !prev)}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+            type="button"
+            onClick={() => toggleColapso(grupo.key)}
+            className="w-full flex items-center justify-between py-2 text-left group cursor-pointer select-none"
           >
-            <Trash2 size={13} />
-            {mostrarDescartados ? 'Ocultar' : 'Ver'} descartadas ({descartados.length})
-            {mostrarDescartados ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            <div className="flex items-center gap-2.5">
+              {grupo.isDescartadoGroup && <Trash2 size={15} className="text-slate-400" />}
+              <h2 className={`text-sm font-bold uppercase tracking-wider ${grupo.color}`}>
+                {grupo.label}
+              </h2>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${grupo.badgeBg}`}>
+                {grupo.items.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors">
+              <span>{grupo.isColapsado ? 'Expandir' : 'Colapsar'}</span>
+              {grupo.isColapsado ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </div>
           </button>
 
-          {mostrarDescartados && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-              {descartados.map(ingreso => (
+          {!grupo.isColapsado && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-3">
+              {grupo.items.map(ingreso => (
                 <TarjetaResena
                   key={ingreso.id}
                   ingreso={ingreso}
                   updating={updatingId === ingreso.id}
-                  isSelected={false}
+                  isSelected={selectedIds.has(ingreso.id)}
+                  onToggleSelect={onToggleSelect}
                   onAbrir={onAbrir}
                   onConfirmar={onConfirmar}
                   onDeshacer={onDeshacer}
@@ -1031,7 +1063,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
             </div>
           )}
         </div>
-      )}
+      ))}
 
       {/* Barra flotante de acciones masivas */}
       {selectedCount > 0 && (

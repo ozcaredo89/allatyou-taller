@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Smartphone, Monitor, Trash2, Loader2, ShieldCheck, AlertCircle, RefreshCw, Laptop, Tablet, Bot, ToggleLeft, ToggleRight, Users, Zap, Phone, Mail, DollarSign } from 'lucide-react';
 import api from '../services/api';
+import { generarLinkWhatsApp } from '../utils/whatsapp';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 interface Dispositivo {
@@ -545,7 +546,7 @@ const Configuracion: React.FC = () => {
                     <div className="flex flex-col gap-2 shrink-0">
                       {/* Botón de contacto por WhatsApp */}
                       <a
-                        href={`https://wa.me/57${lead.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${lead.nombre ?? ''}, te contactamos desde ${configAI?.telefono_leads ? 'el taller' : 'nuestro equipo'} por tu consulta sobre tu vehículo.`)}`}
+                        href={generarLinkWhatsApp(lead.telefono, `Hola ${lead.nombre ?? ''}, te contactamos desde ${configAI?.telefono_leads ? 'el taller' : 'nuestro equipo'} por tu consulta sobre tu vehículo.`)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-2.5 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors text-center"

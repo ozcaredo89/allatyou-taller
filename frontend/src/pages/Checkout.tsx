@@ -9,6 +9,7 @@ import { ModalVincularGasto } from '../components/ModalVincularGasto';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
+import { generarLinkWhatsApp } from '../utils/whatsapp';
 
 interface ItemFactura {
   id: string;
@@ -400,7 +401,7 @@ const Checkout: React.FC = () => {
         ? `${mensajeWhatsApp.slice(0, WA_MAX_CHARS)}...\n_(Mensaje recortado por longitud)_`
         : mensajeWhatsApp;
 
-      const waUrl = `https://wa.me/${telefonoLimpio}?text=${encodeURIComponent(mensajeFinal)}`;
+      const waUrl = generarLinkWhatsApp(telefonoLimpio, mensajeFinal);
 
       if (newWindow) newWindow.location.href = waUrl;
 

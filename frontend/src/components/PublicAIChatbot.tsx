@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Turnstile } from '@marsidev/react-turnstile';
+import { generarLinkWhatsApp } from '../utils/whatsapp';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -54,8 +55,7 @@ function parsearMensaje(text: string): MensajeParsed {
 }
 
 function generarLinkWA(phone: string, mensaje: string): string {
-  const tel = phone.replace(/\D/g, '');
-  return `https://wa.me/${tel.startsWith('57') ? tel : `57${tel}`}?text=${encodeURIComponent(mensaje)}`;
+  return generarLinkWhatsApp(phone, mensaje);
 }
 
 // ─── Subcomponente: Burbuja de Mensaje ────────────────────────────────────────
