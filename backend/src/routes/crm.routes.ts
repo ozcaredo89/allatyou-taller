@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getRetencionProspectos,
   getResenasPendientes,
+  getResenasStats,
   marcarResenaIntentado,
   confirmarResena,
   deshacerResena,
@@ -20,6 +21,7 @@ router.get('/retencion', requireAuth, getRetencionProspectos);
 
 // Reseñas de Google
 router.get('/resenas', requireAuth, getResenasPendientes);
+router.get('/resenas/stats', requireAuth, getResenasStats);
 router.post('/resenas/bulk-descartar', requireAuth, bulkDescartarResenas);
 router.post('/resenas/:id/intentar', requireAuth, marcarResenaIntentado);
 router.post('/resenas/:id/confirmar', requireAuth, confirmarResena);

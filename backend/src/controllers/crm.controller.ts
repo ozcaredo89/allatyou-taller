@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import { toBogotaDateStr, bogotaToday, getBogotaRange } from '../utils/dateUtils';
 
 // ─── Retención Predictiva ─────────────────────────────────────────────────────
 // GET /api/crm/retencion
@@ -155,14 +156,135 @@ export const getResenasPendientes = async (req: Request, res: Response): Promise
     hace365Dias.setFullYear(hace365Dias.getFullYear() - 1);
 
     // Filtrar: un cliente no recibe solicitud de reseña si ya la recibió en el último año
+    // (a menos que este ingreso específico ya haya sido intentado, confirmado o descartado)
     const filtrado = (data || []).filter((ingreso: any) => {
       const cliente = ingreso.taller_vehiculos?.taller_clientes;
       if (!cliente || !cliente.acepta_whatsapp) return false;
+      if (ingreso.resena_estado && ingreso.resena_estado !== 'pendiente') return true;
       if (!cliente.ultima_resena_solicitada_at) return true;
       return new Date(cliente.ultima_resena_solicitada_at) < hace365Dias;
     });
 
     res.json(filtrado);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ─── Estadísticas de Reseñas de Google ────────────────────────────────────────
+// GET /api/crm/resenas/stats
+// Retorna conteo de solicitudes por día (zona Bogotá), semana, mes y métricas de efectividad.
+export const getResenasStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresaId = req.empresa_id;
+    const hoyStr = bogotaToday();
+    const ayerStr = getBogotaRange('ayer').startStr;
+    const semana = getBogotaRange('semana');
+    const [year, month] = hoyStr.split('-');
+    const inicioMesStr = `${year}-${month}-01`;
+
+    // 1. Obtener todas las órdenes que hayan tenido solicitud de reseña
+    const { data: solicitados, error: errSolicitados } = await supabase
+      .from('taller_ingresos')
+      .select('id, resena_estado, resena_solicitada_at')
+      .eq('empresa_id', empresaId)
+      .not('resena_solicitada_at', 'is', null);
+
+    if (errSolicitados) throw errSolicitados;
+
+    // 2. Obtener órdenes entregadas en los últimos 60 días pendientes de solicitud
+    const hace60Dias = new Date();
+    hace60Dias.setDate(hace60Dias.getDate() - 60);
+
+    const { count: pendientesCount, error: errPendientes } = await supabase
+      .from('taller_ingresos')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresaId)
+      .eq('estado', 'entregado')
+      .gte('updated_at', hace60Dias.toISOString())
+      .or('resena_estado.is.null,resena_estado.eq.pendiente');
+
+    if (errPendientes) throw errPendientes;
+
+    // 3. Estructura para los últimos 14 días
+    const DIAS_NOMBRE = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const ultimosDiasMap: Record<string, { fecha: string; diaSemana: string; esHoy: boolean; label: string; total: number; confirmadas: number }> = {};
+    const diasArray: { fecha: string; diaSemana: string; esHoy: boolean; label: string; total: number; confirmadas: number }[] = [];
+
+    // Generar 14 días (del más antiguo al más reciente)
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const fStr = toBogotaDateStr(d);
+      const [y, m, dia] = fStr.split('-').map(Number);
+      const dUTC = new Date(Date.UTC(y, m - 1, dia, 12, 0, 0));
+      const diaSemana = DIAS_NOMBRE[dUTC.getUTCDay()];
+      const esHoy = fStr === hoyStr;
+      const label = esHoy ? 'Hoy' : i === 1 ? 'Ayer' : `${diaSemana} ${dia}`;
+
+      const diaObj = {
+        fecha: fStr,
+        diaSemana,
+        esHoy,
+        label,
+        total: 0,
+        confirmadas: 0,
+      };
+      diasArray.push(diaObj);
+      ultimosDiasMap[fStr] = diaObj;
+    }
+
+    let hoy = 0;
+    let ayer = 0;
+    let estaSemana = 0;
+    let esteMes = 0;
+    let confirmadasTotal = 0;
+    let confirmadasHoy = 0;
+
+    (solicitados || []).forEach((item: any) => {
+      if (!item.resena_solicitada_at) return;
+      const fechaStr = toBogotaDateStr(item.resena_solicitada_at);
+      const esConfirmado = item.resena_estado === 'confirmado';
+
+      if (esConfirmado) confirmadasTotal++;
+
+      if (fechaStr === hoyStr) {
+        hoy++;
+        if (esConfirmado) confirmadasHoy++;
+      }
+      if (fechaStr === ayerStr) {
+        ayer++;
+      }
+      if (fechaStr >= semana.startStr && fechaStr <= semana.endStr) {
+        estaSemana++;
+      }
+      if (fechaStr >= inicioMesStr && fechaStr <= hoyStr) {
+        esteMes++;
+      }
+
+      if (ultimosDiasMap[fechaStr]) {
+        ultimosDiasMap[fechaStr].total++;
+        if (esConfirmado) {
+          ultimosDiasMap[fechaStr].confirmadas++;
+        }
+      }
+    });
+
+    const totalSolicitadas = (solicitados || []).length;
+    const tasaConfirmacion = totalSolicitadas > 0 ? Math.round((confirmadasTotal / totalSolicitadas) * 100) : 0;
+
+    res.json({
+      hoy,
+      ayer,
+      confirmadasHoy,
+      estaSemana,
+      esteMes,
+      totalSolicitadas,
+      confirmadasTotal,
+      tasaConfirmacion,
+      pendientes: pendientesCount || 0,
+      ultimosDias: diasArray,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
