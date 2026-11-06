@@ -27,14 +27,18 @@ h2. 🛠️ Alcance Técnico
 * [x] `backend/src/controllers/crm.controller.ts`:
   * Selección de `resena_descarte_motivo` y `diagnostico_mecanico` en `getResenasPendientes`.
   * Persistencia de `motivo` en `descartarResena`.
+  * Endpoint `bulkDescartarResenas` para descartar múltiples órdenes en lote (`POST /api/crm/resenas/bulk-descartar`) de forma atómica y multi-tenant.
   * Limpieza de `resena_descarte_motivo` en `deshacerResena`.
   * Fallbacks resilientes en caso de que la columna esté pendiente de migración en Supabase.
+* [x] `backend/src/routes/crm.routes.ts`:
+  * Ruta `POST /api/crm/resenas/bulk-descartar` registrada antes de las rutas parametrizadas `:id`.
 
 *Frontend:*
 * [x] `frontend/src/pages/CRM.tsx`:
   * Nueva función `construirMensajeResena` que elimina placa/modelo, usa "su vehículo", identifica el trabajo realizado (mano de obra o sistema diagnosticado) y formula una pregunta acorde (ej. respuesta de frenos, suavidad de motor, estabilidad o climatización).
   * Función `detectarResumenServicio` para mostrar chip con el servicio detectado en el card.
   * Modal de descarte mejorado con chips de motivos frecuentes ("No tiene WhatsApp", "Número equivocado", etc.) y textarea para nota personalizada.
+  * Selección múltiple con checkboxes en cards activos, selector maestro "Seleccionar todas las activas", barra de acción masiva flotante y modal de descarte en lote con resumen de placas/clientes y asignación de motivo común.
   * Visualización destacada del motivo de descarte en cards descartados con botones para "Editar nota" y "Restaurar".
 
 *Base de Datos:*
@@ -60,6 +64,11 @@ h2. ✅ Criterios de Aceptación (Gherkin)
 * *Dado que* un cliente no tiene WhatsApp activo,
 * *Cuando* el usuario hace clic en "Descartar" y selecciona el chip "No tiene WhatsApp",
 * *Entonces* el card pasa a descartado y el motivo "No tiene WhatsApp" queda guardado y visible en "Ver descartadas".
+
+*Escenario 3: Descarte múltiple de solicitudes en lote*
+* *Dado que* existen varias órdenes activas en reseñas pendientes,
+* *Cuando* el usuario selecciona varias casillas o usa "Seleccionar todas las activas" y confirma el descarte masivo con un motivo común,
+* *Entonces* el sistema envía la petición atómica al endpoint `POST /api/crm/resenas/bulk-descartar` y todas las órdenes seleccionadas se descartan simultáneamente con dicho motivo.
 
 ---
 

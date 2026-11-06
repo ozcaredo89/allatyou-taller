@@ -61,6 +61,29 @@ Flujo:
   - **`400 Bad Request`**: Restricción de base de datos no compatible.
   - **`401 / 403`**: No autorizado.
 
+### `POST /api/crm/resenas/bulk-descartar`
+- **Descripción:** Marca múltiples reseñas como descartadas en una sola operación atómica multi-tenant (`WHERE id = ANY(validIds) AND empresa_id = req.empresa_id`).
+- **Autenticación requerida:** Sí (`requireAuth`)
+- **Request Body:**
+  ```json
+  {
+    "ids": ["id-1", "id-2", "id-3"],
+    "motivo": "Descarte masivo / No aplica"
+  }
+  ```
+- **Responses:**
+  - **`200 OK`**:
+    ```json
+    {
+      "success": true,
+      "descartados": 3,
+      "ids": ["id-1", "id-2", "id-3"],
+      "motivo": "Descarte masivo / No aplica"
+    }
+    ```
+  - **`400 Bad Request`**: Si `ids` no es un arreglo válido o no contiene elementos.
+  - **`401 / 403`**: No autorizado.
+
 ### `GET /api/crm/resenas`
 - **Descripción:** Retorna las órdenes elegibles incluyendo `resena_descarte_motivo` y `diagnostico_mecanico`.
 - **Autenticación requerida:** Sí (`requireAuth`)
@@ -73,8 +96,13 @@ Flujo:
   - `construirMensajeResena(ingreso, nombreTaller, googleUrl)`: Redacción contextual de WhatsApp.
   - `detectarResumenServicio(ingreso)`: Detección inteligente del arreglo o sistema diagnosticado.
 - **Estados locales nuevos:**
-  - `motivoDescarte`: Cadena que almacena la nota seleccionada o digitada en el modal.
-- **Visualización:**
+  - `motivoDescarte`: Cadena que almacena la nota seleccionada o digitada en el modal individual.
+  - `selectedIds`: Conjunto `Set<string>` con los IDs de órdenes seleccionadas para descarte en lote.
+  - `showBulkDescartarModal` & `bulkMotivoDescarte`: Control del modal de confirmación en lote y su motivo común.
+- **Visualización & UX:**
+  - Checkboxes en cada tarjeta activa y casilla "Seleccionar todas las activas" en la barra superior.
+  - Barra flotante de acción masiva inferior cuando hay $\ge 1$ órdenes seleccionadas con botón "Descartar seleccionadas".
+  - Modal de descarte masivo con lista scrollable de placas/clientes seleccionados y selector de motivo/nota común.
   - Chip con el servicio detectado en el card de cada vehículo (`🔧 [Servicio]`).
   - Bloque destacado de motivo en cards descartados con opciones para "Editar nota" y "Restaurar".
 
@@ -82,7 +110,8 @@ Flujo:
 
 ## 6. Casos de Prueba & Criterios de Aceptación
 - [x] **CP-01 (Mensaje de WhatsApp sin placa/modelo):** Al hacer clic en "Pedir reseña por WhatsApp", el mensaje generado no incluye la placa ni la marca/modelo, menciona "su vehículo" e incluye la pregunta contextual según el servicio.
-- [x] **CP-02 (Descarte con motivo/nota):** Al descartar un card, se pueden seleccionar chips de motivos rápidos ("No tiene WhatsApp", etc.) o escribir una nota personalizada.
-- [x] **CP-03 (Persistencia y visualización):** El motivo se guarda en backend y se visualiza en la sección "Ver descartadas".
-- [x] **CP-04 (Edición y restauración):** Es posible editar la nota o restaurar el card a pendiente limpiando el descarte.
-- [x] **CP-05 (Aislamiento Multi-Tenant):** Ninguna operación afecta órdenes de otros talleres.
+- [x] **CP-02 (Descarte individual con motivo/nota):** Al descartar un card, se pueden seleccionar chips de motivos rápidos ("No tiene WhatsApp", etc.) o escribir una nota personalizada.
+- [x] **CP-03 (Descarte masivo en lote):** Selección múltiple de tarjetas, botón de descarte masivo, confirmación en modal con resumen de placas y persistencia atómica en backend.
+- [x] **CP-04 (Persistencia y visualización):** El motivo se guarda en backend y se visualiza en la sección "Ver descartadas".
+- [x] **CP-05 (Edición y restauración):** Es posible editar la nota o restaurar el card a pendiente limpiando el descarte.
+- [x] **CP-06 (Aislamiento Multi-Tenant):** Ninguna operación afecta órdenes de otros talleres.

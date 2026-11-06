@@ -6,6 +6,7 @@ import {
   confirmarResena,
   deshacerResena,
   descartarResena,
+  bulkDescartarResenas,
   getCrmConfig,
   updateCrmConfig,
   toggleNoContactar,
@@ -19,6 +20,7 @@ router.get('/retencion', requireAuth, getRetencionProspectos);
 
 // Reseñas de Google
 router.get('/resenas', requireAuth, getResenasPendientes);
+router.post('/resenas/bulk-descartar', requireAuth, bulkDescartarResenas);
 router.post('/resenas/:id/intentar', requireAuth, marcarResenaIntentado);
 router.post('/resenas/:id/confirmar', requireAuth, confirmarResena);
 router.post('/resenas/:id/deshacer', requireAuth, deshacerResena);

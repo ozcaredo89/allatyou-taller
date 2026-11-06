@@ -91,11 +91,17 @@ All commands are run from inside `backend/` or `frontend/` respectively (no root
 
 ---
 
-## Technical Documentation & Traceability Standards
+## Speed, Precision & Pragmatic Workflow (Regla de Oro)
 
-16. **Technical Specifications (`docs/specs/`)**:
-    - Any new feature, API modification, or business workflow MUST have its spec in `docs/specs/<feature>.md` following [`docs/specs/TEMPLATE.md`](docs/specs/TEMPLATE.md).
-    - Specs must be high-signal and concise (no fluff): include exact file paths, explicit multi-tenant isolation rules (`empresa_id`), DDL migrations, and complete API contracts (request/response).
-17. **JIRA Tickets & Commit Traceability (`docs/jira/`)**:
-    - Every change must relate to a JIRA ticket formatted according to [`docs/jira/JIRA_ISSUE_TEMPLATE.md`](docs/jira/JIRA_ISSUE_TEMPLATE.md).
-    - Git commits must prefix the ticket key: `[TALLER-XXX] <type>(<scope>): <description>`.
+16. **Agilidad y Cero Burocracia**:
+    - Prioriza código funcional y cambios directos. Implementa lo que el usuario pide sin demoras ni ceremonias.
+    - **No crees ni actualices specs ni tickets JIRA para cambios iterativos, mejoras de UI, fixes o peticiones directas del usuario**. Ve directo a editar el código y probarlo.
+    - Reserva la creación de specs (`docs/specs/`) exclusivamente para subsistemas arquitecturales nuevos de gran tamaño o cuando el usuario lo solicite expresamente.
+    - Si se requiere documentar, usa formatos ultra-precisos y condensados (máximo 20-30 líneas con paths exactos, contratos y tablas; cero prosa o relleno).
+17. **Ciclo de Verificación Rápido**:
+    - Para verificar cambios sin esperas, usa type-check rápido:
+      - Backend: `cd backend && node node_modules/typescript/bin/tsc --noEmit`
+      - Frontend: `cd frontend && node node_modules/typescript/bin/tsc --noEmit`
+    - No ejecutes `npm run build` o empaquetado de producción en cada cambio iterativo, solo al finalizar o si se requiere probar el bundle final.
+18. **Respuestas Concisas y al Grano**:
+    - Comunica lo implementado de forma breve, precisa y ejecutiva con enlaces directos a los archivos tocados. Evita explicaciones redundantes o textos inflados.

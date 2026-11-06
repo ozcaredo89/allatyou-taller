@@ -105,6 +105,7 @@ export const OPCIONES_MOTIVO_DESCARTE = [
   'Cliente no desea ser contactado',
   'Inconformidad o reclamo pendiente',
   'Vehículo de empresa / flota',
+  'Descarte masivo / No aplica',
 ];
 
 /**
@@ -242,6 +243,12 @@ const CRM: React.FC = () => {
   const [clienteANoContactar, setClienteANoContactar] = useState<{ id: string; nombre: string } | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
 
+  // Selección múltiple para descarte en lote
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDescartarModal, setShowBulkDescartarModal] = useState(false);
+  const [bulkMotivoDescarte, setBulkMotivoDescarte] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   // ─── Carga de datos ──────────────────────────────────────────────────────────
 
   const cargarConfig = useCallback(async () => {
@@ -369,10 +376,16 @@ const CRM: React.FC = () => {
       await api.post(`/crm/resenas/${ingresoADescartar.id}/descartar`, { motivo: motivoFinal });
       setResenas(prev =>
         prev.map(r => r.id === ingresoADescartar.id
-          ? { ...r, resena_estado: 'descartado', resena_descarte_motivo: motivoFinal }
+          ? { ...r, resena_estado: 'descartado', resena_solicitada_at: null, resena_descarte_motivo: motivoFinal }
           : r
         )
       );
+      setSelectedIds(prev => {
+        if (!prev.has(ingresoADescartar.id)) return prev;
+        const next = new Set(prev);
+        next.delete(ingresoADescartar.id);
+        return next;
+      });
       setIngresoADescartar(null);
       setMotivoDescarte('');
     } catch (e: any) {
@@ -381,6 +394,76 @@ const CRM: React.FC = () => {
     } finally {
       setModalLoading(false);
       setUpdatingId(null);
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = (ids: string[]) => {
+    setSelectedIds(prev => {
+      const allSelected = ids.every(id => prev.has(id));
+      const next = new Set(prev);
+      if (allSelected) {
+        ids.forEach(id => next.delete(id));
+      } else {
+        ids.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleAbrirBulkDescartar = () => {
+    if (selectedIds.size === 0) return;
+    setBulkMotivoDescarte('');
+    setShowBulkDescartarModal(true);
+  };
+
+  const handleConfirmarBulkDescarte = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    const idsArray = Array.from(selectedIds);
+    const motivoFinal = bulkMotivoDescarte.trim() || null;
+    try {
+      await api.post('/crm/resenas/bulk-descartar', {
+        ids: idsArray,
+        motivo: motivoFinal,
+      });
+
+      setResenas(prev =>
+        prev.map(r =>
+          selectedIds.has(r.id)
+            ? {
+                ...r,
+                resena_estado: 'descartado',
+                resena_solicitada_at: null,
+                resena_descarte_motivo: motivoFinal,
+              }
+            : r
+        )
+      );
+
+      setSelectedIds(new Set());
+      setShowBulkDescartarModal(false);
+      setBulkMotivoDescarte('');
+    } catch (e: any) {
+      console.error('[CRM] Error al descartar reseñas en lote:', e);
+      alert('Error al descartar las reseñas seleccionadas: ' + (e.response?.data?.error || e.message));
+    } finally {
+      setBulkLoading(false);
     }
   };
 
@@ -550,6 +633,11 @@ const CRM: React.FC = () => {
           loading={loadingResenas}
           resenas={resenasFiltradas}
           updatingId={updatingId}
+          selectedIds={selectedIds}
+          onToggleSelect={handleToggleSelect}
+          onSelectAll={handleSelectAll}
+          onClearSelection={handleClearSelection}
+          onOpenBulkDescartar={handleAbrirBulkDescartar}
           onAbrir={handleAbrirWhatsAppResena}
           onConfirmar={handleConfirmarResena}
           onDeshacer={handleDeshacerResena}
@@ -660,6 +748,92 @@ const CRM: React.FC = () => {
         )}
       </ModalConfirmacion>
 
+      {/* ── Modal Descartar Reseñas en Lote ── */}
+      <ModalConfirmacion
+        isOpen={showBulkDescartarModal}
+        onClose={() => {
+          if (!bulkLoading) {
+            setShowBulkDescartarModal(false);
+            setBulkMotivoDescarte('');
+          }
+        }}
+        onConfirm={handleConfirmarBulkDescarte}
+        loading={bulkLoading}
+        tipo="danger"
+        title={`¿Descartar ${selectedIds.size} solicitudes de reseña?`}
+        description="Estas órdenes se retirarán de las reseñas pendientes porque no se van a solicitar."
+        confirmText={`Sí, descartar (${selectedIds.size})`}
+        cancelText="Volver"
+      >
+        <div className="space-y-3.5 my-2">
+          {/* Resumen de órdenes seleccionadas */}
+          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 space-y-2">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Órdenes seleccionadas ({selectedIds.size}):
+            </p>
+            <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+              {resenas
+                .filter(r => selectedIds.has(r.id))
+                .map(item => (
+                  <div
+                    key={item.id}
+                    className="flex justify-between items-center bg-white border border-slate-200/70 rounded-xl px-2.5 py-1 text-xs"
+                  >
+                    <span className="font-semibold text-slate-800 truncate mr-2">
+                      {item.taller_vehiculos?.taller_clientes?.nombre_completo}
+                    </span>
+                    <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md text-[11px] shrink-0">
+                      {item.taller_vehiculos?.placa}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Selector de motivo y nota para el lote */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+            <label className="block text-xs font-bold text-slate-700">
+              ¿Por qué descartas estas órdenes? <span className="text-slate-400 font-normal">(opcional)</span>
+            </label>
+
+            {/* Chips rápidos */}
+            <div className="flex flex-wrap gap-1.5">
+              {OPCIONES_MOTIVO_DESCARTE.map(opcion => {
+                const seleccionado = bulkMotivoDescarte === opcion;
+                return (
+                  <button
+                    key={opcion}
+                    type="button"
+                    onClick={() => setBulkMotivoDescarte(seleccionado ? '' : opcion)}
+                    className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors text-left cursor-pointer ${
+                      seleccionado
+                        ? 'bg-red-50 border-red-300 text-red-700 font-semibold'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                    }`}
+                  >
+                    {opcion}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Campo para escribir nota libre */}
+            <textarea
+              value={bulkMotivoDescarte}
+              onChange={e => setBulkMotivoDescarte(e.target.value)}
+              placeholder="Escribe o personaliza el motivo para todo el lote (ej: depuración masiva, sin contacto)..."
+              rows={2}
+              maxLength={250}
+              className="w-full text-xs p-2.5 border border-slate-200 rounded-xl outline-indigo-500 bg-slate-50/60 focus:bg-white resize-none text-slate-800 placeholder:text-slate-400 transition"
+            />
+          </div>
+
+          <p className="text-[11px] text-slate-500 bg-amber-50/80 border border-amber-200/60 rounded-xl p-2.5">
+            💡 <strong>Nota:</strong> No se enviará ningún mensaje. La nota quedará registrada en cada orden descartada y podrás restaurar cualquiera de ellas individualmente desde <em>"Ver descartadas"</em>.
+          </p>
+        </div>
+      </ModalConfirmacion>
+
       {/* ── Modal No Contactar Más (Ley 1581) ── */}
       <ModalConfirmacion
         isOpen={!!clienteANoContactar}
@@ -702,6 +876,11 @@ interface TabResenasProps {
   loading: boolean;
   resenas: ResenaIngreso[];
   updatingId: string | null;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onSelectAll: (ids: string[]) => void;
+  onClearSelection: () => void;
+  onOpenBulkDescartar: () => void;
   onAbrir: (ingreso: ResenaIngreso) => void;
   onConfirmar: (ingreso: ResenaIngreso) => void;
   onDeshacer: (ingreso: ResenaIngreso) => void;
@@ -710,7 +889,19 @@ interface TabResenasProps {
 }
 
 const TabResenas: React.FC<TabResenasProps> = ({
-  loading, resenas, updatingId, onAbrir, onConfirmar, onDeshacer, onDescartar, onNoContactar,
+  loading,
+  resenas,
+  updatingId,
+  selectedIds,
+  onToggleSelect,
+  onSelectAll,
+  onClearSelection,
+  onOpenBulkDescartar,
+  onAbrir,
+  onConfirmar,
+  onDeshacer,
+  onDescartar,
+  onNoContactar,
 }) => {
   const [mostrarDescartados, setMostrarDescartados] = useState(false);
 
@@ -720,6 +911,10 @@ const TabResenas: React.FC<TabResenasProps> = ({
   const intentados = resenas.filter(r => r.resena_estado === 'intentado');
   const confirmados = resenas.filter(r => r.resena_estado === 'confirmado');
   const descartados = resenas.filter(r => r.resena_estado === 'descartado');
+
+  const elegibles = resenas.filter(r => r.resena_estado !== 'descartado');
+  const todosElegiblesSeleccionados = elegibles.length > 0 && elegibles.every(e => selectedIds.has(e.id));
+  const selectedCount = selectedIds.size;
 
   const grupos = [
     { label: 'Pendientes de enviar', items: pendientes, color: 'text-slate-700' },
@@ -738,7 +933,53 @@ const TabResenas: React.FC<TabResenasProps> = ({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Barra de herramientas / Selección masiva */}
+      {elegibles.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={todosElegiblesSeleccionados}
+                onChange={() => onSelectAll(elegibles.map(e => e.id))}
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+              />
+              <span>
+                {todosElegiblesSeleccionados ? 'Deseleccionar todas' : 'Seleccionar todas las activas'}
+                <span className="text-slate-400 font-normal ml-1">({elegibles.length})</span>
+              </span>
+            </label>
+
+            {selectedCount > 0 && (
+              <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-lg border border-indigo-200/60">
+                {selectedCount} seleccionada{selectedCount !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {selectedCount > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClearSelection}
+                className="text-xs text-slate-500 hover:text-slate-700 font-medium px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Limpiar
+              </button>
+              <button
+                type="button"
+                onClick={onOpenBulkDescartar}
+                className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 size={13} />
+                Descartar ({selectedCount})
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {grupos.map(grupo => grupo.items.length > 0 && (
         <div key={grupo.label}>
           <h2 className={`text-sm font-bold uppercase tracking-wider mb-4 ${grupo.color}`}>{grupo.label}</h2>
@@ -748,6 +989,8 @@ const TabResenas: React.FC<TabResenasProps> = ({
                 key={ingreso.id}
                 ingreso={ingreso}
                 updating={updatingId === ingreso.id}
+                isSelected={selectedIds.has(ingreso.id)}
+                onToggleSelect={onToggleSelect}
                 onAbrir={onAbrir}
                 onConfirmar={onConfirmar}
                 onDeshacer={onDeshacer}
@@ -763,7 +1006,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
         <div className="pt-6 border-t border-slate-200">
           <button
             onClick={() => setMostrarDescartados(prev => !prev)}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
           >
             <Trash2 size={13} />
             {mostrarDescartados ? 'Ocultar' : 'Ver'} descartadas ({descartados.length})
@@ -777,6 +1020,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
                   key={ingreso.id}
                   ingreso={ingreso}
                   updating={updatingId === ingreso.id}
+                  isSelected={false}
                   onAbrir={onAbrir}
                   onConfirmar={onConfirmar}
                   onDeshacer={onDeshacer}
@@ -788,6 +1032,36 @@ const TabResenas: React.FC<TabResenasProps> = ({
           )}
         </div>
       )}
+
+      {/* Barra flotante de acciones masivas */}
+      {selectedCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-700/80 backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse" />
+            <span>
+              <strong className="text-white">{selectedCount}</strong> orden{selectedCount !== 1 ? 'es' : ''} seleccionada{selectedCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="h-4 w-px bg-slate-700" />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClearSelection}
+              className="text-xs text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={onOpenBulkDescartar}
+              className="bg-red-600 hover:bg-red-500 text-white font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs shadow-md transition-colors cursor-pointer"
+            >
+              <Trash2 size={13} />
+              Descartar seleccionadas
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -797,6 +1071,8 @@ const TabResenas: React.FC<TabResenasProps> = ({
 interface TarjetaResenaProps {
   ingreso: ResenaIngreso;
   updating: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
   onAbrir: (ingreso: ResenaIngreso) => void;
   onConfirmar: (ingreso: ResenaIngreso) => void;
   onDeshacer: (ingreso: ResenaIngreso) => void;
@@ -805,7 +1081,7 @@ interface TarjetaResenaProps {
 }
 
 const TarjetaResena: React.FC<TarjetaResenaProps> = ({
-  ingreso, updating, onAbrir, onConfirmar, onDeshacer, onDescartar, onNoContactar,
+  ingreso, updating, isSelected, onToggleSelect, onAbrir, onConfirmar, onDeshacer, onDescartar, onNoContactar,
 }) => {
   const cliente = ingreso.taller_vehiculos.taller_clientes;
   const vehiculo = ingreso.taller_vehiculos;
@@ -824,16 +1100,33 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
   );
 
   return (
-    <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-shadow hover:shadow-md ${
-      estado === 'confirmado' ? 'border-emerald-200 opacity-75' : estado === 'descartado' ? 'border-slate-200 bg-slate-50/60 opacity-80' : 'border-slate-200'
+    <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all ${
+      isSelected
+        ? 'border-indigo-400 ring-2 ring-indigo-500/25 bg-indigo-50/15 shadow-sm'
+        : estado === 'confirmado'
+        ? 'border-emerald-200 opacity-75'
+        : estado === 'descartado'
+        ? 'border-slate-200 bg-slate-50/60 opacity-80'
+        : 'border-slate-200 hover:shadow-md'
     }`}>
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
-        <div>
-          <h3 className="font-bold text-slate-800">{cliente.nombre_completo}</h3>
-          <p className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
-            <Phone size={12} /> {cliente.telefono || 'Sin teléfono'}
-          </p>
+        <div className="flex items-start gap-2.5">
+          {estado !== 'descartado' && onToggleSelect && (
+            <input
+              type="checkbox"
+              checked={!!isSelected}
+              onChange={() => onToggleSelect(ingreso.id)}
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer shrink-0"
+              title="Seleccionar para descartar"
+            />
+          )}
+          <div>
+            <h3 className="font-bold text-slate-800">{cliente.nombre_completo}</h3>
+            <p className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
+              <Phone size={12} /> {cliente.telefono || 'Sin teléfono'}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg ${estadoConfig.cls}`}>
@@ -844,7 +1137,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
               onClick={() => onDescartar(ingreso)}
               disabled={updating}
               title="Borrar / descartar reseña (no se va a hacer)"
-              className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-colors"
+              className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-colors cursor-pointer"
             >
               <Trash2 size={15} />
             </button>

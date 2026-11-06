@@ -314,6 +314,68 @@ export const descartarResena = async (req: Request, res: Response): Promise<void
   }
 };
 
+// ─── Descartar múltiples reseñas en lote ──────────────────────────────────
+// POST /api/crm/resenas/bulk-descartar
+export const bulkDescartarResenas = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { ids, motivo } = req.body || {};
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ error: 'Se requiere una lista no vacía de IDs para descartar.' });
+      return;
+    }
+
+    const validIds = ids.filter((id) => typeof id === 'string' && id.trim().length > 0);
+    if (validIds.length === 0) {
+      res.status(400).json({ error: 'No se enviaron IDs válidos.' });
+      return;
+    }
+
+    const motivoFinal = typeof motivo === 'string' && motivo.trim() ? motivo.trim() : null;
+
+    let { error } = await supabase
+      .from('taller_ingresos')
+      .update({
+        resena_estado: 'descartado',
+        resena_solicitada_at: null,
+        resena_descarte_motivo: motivoFinal,
+      })
+      .in('id', validIds)
+      .eq('empresa_id', req.empresa_id);
+
+    if (error && (error.message?.includes('resena_descarte_motivo') || error.code === '42703')) {
+      const retry = await supabase
+        .from('taller_ingresos')
+        .update({
+          resena_estado: 'descartado',
+          resena_solicitada_at: null,
+        })
+        .in('id', validIds)
+        .eq('empresa_id', req.empresa_id);
+      error = retry.error;
+    }
+
+    if (error) {
+      if (error.message?.includes('taller_ingresos_resena_estado_check')) {
+        res.status(400).json({
+          error: 'Restricción de base de datos: ejecute la migración docs/migrations/20261106_allow_resena_descartada.sql para permitir el estado descartado.',
+        });
+        return;
+      }
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      descartados: validIds.length,
+      ids: validIds,
+      motivo: motivoFinal,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ─── Config CRM de la empresa (Google URL + intervalos) ──────────────────────
 // GET /api/crm/config
 export const getCrmConfig = async (req: Request, res: Response): Promise<void> => {
