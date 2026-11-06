@@ -3,7 +3,7 @@ import {
   Target, Search, Phone, Loader2, MessageCircle,
   Star, CheckCircle2, Clock, Undo2, Settings2,
   AlertTriangle, BellOff, ChevronDown, ChevronUp,
-  RefreshCw, Save, X
+  RefreshCw, Save, X, Trash2
 } from 'lucide-react';
 import api from '../services/api';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
@@ -25,7 +25,7 @@ interface CrmConfig {
 interface ResenaIngreso {
   id: string;
   fecha_ingreso: string;
-  resena_estado: 'pendiente' | 'intentado' | 'confirmado';
+  resena_estado: 'pendiente' | 'intentado' | 'confirmado' | 'descartado';
   resena_solicitada_at: string | null;
   updated_at: string;
   motivo_visita?: string;
@@ -230,6 +230,29 @@ const CRM: React.FC = () => {
     }
   };
 
+  const handleDescartarResena = async (ingreso: ResenaIngreso) => {
+    const placa = ingreso.taller_vehiculos?.placa || 'este vehículo';
+    if (!window.confirm(`¿Descartar la reseña de la placa ${placa}? Se quitará de la lista porque no se solicitará.`)) {
+      return;
+    }
+
+    setUpdatingId(ingreso.id);
+    try {
+      await api.post(`/crm/resenas/${ingreso.id}/descartar`);
+      setResenas(prev =>
+        prev.map(r => r.id === ingreso.id
+          ? { ...r, resena_estado: 'descartado' }
+          : r
+        )
+      );
+    } catch (e: any) {
+      console.error('[CRM] Error descartando reseña:', e);
+      alert('Error al descartar la reseña: ' + (e.response?.data?.error || e.message));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const handleNoContactar = async (clienteId: string) => {
     if (!window.confirm('¿Dar de baja a este cliente de mensajes de WhatsApp? Se excluirá de ambas pestañas de CRM (Ley 1581).')) return;
     try {
@@ -389,6 +412,7 @@ const CRM: React.FC = () => {
           onAbrir={handleAbrirWhatsAppResena}
           onConfirmar={handleConfirmarResena}
           onDeshacer={handleDeshacerResena}
+          onDescartar={handleDescartarResena}
           onNoContactar={handleNoContactar}
         />
       )}
@@ -430,17 +454,21 @@ interface TabResenasProps {
   onAbrir: (ingreso: ResenaIngreso) => void;
   onConfirmar: (ingreso: ResenaIngreso) => void;
   onDeshacer: (ingreso: ResenaIngreso) => void;
+  onDescartar: (ingreso: ResenaIngreso) => void;
   onNoContactar: (clienteId: string, ingresosIds: string[]) => void;
 }
 
 const TabResenas: React.FC<TabResenasProps> = ({
-  loading, resenas, updatingId, onAbrir, onConfirmar, onDeshacer, onNoContactar,
+  loading, resenas, updatingId, onAbrir, onConfirmar, onDeshacer, onDescartar, onNoContactar,
 }) => {
+  const [mostrarDescartados, setMostrarDescartados] = useState(false);
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-indigo-500 w-10 h-10" /></div>;
 
-  const pendientes = resenas.filter(r => r.resena_estado === 'pendiente');
+  const pendientes = resenas.filter(r => r.resena_estado === 'pendiente' || !r.resena_estado);
   const intentados = resenas.filter(r => r.resena_estado === 'intentado');
   const confirmados = resenas.filter(r => r.resena_estado === 'confirmado');
+  const descartados = resenas.filter(r => r.resena_estado === 'descartado');
 
   const grupos = [
     { label: 'Pendientes de enviar', items: pendientes, color: 'text-slate-700' },
@@ -448,7 +476,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
     { label: 'Confirmados ✅', items: confirmados, color: 'text-emerald-700' },
   ];
 
-  if (resenas.length === 0) {
+  if (resenas.length === 0 || (pendientes.length === 0 && intentados.length === 0 && confirmados.length === 0 && descartados.length === 0)) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-500">
         <Star className="mx-auto text-slate-300 w-16 h-16 mb-4" />
@@ -472,12 +500,43 @@ const TabResenas: React.FC<TabResenasProps> = ({
                 onAbrir={onAbrir}
                 onConfirmar={onConfirmar}
                 onDeshacer={onDeshacer}
+                onDescartar={onDescartar}
                 onNoContactar={onNoContactar}
               />
             ))}
           </div>
         </div>
       ))}
+
+      {descartados.length > 0 && (
+        <div className="pt-6 border-t border-slate-200">
+          <button
+            onClick={() => setMostrarDescartados(prev => !prev)}
+            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <Trash2 size={13} />
+            {mostrarDescartados ? 'Ocultar' : 'Ver'} descartadas ({descartados.length})
+            {mostrarDescartados ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+
+          {mostrarDescartados && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+              {descartados.map(ingreso => (
+                <TarjetaResena
+                  key={ingreso.id}
+                  ingreso={ingreso}
+                  updating={updatingId === ingreso.id}
+                  onAbrir={onAbrir}
+                  onConfirmar={onConfirmar}
+                  onDeshacer={onDeshacer}
+                  onDescartar={onDescartar}
+                  onNoContactar={onNoContactar}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -490,11 +549,12 @@ interface TarjetaResenaProps {
   onAbrir: (ingreso: ResenaIngreso) => void;
   onConfirmar: (ingreso: ResenaIngreso) => void;
   onDeshacer: (ingreso: ResenaIngreso) => void;
+  onDescartar: (ingreso: ResenaIngreso) => void;
   onNoContactar: (clienteId: string, ingresosIds: string[]) => void;
 }
 
 const TarjetaResena: React.FC<TarjetaResenaProps> = ({
-  ingreso, updating, onAbrir, onConfirmar, onDeshacer, onNoContactar,
+  ingreso, updating, onAbrir, onConfirmar, onDeshacer, onDescartar, onNoContactar,
 }) => {
   const cliente = ingreso.taller_vehiculos.taller_clientes;
   const vehiculo = ingreso.taller_vehiculos;
@@ -504,7 +564,8 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
     pendiente: { icon: <Clock size={14} />, label: 'Pendiente', cls: 'bg-slate-100 text-slate-600' },
     intentado: { icon: <Clock size={14} />, label: 'Enviado (confirmar)', cls: 'bg-amber-100 text-amber-700' },
     confirmado: { icon: <CheckCircle2 size={14} />, label: 'Confirmado', cls: 'bg-emerald-100 text-emerald-700' },
-  }[estado];
+    descartado: { icon: <X size={14} />, label: 'Descartado', cls: 'bg-slate-100 text-slate-500' },
+  }[estado] || { icon: <Clock size={14} />, label: 'Pendiente', cls: 'bg-slate-100 text-slate-600' };
 
   const diasDesdeEntrega = Math.floor(
     (Date.now() - new Date(ingreso.updated_at).getTime()) / 86_400_000
@@ -512,7 +573,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
 
   return (
     <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-shadow hover:shadow-md ${
-      estado === 'confirmado' ? 'border-emerald-200 opacity-75' : 'border-slate-200'
+      estado === 'confirmado' ? 'border-emerald-200 opacity-75' : estado === 'descartado' ? 'border-slate-200 bg-slate-50/60 opacity-80' : 'border-slate-200'
     }`}>
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
@@ -522,9 +583,21 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
             <Phone size={12} /> {cliente.telefono || 'Sin teléfono'}
           </p>
         </div>
-        <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg ${estadoConfig.cls}`}>
-          {estadoConfig.icon} {estadoConfig.label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg ${estadoConfig.cls}`}>
+            {estadoConfig.icon} {estadoConfig.label}
+          </span>
+          {estado !== 'descartado' && (
+            <button
+              onClick={() => onDescartar(ingreso)}
+              disabled={updating}
+              title="Borrar / descartar reseña (no se va a hacer)"
+              className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-colors"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Vehículo */}
@@ -549,12 +622,22 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
             {updating ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
             Pedir reseña por WhatsApp
           </button>
-          <button
-            onClick={() => onNoContactar(cliente.id, [ingreso.id])}
-            className="w-full text-xs text-slate-400 hover:text-red-500 flex items-center justify-center gap-1 py-1 transition-colors"
-          >
-            <BellOff size={12} /> No contactar más
-          </button>
+          <div className="flex items-center justify-between pt-1 px-1">
+            <button
+              onClick={() => onDescartar(ingreso)}
+              disabled={updating}
+              className="text-xs text-slate-400 hover:text-red-600 flex items-center gap-1 py-1 transition-colors"
+              title="Borrar card porque no se va a pedir reseña"
+            >
+              <Trash2 size={12} /> Descartar
+            </button>
+            <button
+              onClick={() => onNoContactar(cliente.id, [ingreso.id])}
+              className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 py-1 transition-colors"
+            >
+              <BellOff size={12} /> No contactar más
+            </button>
+          </div>
         </div>
       )}
 
@@ -580,13 +663,22 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
               <Undo2 size={14} /> Deshacer
             </button>
           </div>
-          <button
-            onClick={() => onAbrir(ingreso)}
-            disabled={updating || !cliente.telefono}
-            className="w-full text-xs text-[#25D366] hover:underline flex items-center justify-center gap-1 py-1"
-          >
-            <MessageCircle size={12} /> Reintentar WhatsApp
-          </button>
+          <div className="flex items-center justify-between pt-1 px-1">
+            <button
+              onClick={() => onDescartar(ingreso)}
+              disabled={updating}
+              className="text-xs text-slate-400 hover:text-red-600 flex items-center gap-1 py-1 transition-colors"
+            >
+              <Trash2 size={12} /> Descartar
+            </button>
+            <button
+              onClick={() => onAbrir(ingreso)}
+              disabled={updating || !cliente.telefono}
+              className="text-xs text-[#25D366] hover:underline flex items-center gap-1 py-1"
+            >
+              <MessageCircle size={12} /> Reintentar WhatsApp
+            </button>
+          </div>
         </div>
       )}
 
@@ -598,11 +690,32 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
           {ingreso.resena_solicitada_at && (
             <p className="text-xs text-slate-400 mt-1">{formatFecha(ingreso.resena_solicitada_at)}</p>
           )}
+          <div className="flex items-center justify-center gap-4 mt-2">
+            <button
+              onClick={() => onDeshacer(ingreso)}
+              className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1"
+            >
+              <Undo2 size={11} /> Deshacer
+            </button>
+            <button
+              onClick={() => onDescartar(ingreso)}
+              className="text-xs text-slate-400 hover:text-red-600 flex items-center gap-1"
+            >
+              <Trash2 size={11} /> Descartar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {estado === 'descartado' && (
+        <div className="space-y-2 pt-1 text-center">
+          <p className="text-xs text-slate-400">Reseña descartada (no se solicitará)</p>
           <button
             onClick={() => onDeshacer(ingreso)}
-            className="text-xs text-slate-400 hover:text-slate-600 mt-2 flex items-center justify-center gap-1 w-full"
+            disabled={updating}
+            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-xl flex items-center justify-center gap-1 text-xs transition-colors"
           >
-            <Undo2 size={11} /> Deshacer
+            <Undo2 size={14} /> Restaurar a pendientes
           </button>
         </div>
       )}

@@ -21,7 +21,7 @@ ALTER TABLE taller_clientes
 -- 3. Columnas en taller_ingresos
 ALTER TABLE taller_ingresos
   ADD COLUMN IF NOT EXISTS resena_estado VARCHAR(20) DEFAULT 'pendiente'
-    CHECK (resena_estado IN ('pendiente', 'intentado', 'confirmado')),
+    CHECK (resena_estado IN ('pendiente', 'intentado', 'confirmado', 'descartado')),
   ADD COLUMN IF NOT EXISTS resena_solicitada_at TIMESTAMPTZ;
 
 -- 4. Vista en tiempo real (reemplaza la vista anterior)

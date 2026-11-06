@@ -5,6 +5,7 @@ import {
   marcarResenaIntentado,
   confirmarResena,
   deshacerResena,
+  descartarResena,
   getCrmConfig,
   updateCrmConfig,
   toggleNoContactar,
@@ -21,6 +22,7 @@ router.get('/resenas', requireAuth, getResenasPendientes);
 router.post('/resenas/:id/intentar', requireAuth, marcarResenaIntentado);
 router.post('/resenas/:id/confirmar', requireAuth, confirmarResena);
 router.post('/resenas/:id/deshacer', requireAuth, deshacerResena);
+router.post('/resenas/:id/descartar', requireAuth, descartarResena);
 
 // Configuración CRM
 router.get('/config', requireAuth, getCrmConfig);

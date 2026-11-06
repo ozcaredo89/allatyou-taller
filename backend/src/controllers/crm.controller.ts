@@ -229,6 +229,36 @@ export const deshacerResena = async (req: Request, res: Response): Promise<void>
   }
 };
 
+// ─── Descartar reseña (no se va a solicitar) ──────────────────────────────
+// POST /api/crm/resenas/:id/descartar
+export const descartarResena = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('taller_ingresos')
+      .update({
+        resena_estado: 'descartado',
+        resena_solicitada_at: null,
+      })
+      .eq('id', id)
+      .eq('empresa_id', req.empresa_id);
+
+    if (error) {
+      if (error.message?.includes('taller_ingresos_resena_estado_check')) {
+        res.status(400).json({
+          error: 'Restricción de base de datos: ejecute la migración docs/migrations/20261106_allow_resena_descartada.sql para permitir el estado descartado.',
+        });
+        return;
+      }
+      throw error;
+    }
+    res.json({ success: true, estado: 'descartado' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ─── Config CRM de la empresa (Google URL + intervalos) ──────────────────────
 // GET /api/crm/config
 export const getCrmConfig = async (req: Request, res: Response): Promise<void> => {
