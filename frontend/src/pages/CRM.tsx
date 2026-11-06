@@ -3,7 +3,7 @@ import {
   Target, Search, Phone, Loader2, MessageCircle,
   Star, CheckCircle2, Clock, Undo2, Settings2,
   AlertTriangle, BellOff, ChevronDown, ChevronUp,
-  RefreshCw, Save, X, Trash2
+  RefreshCw, Save, X, Trash2, AlertCircle
 } from 'lucide-react';
 import api from '../services/api';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
@@ -28,9 +28,17 @@ interface ResenaIngreso {
   fecha_ingreso: string;
   resena_estado: 'pendiente' | 'intentado' | 'confirmado' | 'descartado';
   resena_solicitada_at: string | null;
+  resena_descarte_motivo?: string | null;
   updated_at: string;
   motivo_visita?: string;
-  items_factura?: Array<{ descripcion: string }>;
+  diagnostico_mecanico?: Record<string, any>;
+  items_factura?: Array<{
+    id?: string;
+    descripcion: string;
+    tipo?: string;
+    categoria_crm?: string;
+    [key: string]: any;
+  }>;
   taller_vehiculos: {
     id: string;
     placa: string;
@@ -91,6 +99,117 @@ function formatFecha(iso: string) {
   return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+export const OPCIONES_MOTIVO_DESCARTE = [
+  'No tiene WhatsApp',
+  'Número equivocado o inactivo',
+  'Cliente no desea ser contactado',
+  'Inconformidad o reclamo pendiente',
+  'Vehículo de empresa / flota',
+];
+
+/**
+ * Detecta qué trabajo, reparación o diagnóstico principal se realizó en el vehículo
+ */
+export function detectarResumenServicio(ingreso: ResenaIngreso): string {
+  const items = Array.isArray(ingreso.items_factura) ? ingreso.items_factura : [];
+  
+  // Priorizar mano de obra
+  const itemsManoObra = items.filter(it => it.tipo === 'mano_obra' && it.descripcion?.trim());
+  const itemsRelevantes = itemsManoObra.length > 0 ? itemsManoObra : items.filter(it => it.descripcion?.trim());
+
+  if (itemsRelevantes.length > 0) {
+    const nombres = itemsRelevantes
+      .slice(0, 2)
+      .map(it => it.descripcion.trim().replace(/[.,;]+$/, ''))
+      .filter(Boolean);
+
+    if (nombres.length === 1) return nombres[0];
+    if (nombres.length >= 2) return `${nombres[0]} y ${nombres[1]}`;
+  }
+
+  // Diagnóstico mecánico
+  if (ingreso.diagnostico_mecanico) {
+    const nombresSistemas: Record<string, string> = {
+      frenos: 'el sistema de frenos',
+      motor: 'el motor',
+      suspension: 'la suspensión',
+      direccion: 'la dirección',
+      aire_acondicionado: 'el aire acondicionado',
+      rodamientos: 'los rodamientos',
+      lubricacion: 'la lubricación y cambio de aceite',
+      interior_y_accesorios: 'los accesorios',
+      lavado: 'el alistamiento',
+      pintura: 'la latonería y pintura',
+    };
+
+    const fallas = Object.entries(ingreso.diagnostico_mecanico)
+      .filter(([_, val]: any) => val && (val.estado === 'danado' || val.estado === 'revisar'))
+      .map(([key]) => nombresSistemas[key] || key);
+
+    if (fallas.length === 1) return `trabajo en ${fallas[0]}`;
+    if (fallas.length >= 2) return `trabajos en ${fallas[0]} y ${fallas[1]}`;
+  }
+
+  // Motivo de visita
+  if (ingreso.motivo_visita?.trim()) {
+    const motivo = ingreso.motivo_visita.trim().replace(/[.,;]+$/, '');
+    if (motivo.length <= 40) return motivo;
+  }
+
+  return '';
+}
+
+/**
+ * Construye el mensaje de WhatsApp para solicitar reseña de Google:
+ * 1. Sin placa ni modelo del carro; menciona únicamente "su vehículo".
+ * 2. Basado en el diagnóstico y lo que se arregló.
+ * 3. Formulado con una pregunta contextual acorde al trabajo.
+ */
+export function construirMensajeResena(
+  ingreso: ResenaIngreso,
+  nombreTaller: string,
+  googleUrl: string | null
+): string {
+  const cliente = ingreso.taller_vehiculos?.taller_clientes;
+  const nombreCliente = cliente?.nombre_completo?.trim() || 'estimado cliente';
+
+  const detalle = detectarResumenServicio(ingreso);
+
+  // 1. Personalizar la pregunta contextual según el servicio
+  let preguntaContextual = '¿Ha sentido que todo marcha en óptimas condiciones y a su entera satisfacción?';
+  const textoParaAnalisis = (detalle || '').toLowerCase();
+
+  if (textoParaAnalisis.includes('freno')) {
+    preguntaContextual = '¿Cómo ha sentido la respuesta, suavidad y seguridad en el frenado?';
+  } else if (textoParaAnalisis.includes('aceite') || textoParaAnalisis.includes('lubric') || textoParaAnalisis.includes('motor')) {
+    preguntaContextual = '¿Cómo ha sentido la fuerza, suavidad y rendimiento del motor?';
+  } else if (textoParaAnalisis.includes('suspensi') || textoParaAnalisis.includes('amortiguad') || textoParaAnalisis.includes('direcci') || textoParaAnalisis.includes('alineaci')) {
+    preguntaContextual = '¿Cómo ha sentido la estabilidad, suavidad y confort al volante?';
+  } else if (textoParaAnalisis.includes('aire') || textoParaAnalisis.includes('a/c') || textoParaAnalisis.includes('clima')) {
+    preguntaContextual = '¿Cómo ha sentido la temperatura y el confort del aire acondicionado?';
+  } else if (detalle) {
+    preguntaContextual = '¿Ha sentido el vehículo funcionando a la perfección tras este arreglo?';
+  }
+
+  // 2. Conector gramatical natural para la oración
+  let conectorTrabajo = 'tras el servicio y mantenimiento realizado en nuestro taller';
+  if (detalle) {
+    const dLower = detalle.toLowerCase();
+    if (dLower.startsWith('el ') || dLower.startsWith('la ') || dLower.startsWith('los ') || dLower.startsWith('las ')) {
+      conectorTrabajo = `tras ${dLower}`;
+    } else if (dLower.startsWith('cambio') || dLower.startsWith('ajuste') || dLower.startsWith('mantenimiento') || dLower.startsWith('servicio') || dLower.startsWith('trabajo')) {
+      conectorTrabajo = `tras el ${dLower}`;
+    } else if (dLower.startsWith('reparación') || dLower.startsWith('revisión') || dLower.startsWith('alineación') || dLower.startsWith('sincronización') || dLower.startsWith('limpieza')) {
+      conectorTrabajo = `tras la ${dLower}`;
+    } else {
+      conectorTrabajo = `tras el arreglo de ${dLower}`;
+    }
+  }
+
+  // 3. Redacción final
+  return `Hola ${nombreCliente}, le saluda el equipo de ${nombreTaller}. Esperamos que se encuentre muy bien 🙌\n\nQueríamos preguntarle: ¿cómo ha sentido su vehículo ${conectorTrabajo}? ${preguntaContextual}${googleUrl ? `\n\nSi está a gusto con el servicio y tiene un minuto, nos ayudaría muchísimo que nos compartiera su opinión en Google: ${googleUrl}` : ''}\n\nY si nota cualquier detalle o algo no quedó exactamente como esperaba, cuéntenos por aquí mismo y con gusto lo revisamos de inmediato. 🔧 ¡Muchas gracias por confiar en nosotros!`;
+}
+
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
 const CRM: React.FC = () => {
@@ -119,6 +238,7 @@ const CRM: React.FC = () => {
 
   // Modales de confirmación personalizados
   const [ingresoADescartar, setIngresoADescartar] = useState<ResenaIngreso | null>(null);
+  const [motivoDescarte, setMotivoDescarte] = useState('');
   const [clienteANoContactar, setClienteANoContactar] = useState<{ id: string; nombre: string } | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
 
@@ -177,11 +297,10 @@ const CRM: React.FC = () => {
 
   const handleAbrirWhatsAppResena = async (ingreso: ResenaIngreso) => {
     const cliente = ingreso.taller_vehiculos.taller_clientes;
-    const vehiculo = ingreso.taller_vehiculos;
     const nombreTaller = config?.nombre || empresaNombre;
     const googleUrl = config?.google_review_url;
 
-    const mensaje = `Hola ${cliente.nombre_completo}, te saluda el equipo de ${nombreTaller}. Gracias por confiar en nosotros con tu ${vehiculo.marca} ${vehiculo.linea} (Placa ${vehiculo.placa}) 🙌${googleUrl ? `\n\nSi tienes un minuto, nos ayudaría muchísimo tu opinión en Google: ${googleUrl}` : ''}\n\nY si algo no quedó como esperabas, cuéntanos por aquí mismo y lo solucionamos de inmediato. 🔧`;
+    const mensaje = construirMensajeResena(ingreso, nombreTaller, googleUrl);
 
     window.open(generarLinkWhatsApp(cliente.telefono, mensaje), '_blank');
 
@@ -225,7 +344,7 @@ const CRM: React.FC = () => {
       await api.post(`/crm/resenas/${ingreso.id}/deshacer`);
       setResenas(prev =>
         prev.map(r => r.id === ingreso.id
-          ? { ...r, resena_estado: 'pendiente', resena_solicitada_at: null }
+          ? { ...r, resena_estado: 'pendiente', resena_solicitada_at: null, resena_descarte_motivo: null }
           : r
         )
       );
@@ -238,21 +357,24 @@ const CRM: React.FC = () => {
 
   const handleDescartarResena = (ingreso: ResenaIngreso) => {
     setIngresoADescartar(ingreso);
+    setMotivoDescarte(ingreso.resena_descarte_motivo || '');
   };
 
   const handleConfirmarDescarte = async () => {
     if (!ingresoADescartar) return;
     setModalLoading(true);
     setUpdatingId(ingresoADescartar.id);
+    const motivoFinal = motivoDescarte.trim() || null;
     try {
-      await api.post(`/crm/resenas/${ingresoADescartar.id}/descartar`);
+      await api.post(`/crm/resenas/${ingresoADescartar.id}/descartar`, { motivo: motivoFinal });
       setResenas(prev =>
         prev.map(r => r.id === ingresoADescartar.id
-          ? { ...r, resena_estado: 'descartado' }
+          ? { ...r, resena_estado: 'descartado', resena_descarte_motivo: motivoFinal }
           : r
         )
       );
       setIngresoADescartar(null);
+      setMotivoDescarte('');
     } catch (e: any) {
       console.error('[CRM] Error descartando reseña:', e);
       alert('Error al descartar la reseña: ' + (e.response?.data?.error || e.message));
@@ -318,12 +440,13 @@ const CRM: React.FC = () => {
   // ─── Filtros ──────────────────────────────────────────────────────────────────
 
   const resenasFiltradas = resenas.filter(r => {
-    const cliente = r.taller_vehiculos.taller_clientes;
+    const cliente = r.taller_vehiculos?.taller_clientes;
     const vehiculo = r.taller_vehiculos;
     const q = searchTerm.toLowerCase();
     return (
-      cliente.nombre_completo?.toLowerCase().includes(q) ||
-      vehiculo.placa?.toLowerCase().includes(q)
+      cliente?.nombre_completo?.toLowerCase().includes(q) ||
+      vehiculo?.placa?.toLowerCase().includes(q) ||
+      (r.resena_descarte_motivo && r.resena_descarte_motivo.toLowerCase().includes(q))
     );
   });
 
@@ -450,7 +573,12 @@ const CRM: React.FC = () => {
       {/* ── Modal Descartar Reseña ── */}
       <ModalConfirmacion
         isOpen={!!ingresoADescartar}
-        onClose={() => { if (!modalLoading) setIngresoADescartar(null); }}
+        onClose={() => {
+          if (!modalLoading) {
+            setIngresoADescartar(null);
+            setMotivoDescarte('');
+          }
+        }}
         onConfirm={handleConfirmarDescarte}
         loading={modalLoading}
         tipo="danger"
@@ -460,33 +588,73 @@ const CRM: React.FC = () => {
         cancelText="Volver"
       >
         {ingresoADescartar && (
-          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 my-2 space-y-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cliente</p>
-                <p className="text-sm font-bold text-slate-800">
-                  {ingresoADescartar.taller_vehiculos.taller_clientes.nombre_completo}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {ingresoADescartar.taller_vehiculos.taller_clientes.telefono || 'Sin teléfono'}
-                </p>
+          <div className="space-y-3.5 my-2">
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cliente</p>
+                  <p className="text-sm font-bold text-slate-800">
+                    {ingresoADescartar.taller_vehiculos.taller_clientes.nombre_completo}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {ingresoADescartar.taller_vehiculos.taller_clientes.telefono || 'Sin teléfono'}
+                  </p>
+                </div>
+                <span className="font-mono font-black text-slate-900 text-sm tracking-widest bg-white border border-slate-200 px-3 py-1 rounded-xl shadow-xs">
+                  {ingresoADescartar.taller_vehiculos.placa}
+                </span>
               </div>
-              <span className="font-mono font-black text-slate-900 text-sm tracking-widest bg-white border border-slate-200 px-3 py-1 rounded-xl shadow-xs">
-                {ingresoADescartar.taller_vehiculos.placa}
-              </span>
+
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 text-xs text-slate-600">
+                <span className="font-semibold uppercase">
+                  {ingresoADescartar.taller_vehiculos.marca} {ingresoADescartar.taller_vehiculos.linea}
+                </span>
+                <span className="text-slate-400">
+                  Entregado {formatFecha(ingresoADescartar.updated_at)}
+                </span>
+              </div>
             </div>
 
-            <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 text-xs text-slate-600">
-              <span className="font-semibold uppercase">
-                {ingresoADescartar.taller_vehiculos.marca} {ingresoADescartar.taller_vehiculos.linea}
-              </span>
-              <span className="text-slate-400">
-                Entregado {formatFecha(ingresoADescartar.updated_at)}
-              </span>
+            {/* Selector de motivo y nota */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+              <label className="block text-xs font-bold text-slate-700">
+                ¿Por qué descartas este card? <span className="text-slate-400 font-normal">(opcional)</span>
+              </label>
+
+              {/* Chips rápidos */}
+              <div className="flex flex-wrap gap-1.5">
+                {OPCIONES_MOTIVO_DESCARTE.map(opcion => {
+                  const seleccionado = motivoDescarte === opcion;
+                  return (
+                    <button
+                      key={opcion}
+                      type="button"
+                      onClick={() => setMotivoDescarte(seleccionado ? '' : opcion)}
+                      className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors text-left ${
+                        seleccionado
+                          ? 'bg-red-50 border-red-300 text-red-700 font-semibold'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                      }`}
+                    >
+                      {opcion}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Campo para escribir nota libre */}
+              <textarea
+                value={motivoDescarte}
+                onChange={e => setMotivoDescarte(e.target.value)}
+                placeholder="Escribe o personaliza el motivo (ej: no tiene WhatsApp, teléfono fijo, etc.)..."
+                rows={2}
+                maxLength={250}
+                className="w-full text-xs p-2.5 border border-slate-200 rounded-xl outline-indigo-500 bg-slate-50/60 focus:bg-white resize-none text-slate-800 placeholder:text-slate-400 transition"
+              />
             </div>
 
             <p className="text-[11px] text-slate-500 bg-amber-50/80 border border-amber-200/60 rounded-xl p-2.5">
-              💡 <strong>Nota:</strong> No se enviará ningún mensaje. Podrás consultar esta orden o restaurarla en cualquier momento desde la sección <em>"Ver descartadas"</em> al final de la lista.
+              💡 <strong>Nota:</strong> No se enviará ningún mensaje. La nota quedará registrada en el card para tu control y podrás restaurar la orden en cualquier momento desde <em>"Ver descartadas"</em>.
             </p>
           </div>
         )}
@@ -642,6 +810,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
   const cliente = ingreso.taller_vehiculos.taller_clientes;
   const vehiculo = ingreso.taller_vehiculos;
   const estado = ingreso.resena_estado;
+  const servicioDetectado = detectarResumenServicio(ingreso);
 
   const estadoConfig = {
     pendiente: { icon: <Clock size={14} />, label: 'Pendiente', cls: 'bg-slate-100 text-slate-600' },
@@ -692,6 +861,11 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
         <p className="text-xs text-slate-400 mt-1">
           Entregado hace {diasDesdeEntrega === 0 ? 'hoy' : `${diasDesdeEntrega} día${diasDesdeEntrega !== 1 ? 's' : ''}`}
         </p>
+        {servicioDetectado && (
+          <p className="text-[11px] text-indigo-700 bg-indigo-50/80 border border-indigo-100 rounded-lg px-2 py-1 mt-2 font-medium truncate" title={servicioDetectado}>
+            🔧 {servicioDetectado}
+          </p>
+        )}
       </div>
 
       {/* Acciones */}
@@ -793,13 +967,35 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
       {estado === 'descartado' && (
         <div className="space-y-2 pt-1 text-center">
           <p className="text-xs text-slate-400">Reseña descartada (no se solicitará)</p>
-          <button
-            onClick={() => onDeshacer(ingreso)}
-            disabled={updating}
-            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-xl flex items-center justify-center gap-1 text-xs transition-colors"
-          >
-            <Undo2 size={14} /> Restaurar a pendientes
-          </button>
+          {ingreso.resena_descarte_motivo ? (
+            <div className="bg-amber-50/80 border border-amber-200/60 rounded-xl p-2.5 my-1.5 text-left">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
+                <AlertCircle size={12} /> Motivo del descarte:
+              </p>
+              <p className="text-xs text-amber-900 mt-0.5 font-medium leading-snug">
+                {ingreso.resena_descarte_motivo}
+              </p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-slate-400 italic">Sin motivo especificado</p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => onDescartar(ingreso)}
+              disabled={updating}
+              className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold py-1.5 rounded-xl flex items-center justify-center gap-1 text-xs transition-colors cursor-pointer"
+              title="Cambiar la nota de descarte"
+            >
+              Editar nota
+            </button>
+            <button
+              onClick={() => onDeshacer(ingreso)}
+              disabled={updating}
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-1.5 rounded-xl flex items-center justify-center gap-1 text-xs transition-colors cursor-pointer"
+            >
+              <Undo2 size={13} /> Restaurar
+            </button>
+          </div>
         </div>
       )}
     </div>

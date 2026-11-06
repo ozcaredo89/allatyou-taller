@@ -106,11 +106,11 @@ export const getResenasPendientes = async (req: Request, res: Response): Promise
     const hace60Dias = new Date();
     hace60Dias.setDate(hace60Dias.getDate() - 60);
 
-    const { data, error } = await supabase
+    const query = supabase
       .from('taller_ingresos')
       .select(`
-        id, fecha_ingreso, resena_estado, resena_solicitada_at, updated_at,
-        items_factura, motivo_visita,
+        id, fecha_ingreso, resena_estado, resena_solicitada_at, resena_descarte_motivo, updated_at,
+        items_factura, motivo_visita, diagnostico_mecanico,
         taller_vehiculos!inner(
           id, placa, marca, linea,
           taller_clientes!inner(
@@ -123,6 +123,31 @@ export const getResenasPendientes = async (req: Request, res: Response): Promise
       .eq('taller_vehiculos.taller_clientes.acepta_whatsapp', true)
       .gte('updated_at', hace60Dias.toISOString())
       .order('updated_at', { ascending: false });
+
+    let { data, error } = await query;
+
+    // Fallback por si la columna resena_descarte_motivo aún no ha sido migrada en Supabase
+    if (error && (error.message?.includes('resena_descarte_motivo') || error.code === '42703')) {
+      const retry = await supabase
+        .from('taller_ingresos')
+        .select(`
+          id, fecha_ingreso, resena_estado, resena_solicitada_at, updated_at,
+          items_factura, motivo_visita, diagnostico_mecanico,
+          taller_vehiculos!inner(
+            id, placa, marca, linea,
+            taller_clientes!inner(
+              id, nombre_completo, telefono, acepta_whatsapp, ultima_resena_solicitada_at
+            )
+          )
+        `)
+        .eq('empresa_id', req.empresa_id)
+        .eq('estado', 'entregado')
+        .eq('taller_vehiculos.taller_clientes.acepta_whatsapp', true)
+        .gte('updated_at', hace60Dias.toISOString())
+        .order('updated_at', { ascending: false });
+      data = (retry.data as any) || null;
+      error = retry.error;
+    }
 
     if (error) throw error;
 
@@ -216,11 +241,27 @@ export const deshacerResena = async (req: Request, res: Response): Promise<void>
   try {
     const { id } = req.params;
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('taller_ingresos')
-      .update({ resena_estado: 'pendiente', resena_solicitada_at: null })
+      .update({
+        resena_estado: 'pendiente',
+        resena_solicitada_at: null,
+        resena_descarte_motivo: null,
+      })
       .eq('id', id)
       .eq('empresa_id', req.empresa_id);
+
+    if (error && (error.message?.includes('resena_descarte_motivo') || error.code === '42703')) {
+      const retry = await supabase
+        .from('taller_ingresos')
+        .update({
+          resena_estado: 'pendiente',
+          resena_solicitada_at: null,
+        })
+        .eq('id', id)
+        .eq('empresa_id', req.empresa_id);
+      error = retry.error;
+    }
 
     if (error) throw error;
     res.json({ success: true, estado: 'pendiente' });
@@ -234,15 +275,29 @@ export const deshacerResena = async (req: Request, res: Response): Promise<void>
 export const descartarResena = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const { motivo } = req.body || {};
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('taller_ingresos')
       .update({
         resena_estado: 'descartado',
         resena_solicitada_at: null,
+        resena_descarte_motivo: typeof motivo === 'string' && motivo.trim() ? motivo.trim() : null,
       })
       .eq('id', id)
       .eq('empresa_id', req.empresa_id);
+
+    if (error && (error.message?.includes('resena_descarte_motivo') || error.code === '42703')) {
+      const retry = await supabase
+        .from('taller_ingresos')
+        .update({
+          resena_estado: 'descartado',
+          resena_solicitada_at: null,
+        })
+        .eq('id', id)
+        .eq('empresa_id', req.empresa_id);
+      error = retry.error;
+    }
 
     if (error) {
       if (error.message?.includes('taller_ingresos_resena_estado_check')) {
@@ -253,7 +308,7 @@ export const descartarResena = async (req: Request, res: Response): Promise<void
       }
       throw error;
     }
-    res.json({ success: true, estado: 'descartado' });
+    res.json({ success: true, estado: 'descartado', motivo: motivo || null });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
