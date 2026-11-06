@@ -8,6 +8,7 @@ import {
 import api from '../services/api';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
 import { useAuth } from '../context/AuthContext';
+import ModalConfirmacion from '../components/ModalConfirmacion';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,11 @@ const CRM: React.FC = () => {
   const [prospectos, setProspectos] = useState<ProspectoAgrupado[]>([]);
   const [loadingRetencion, setLoadingRetencion] = useState(false);
   const [expandedProspecto, setExpandedProspecto] = useState<string | null>(null);
+
+  // Modales de confirmación personalizados
+  const [ingresoADescartar, setIngresoADescartar] = useState<ResenaIngreso | null>(null);
+  const [clienteANoContactar, setClienteANoContactar] = useState<{ id: string; nombre: string } | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
 
   // ─── Carga de datos ──────────────────────────────────────────────────────────
 
@@ -230,38 +236,50 @@ const CRM: React.FC = () => {
     }
   };
 
-  const handleDescartarResena = async (ingreso: ResenaIngreso) => {
-    const placa = ingreso.taller_vehiculos?.placa || 'este vehículo';
-    if (!window.confirm(`¿Descartar la reseña de la placa ${placa}? Se quitará de la lista porque no se solicitará.`)) {
-      return;
-    }
+  const handleDescartarResena = (ingreso: ResenaIngreso) => {
+    setIngresoADescartar(ingreso);
+  };
 
-    setUpdatingId(ingreso.id);
+  const handleConfirmarDescarte = async () => {
+    if (!ingresoADescartar) return;
+    setModalLoading(true);
+    setUpdatingId(ingresoADescartar.id);
     try {
-      await api.post(`/crm/resenas/${ingreso.id}/descartar`);
+      await api.post(`/crm/resenas/${ingresoADescartar.id}/descartar`);
       setResenas(prev =>
-        prev.map(r => r.id === ingreso.id
+        prev.map(r => r.id === ingresoADescartar.id
           ? { ...r, resena_estado: 'descartado' }
           : r
         )
       );
+      setIngresoADescartar(null);
     } catch (e: any) {
       console.error('[CRM] Error descartando reseña:', e);
       alert('Error al descartar la reseña: ' + (e.response?.data?.error || e.message));
     } finally {
+      setModalLoading(false);
       setUpdatingId(null);
     }
   };
 
-  const handleNoContactar = async (clienteId: string) => {
-    if (!window.confirm('¿Dar de baja a este cliente de mensajes de WhatsApp? Se excluirá de ambas pestañas de CRM (Ley 1581).')) return;
+  const handleNoContactar = (clienteId: string, _ingresosIds?: string[], clienteNombre?: string) => {
+    setClienteANoContactar({ id: clienteId, nombre: clienteNombre || 'este cliente' });
+  };
+
+  const handleConfirmarNoContactar = async () => {
+    if (!clienteANoContactar) return;
+    setModalLoading(true);
     try {
-      await api.patch(`/crm/clientes/${clienteId}/no-contactar`, { acepta_whatsapp: false });
+      await api.patch(`/crm/clientes/${clienteANoContactar.id}/no-contactar`, { acepta_whatsapp: false });
       // Eliminar de ambas listas localmente
-      setResenas(prev => prev.filter(r => r.taller_vehiculos.taller_clientes.id !== clienteId));
-      setProspectos(prev => prev.filter(p => p.cliente_id !== clienteId));
-    } catch (e) {
+      setResenas(prev => prev.filter(r => r.taller_vehiculos.taller_clientes.id !== clienteANoContactar.id));
+      setProspectos(prev => prev.filter(p => p.cliente_id !== clienteANoContactar.id));
+      setClienteANoContactar(null);
+    } catch (e: any) {
       console.error('[CRM] Error actualizando no contactar:', e);
+      alert('Error al actualizar cliente: ' + (e.response?.data?.error || e.message));
+    } finally {
+      setModalLoading(false);
     }
   };
 
@@ -429,6 +447,71 @@ const CRM: React.FC = () => {
         />
       )}
 
+      {/* ── Modal Descartar Reseña ── */}
+      <ModalConfirmacion
+        isOpen={!!ingresoADescartar}
+        onClose={() => { if (!modalLoading) setIngresoADescartar(null); }}
+        onConfirm={handleConfirmarDescarte}
+        loading={modalLoading}
+        tipo="danger"
+        title="¿Descartar solicitud de reseña?"
+        description="Esta orden se retirará de las reseñas pendientes porque no se va a solicitar."
+        confirmText="Sí, descartar"
+        cancelText="Volver"
+      >
+        {ingresoADescartar && (
+          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 my-2 space-y-3">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cliente</p>
+                <p className="text-sm font-bold text-slate-800">
+                  {ingresoADescartar.taller_vehiculos.taller_clientes.nombre_completo}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {ingresoADescartar.taller_vehiculos.taller_clientes.telefono || 'Sin teléfono'}
+                </p>
+              </div>
+              <span className="font-mono font-black text-slate-900 text-sm tracking-widest bg-white border border-slate-200 px-3 py-1 rounded-xl shadow-xs">
+                {ingresoADescartar.taller_vehiculos.placa}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 text-xs text-slate-600">
+              <span className="font-semibold uppercase">
+                {ingresoADescartar.taller_vehiculos.marca} {ingresoADescartar.taller_vehiculos.linea}
+              </span>
+              <span className="text-slate-400">
+                Entregado {formatFecha(ingresoADescartar.updated_at)}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-500 bg-amber-50/80 border border-amber-200/60 rounded-xl p-2.5">
+              💡 <strong>Nota:</strong> No se enviará ningún mensaje. Podrás consultar esta orden o restaurarla en cualquier momento desde la sección <em>"Ver descartadas"</em> al final de la lista.
+            </p>
+          </div>
+        )}
+      </ModalConfirmacion>
+
+      {/* ── Modal No Contactar Más (Ley 1581) ── */}
+      <ModalConfirmacion
+        isOpen={!!clienteANoContactar}
+        onClose={() => { if (!modalLoading) setClienteANoContactar(null); }}
+        onConfirm={handleConfirmarNoContactar}
+        loading={modalLoading}
+        tipo="warning"
+        icon={<BellOff size={24} className="text-amber-600" />}
+        title="¿Dar de baja de WhatsApp?"
+        description={
+          clienteANoContactar ? (
+            <span>
+              Se excluirá a <strong>{clienteANoContactar.nombre}</strong> de los envíos de WhatsApp en ambas pestañas (Reseñas y Mantenimiento Predictivo) en cumplimiento de la <strong>Ley 1581 de Protección de Datos</strong>.
+            </span>
+          ) : undefined
+        }
+        confirmText="Confirmar baja"
+        cancelText="Cancelar"
+      />
+
       {/* ── Modal Config ─────────────────────────────────────────────────────── */}
       {showConfigModal && editIntervalos && (
         <ModalConfig
@@ -455,7 +538,7 @@ interface TabResenasProps {
   onConfirmar: (ingreso: ResenaIngreso) => void;
   onDeshacer: (ingreso: ResenaIngreso) => void;
   onDescartar: (ingreso: ResenaIngreso) => void;
-  onNoContactar: (clienteId: string, ingresosIds: string[]) => void;
+  onNoContactar: (clienteId: string, ingresosIds: string[], clienteNombre?: string) => void;
 }
 
 const TabResenas: React.FC<TabResenasProps> = ({
@@ -550,7 +633,7 @@ interface TarjetaResenaProps {
   onConfirmar: (ingreso: ResenaIngreso) => void;
   onDeshacer: (ingreso: ResenaIngreso) => void;
   onDescartar: (ingreso: ResenaIngreso) => void;
-  onNoContactar: (clienteId: string, ingresosIds: string[]) => void;
+  onNoContactar: (clienteId: string, ingresosIds: string[], clienteNombre?: string) => void;
 }
 
 const TarjetaResena: React.FC<TarjetaResenaProps> = ({
@@ -632,7 +715,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
               <Trash2 size={12} /> Descartar
             </button>
             <button
-              onClick={() => onNoContactar(cliente.id, [ingreso.id])}
+              onClick={() => onNoContactar(cliente.id, [ingreso.id], cliente.nombre_completo)}
               className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 py-1 transition-colors"
             >
               <BellOff size={12} /> No contactar más
@@ -731,7 +814,7 @@ interface TabRetencionProps {
   expandedId: string | null;
   onToggleExpand: (id: string | null) => void;
   onWhatsApp: (prospecto: ProspectoAgrupado) => void;
-  onNoContactar: (clienteId: string, ingresosIds: string[]) => void;
+  onNoContactar: (clienteId: string, ingresosIds: string[], clienteNombre?: string) => void;
 }
 
 const TabRetencion: React.FC<TabRetencionProps> = ({
@@ -801,7 +884,7 @@ interface TarjetaRetencionProps {
   expanded: boolean;
   onToggle: () => void;
   onWhatsApp: (prospecto: ProspectoAgrupado) => void;
-  onNoContactar: (clienteId: string, ingresosIds: string[]) => void;
+  onNoContactar: (clienteId: string, ingresosIds: string[], clienteNombre?: string) => void;
 }
 
 const TarjetaRetencion: React.FC<TarjetaRetencionProps> = ({
@@ -871,7 +954,7 @@ const TarjetaRetencion: React.FC<TarjetaRetencionProps> = ({
         Enviar recordatorio ({prospecto.servicios.length} servicio{prospecto.servicios.length !== 1 ? 's' : ''})
       </button>
       <button
-        onClick={() => onNoContactar(prospecto.cliente_id, [])}
+        onClick={() => onNoContactar(prospecto.cliente_id, [], prospecto.cliente_nombre)}
         className="w-full text-xs text-slate-400 hover:text-red-500 flex items-center justify-center gap-1 py-2 mt-1 transition-colors"
       >
         <BellOff size={12} /> No contactar más

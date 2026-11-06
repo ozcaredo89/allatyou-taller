@@ -31,3 +31,4 @@ Todo archivo nuevo en `docs/specs/*.md` debe seguir la plantilla [`docs/specs/TE
 |---|---|---|---|
 | [`sincronizacion-gastos-renting.md`](./sincronizacion-gastos-renting.md) | Ingresos / Renting Hub | `TALLER-SYNC-01` | Vigente |
 | [`recuperacion-contrasena.md`](./recuperacion-contrasena.md) | Autenticación / Kiosco | `TALLER-AUTH-02` | Vigente |
+| [`ui-design-system.md`](./ui-design-system.md) | Frontend / UI & Design System | `TALLER-UI-01` | Vigente |
