@@ -3,7 +3,8 @@ import {
   Target, Search, Phone, Loader2, MessageCircle,
   Star, CheckCircle2, Clock, Undo2, Settings2,
   AlertTriangle, BellOff, ChevronDown, ChevronUp,
-  RefreshCw, Save, X, Trash2, AlertCircle
+  RefreshCw, Save, X, Trash2, AlertCircle,
+  BarChart3, Calendar, TrendingUp
 } from 'lucide-react';
 import api from '../services/api';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
@@ -11,6 +12,26 @@ import { useAuth } from '../context/AuthContext';
 import ModalConfirmacion from '../components/ModalConfirmacion';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
+
+export interface ResenasStats {
+  hoy: number;
+  ayer: number;
+  confirmadasHoy: number;
+  estaSemana: number;
+  esteMes: number;
+  totalSolicitadas: number;
+  confirmadasTotal: number;
+  tasaConfirmacion: number;
+  pendientes: number;
+  ultimosDias: {
+    fecha: string;
+    diaSemana: string;
+    esHoy: boolean;
+    label: string;
+    total: number;
+    confirmadas: number;
+  }[];
+}
 
 interface CrmConfig {
   nombre: string;
@@ -231,6 +252,8 @@ const CRM: React.FC = () => {
   const [resenas, setResenas] = useState<ResenaIngreso[]>([]);
   const [loadingResenas, setLoadingResenas] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [stats, setStats] = useState<ResenasStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // Retención
   const [prospectos, setProspectos] = useState<ProspectoAgrupado[]>([]);
@@ -274,6 +297,18 @@ const CRM: React.FC = () => {
     }
   }, []);
 
+  const cargarStats = useCallback(async () => {
+    setLoadingStats(true);
+    try {
+      const { data } = await api.get('/crm/resenas/stats');
+      setStats(data);
+    } catch (e) {
+      console.error('[CRM] Error cargando stats de reseñas:', e);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
   const cargarRetencion = useCallback(async () => {
     setLoadingRetencion(true);
     try {
@@ -296,9 +331,12 @@ const CRM: React.FC = () => {
   }, [cargarConfig]);
 
   useEffect(() => {
-    if (tab === 'resenas') cargarResenas();
+    if (tab === 'resenas') {
+      cargarResenas();
+      cargarStats();
+    }
     if (tab === 'retencion') cargarRetencion();
-  }, [tab, cargarResenas, cargarRetencion]);
+  }, [tab, cargarResenas, cargarRetencion, cargarStats]);
 
   // ─── Acciones Reseñas ─────────────────────────────────────────────────────────
 
@@ -321,6 +359,7 @@ const CRM: React.FC = () => {
           : r
         )
       );
+      cargarStats();
     } catch (e) {
       console.error('[CRM] Error marcando intentado:', e);
     } finally {
@@ -338,6 +377,7 @@ const CRM: React.FC = () => {
           : r
         )
       );
+      cargarStats();
     } catch (e) {
       console.error('[CRM] Error confirmando reseña:', e);
     } finally {
@@ -355,6 +395,7 @@ const CRM: React.FC = () => {
           : r
         )
       );
+      cargarStats();
     } catch (e) {
       console.error('[CRM] Error deshaciendo reseña:', e);
     } finally {
@@ -388,6 +429,7 @@ const CRM: React.FC = () => {
       });
       setIngresoADescartar(null);
       setMotivoDescarte('');
+      cargarStats();
     } catch (e: any) {
       console.error('[CRM] Error descartando reseña:', e);
       alert('Error al descartar la reseña: ' + (e.response?.data?.error || e.message));
@@ -459,6 +501,7 @@ const CRM: React.FC = () => {
       setSelectedIds(new Set());
       setShowBulkDescartarModal(false);
       setBulkMotivoDescarte('');
+      cargarStats();
     } catch (e: any) {
       console.error('[CRM] Error al descartar reseñas en lote:', e);
       alert('Error al descartar las reseñas seleccionadas: ' + (e.response?.data?.error || e.message));
@@ -631,6 +674,8 @@ const CRM: React.FC = () => {
       {tab === 'resenas' && (
         <TabResenas
           loading={loadingResenas}
+          stats={stats}
+          loadingStats={loadingStats}
           resenas={resenasFiltradas}
           updatingId={updatingId}
           selectedIds={selectedIds}
@@ -870,10 +915,252 @@ const CRM: React.FC = () => {
   );
 };
 
+// ─── Componentes de Métricas de Reseñas ──────────────────────────────────────
+
+const ResenasKpiCards: React.FC<{ stats: ResenasStats | null; loading: boolean }> = ({ stats, loading }) => {
+  if (loading && !stats) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        {[1, 2, 3, 4].map(n => (
+          <div key={n} className="bg-white border border-slate-200/80 rounded-2xl p-4 animate-pulse h-24" />
+        ))}
+      </div>
+    );
+  }
+
+  const hoy = stats?.hoy ?? 0;
+  const ayer = stats?.ayer ?? 0;
+  const confirmadasHoy = stats?.confirmadasHoy ?? 0;
+  const estaSemana = stats?.estaSemana ?? 0;
+  const esteMes = stats?.esteMes ?? 0;
+  const tasaConfirmacion = stats?.tasaConfirmacion ?? 0;
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+      {/* 1. Pedidas Hoy */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Pedidas Hoy</span>
+          <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600">
+            <MessageCircle size={16} />
+          </div>
+        </div>
+        <div className="mt-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{hoy}</span>
+            {confirmadasHoy > 0 && (
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
+                {confirmadasHoy} confirmada{confirmadasHoy > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+            {ayer > 0 ? `${ayer} enviada${ayer > 1 ? 's' : ''} ayer` : '0 enviadas ayer'}
+          </p>
+        </div>
+      </div>
+
+      {/* 2. Esta Semana */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Esta Semana</span>
+          <div className="p-2 bg-blue-50 border border-blue-100 rounded-xl text-blue-600">
+            <Calendar size={16} />
+          </div>
+        </div>
+        <div className="mt-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{estaSemana}</span>
+            <span className="text-[11px] font-medium text-slate-400">solicitadas</span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Semana en curso (Lun-Dom)</p>
+        </div>
+      </div>
+
+      {/* 3. Este Mes */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Este Mes</span>
+          <div className="p-2 bg-purple-50 border border-purple-100 rounded-xl text-purple-600">
+            <TrendingUp size={16} />
+          </div>
+        </div>
+        <div className="mt-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{esteMes}</span>
+            <span className="text-[11px] font-medium text-slate-400">enviadas</span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Total acumulado del mes</p>
+        </div>
+      </div>
+
+      {/* 4. Tasa de Confirmación */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Efectividad</span>
+          <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-600">
+            <CheckCircle2 size={16} />
+          </div>
+        </div>
+        <div className="mt-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold text-emerald-600 tracking-tight">{tasaConfirmacion}%</span>
+            <span className="text-[11px] font-medium text-slate-400">éxito</span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+            {stats?.confirmadasTotal ?? 0} de {stats?.totalSolicitadas ?? 0} confirmadas
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ResenasHistorialDiario: React.FC<{ stats: ResenasStats | null; loading: boolean }> = ({ stats }) => {
+  const ultimosDias = stats?.ultimosDias || [];
+  const maxTotal = Math.max(1, ...ultimosDias.map(d => d.total));
+  const totalPeriodo = ultimosDias.reduce((acc, d) => acc + d.total, 0);
+  const promedioDiario = (totalPeriodo / (ultimosDias.length || 1)).toFixed(1);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
+      {/* Header del bloque */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600">
+            <BarChart3 size={18} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Historial de Reseñas por Día</h3>
+            <p className="text-xs text-slate-500">Seguimiento de solicitudes en los últimos 14 días (Zona horaria Colombia)</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Promedio diario</span>
+            <span className="text-sm font-extrabold text-slate-800">{promedioDiario} / día</span>
+          </div>
+          <div className="h-7 w-px bg-slate-200" />
+          <div className="text-right">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total 14 días</span>
+            <span className="text-sm font-extrabold text-indigo-600">{totalPeriodo} solicitadas</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Gráfico de barras interactivo */}
+      <div className="pt-2">
+        <div className="grid grid-cols-7 sm:grid-cols-14 gap-1.5 sm:gap-2 items-end min-h-[140px] px-1">
+          {ultimosDias.map((dia) => {
+            const alturaPct = dia.total > 0 ? Math.max(14, Math.round((dia.total / maxTotal) * 100)) : 8;
+            const alturaConfirmadasPct = dia.total > 0 ? Math.round((dia.confirmadas / dia.total) * 100) : 0;
+
+            return (
+              <div
+                key={dia.fecha}
+                className={`group flex flex-col items-center justify-end h-full relative ${
+                  dia.esHoy ? 'font-bold' : ''
+                }`}
+              >
+                {/* Tooltip flotante en hover */}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none absolute -top-11 z-20 bg-slate-900 text-white text-[10px] rounded-lg py-1 px-2 shadow-lg whitespace-nowrap text-center">
+                  <div className="font-semibold">{dia.diaSemana} {dia.fecha.slice(5)}</div>
+                  <div className="text-slate-300">
+                    {dia.total} enviada{dia.total !== 1 ? 's' : ''} · {dia.confirmadas} conf.
+                  </div>
+                </div>
+
+                {/* Número sobre la barra */}
+                <span
+                  className={`text-[10px] mb-1 font-bold transition-transform group-hover:-translate-y-0.5 ${
+                    dia.total > 0
+                      ? dia.esHoy ? 'text-indigo-600' : 'text-slate-700'
+                      : 'text-slate-300'
+                  }`}
+                >
+                  {dia.total}
+                </span>
+
+                {/* Barra vertical */}
+                <div
+                  className={`w-full max-w-[28px] rounded-t-lg transition-all relative overflow-hidden flex flex-col justify-end ${
+                    dia.total === 0
+                      ? 'bg-slate-100 group-hover:bg-slate-200'
+                      : dia.esHoy
+                        ? 'bg-indigo-500 shadow-sm shadow-indigo-200 ring-2 ring-indigo-400/40 ring-offset-1'
+                        : 'bg-indigo-300 group-hover:bg-indigo-400'
+                  }`}
+                  style={{ height: `${alturaPct}%` }}
+                >
+                  {/* Segmento verde confirmadas */}
+                  {dia.confirmadas > 0 && (
+                    <div
+                      className="w-full bg-emerald-500 transition-all"
+                      style={{ height: `${alturaConfirmadasPct}%` }}
+                      title={`${dia.confirmadas} confirmadas`}
+                    />
+                  )}
+                </div>
+
+                {/* Etiqueta del día */}
+                <div className="mt-2 text-center select-none">
+                  <span
+                    className={`text-[10px] block truncate uppercase ${
+                      dia.esHoy
+                        ? 'text-indigo-600 font-extrabold'
+                        : 'text-slate-500 font-medium'
+                    }`}
+                  >
+                    {dia.diaSemana}
+                  </span>
+                  <span
+                    className={`text-[9px] block ${
+                      dia.esHoy
+                        ? 'text-indigo-700 font-extrabold bg-indigo-50 px-1 rounded-sm'
+                        : 'text-slate-400'
+                    }`}
+                  >
+                    {dia.esHoy ? 'Hoy' : dia.fecha.split('-')[2]}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Leyenda y tip de negocio */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-indigo-500 inline-block" />
+            <span className="text-[11px] font-medium text-slate-600">Enviadas por WhatsApp</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" />
+            <span className="text-[11px] font-medium text-slate-600">Confirmadas</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-slate-200 inline-block" />
+            <span className="text-[11px] font-medium text-slate-400">Sin envíos</span>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-400 italic">
+          💡 Enviar 2 a 5 reseñas por día de forma constante impulsa el ranking de tu taller en Google Maps.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // ─── Subcomponente: Pestaña Reseñas ──────────────────────────────────────────
 
 interface TabResenasProps {
   loading: boolean;
+  stats: ResenasStats | null;
+  loadingStats: boolean;
   resenas: ResenaIngreso[];
   updatingId: string | null;
   selectedIds: Set<string>;
@@ -890,6 +1177,8 @@ interface TabResenasProps {
 
 const TabResenas: React.FC<TabResenasProps> = ({
   loading,
+  stats,
+  loadingStats,
   resenas,
   updatingId,
   selectedIds,
@@ -966,16 +1255,25 @@ const TabResenas: React.FC<TabResenasProps> = ({
 
   if (resenas.length === 0 || (pendientes.length === 0 && intentados.length === 0 && confirmados.length === 0 && descartados.length === 0)) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-500">
-        <Star className="mx-auto text-slate-300 w-16 h-16 mb-4" />
-        <p className="text-lg font-medium">No hay clientes pendientes de reseña.</p>
-        <p className="text-sm mt-1">Las órdenes entregadas en los últimos 60 días aparecerán aquí.</p>
+      <div className="space-y-6">
+        <ResenasKpiCards stats={stats} loading={loadingStats} />
+
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-500">
+          <Star className="mx-auto text-slate-300 w-16 h-16 mb-4" />
+          <p className="text-lg font-medium">No hay clientes pendientes de reseña.</p>
+          <p className="text-sm mt-1">Las órdenes entregadas en los últimos 60 días aparecerán aquí.</p>
+        </div>
+
+        <ResenasHistorialDiario stats={stats} loading={loadingStats} />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* ── Métricas y Contadores (KPI Cards en la parte superior) ── */}
+      <ResenasKpiCards stats={stats} loading={loadingStats} />
+
       {/* Barra de herramientas / Selección masiva */}
       {elegibles.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-2xs">
@@ -1022,48 +1320,63 @@ const TabResenas: React.FC<TabResenasProps> = ({
         </div>
       )}
 
-      {grupos.map(grupo => grupo.items.length > 0 && (
-        <div key={grupo.key} className={grupo.isDescartadoGroup ? 'pt-6 border-t border-slate-200' : ''}>
-          <button
-            type="button"
-            onClick={() => toggleColapso(grupo.key)}
-            className="w-full flex items-center justify-between py-2 text-left group cursor-pointer select-none"
-          >
-            <div className="flex items-center gap-2.5">
-              {grupo.isDescartadoGroup && <Trash2 size={15} className="text-slate-400" />}
-              <h2 className={`text-sm font-bold uppercase tracking-wider ${grupo.color}`}>
-                {grupo.label}
-              </h2>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${grupo.badgeBg}`}>
-                {grupo.items.length}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors">
-              <span>{grupo.isColapsado ? 'Expandir' : 'Colapsar'}</span>
-              {grupo.isColapsado ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-            </div>
-          </button>
+      {grupos.map(grupo => {
+        // Mostrar siempre pendientes, intentados y confirmados para visibilidad operativa;
+        // y descartados solo si tiene elementos
+        if (grupo.isDescartadoGroup && grupo.items.length === 0) return null;
 
-          {!grupo.isColapsado && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-3">
-              {grupo.items.map(ingreso => (
-                <TarjetaResena
-                  key={ingreso.id}
-                  ingreso={ingreso}
-                  updating={updatingId === ingreso.id}
-                  isSelected={selectedIds.has(ingreso.id)}
-                  onToggleSelect={onToggleSelect}
-                  onAbrir={onAbrir}
-                  onConfirmar={onConfirmar}
-                  onDeshacer={onDeshacer}
-                  onDescartar={onDescartar}
-                  onNoContactar={onNoContactar}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+        return (
+          <div key={grupo.key} className={grupo.isDescartadoGroup ? 'pt-6 border-t border-slate-200' : ''}>
+            <button
+              type="button"
+              onClick={() => toggleColapso(grupo.key)}
+              className="w-full flex items-center justify-between py-2 text-left group cursor-pointer select-none"
+            >
+              <div className="flex items-center gap-2.5">
+                {grupo.isDescartadoGroup && <Trash2 size={15} className="text-slate-400" />}
+                <h2 className={`text-sm font-bold uppercase tracking-wider ${grupo.color}`}>
+                  {grupo.label}
+                </h2>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${grupo.badgeBg}`}>
+                  {grupo.items.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors">
+                <span>{grupo.isColapsado ? 'Expandir' : 'Colapsar'}</span>
+                {grupo.isColapsado ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+              </div>
+            </button>
+
+            {!grupo.isColapsado && (
+              grupo.items.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-3">
+                  {grupo.items.map(ingreso => (
+                    <TarjetaResena
+                      key={ingreso.id}
+                      ingreso={ingreso}
+                      updating={updatingId === ingreso.id}
+                      isSelected={selectedIds.has(ingreso.id)}
+                      onToggleSelect={onToggleSelect}
+                      onAbrir={onAbrir}
+                      onConfirmar={onConfirmar}
+                      onDeshacer={onDeshacer}
+                      onDescartar={onDescartar}
+                      onNoContactar={onNoContactar}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 text-center text-xs text-slate-400 mt-2">
+                  No hay órdenes en esta sección actualmente.
+                </div>
+              )
+            )}
+          </div>
+        );
+      })}
+
+      {/* ── Estadísticas e Historial por Día (Parte inferior de la UI) ── */}
+      <ResenasHistorialDiario stats={stats} loading={loadingStats} />
 
       {/* Barra flotante de acciones masivas */}
       {selectedCount > 0 && (
