@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "nodemon --ext ts,json --exec \"tsc && node dist/index.js\"",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/scripts/migrate.js && node dist/index.js",
+    "db:migrate": "node dist/scripts/migrate.js",
+    "db:migrate:dev": "ts-node src/scripts/migrate.ts",
     "backfill:precios": "ts-node src/scripts/backfill-precios.ts",
     "test": "ts-node src/utils/gastosProrrateo.test.ts && ts-node src/utils/dateUtils.test.ts"
   },
@@ -18,13 +20,15 @@
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.100.0",
     "@types/bcrypt": "^6.0.0",
+    "@types/pg": "^8.23.1",
     "axios": "^1.15.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.1.1"
+    "multer": "^2.1.1",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

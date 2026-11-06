@@ -19,7 +19,9 @@ All commands are run from inside `backend/` or `frontend/` respectively (no root
 ### Backend (`backend/`)
 - `npm run dev` — nodemon + `tsc` + run `dist/index.js`, restarts on `.ts`/`.json` changes.
 - `npm run build` — `tsc` compile to `dist/`.
-- `npm start` — run compiled `dist/index.js` (production).
+- `npm start` — runs pending migrations (`node dist/scripts/migrate.js`) and then starts `dist/index.js` (production).
+- `npm run db:migrate` — Runs all pending SQL migrations from `docs/migrations/` using `DATABASE_URL`.
+- `npm run db:migrate:dev` — Runs migrations in development via `ts-node`.
 - `node node_modules/typescript/bin/tsc --noEmit` — Type-check backend without emitting files.
 
 ### Frontend (`frontend/`)
