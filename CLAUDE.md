@@ -105,3 +105,5 @@ All commands are run from inside `backend/` or `frontend/` respectively (no root
     - No ejecutes `npm run build` o empaquetado de producción en cada cambio iterativo, solo al finalizar o si se requiere probar el bundle final.
 18. **Respuestas Concisas y al Grano**:
     - Comunica lo implementado de forma breve, precisa y ejecutiva con enlaces directos a los archivos tocados. Evita explicaciones redundantes o textos inflados.
+19. **Flujo Git Automático**:
+    - Al terminar cada cambio: type-check, rama, commit, push, PR y merge a `main` según [`docs/specs/README.md`](docs/specs/README.md#flujo-git-al-terminar-cada-cambio-sin-pedir-confirmación).
