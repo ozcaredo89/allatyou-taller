@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   X, 
   Send, 
@@ -10,7 +10,8 @@ import {
   Trash2, 
   Calendar, 
   Car, 
-  FileText 
+  FileText,
+  Wallet
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -18,6 +19,12 @@ export interface RentingSyncItem {
   item: string;
   category?: string;
   amount: number;
+}
+
+interface LeasingInfo {
+  has_leasing: boolean;
+  maintenance_fund_available?: number;
+  driver_name?: string | null;
 }
 
 interface RentingSyncModalProps {
@@ -41,8 +48,6 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
   initialItems,
   onSuccess
 }) => {
-  if (!isOpen) return null;
-
   const defaultDate = initialDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 
   const [date, setDate] = useState<string>(defaultDate);
@@ -54,6 +59,35 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  // Leasing: si la placa tiene contrato activo, permitir descontar del fondo de mantenimiento
+  const [leasingInfo, setLeasingInfo] = useState<LeasingInfo | null>(null);
+  const [leasingLoading, setLeasingLoading] = useState(true);
+  const [leasingCheckError, setLeasingCheckError] = useState(false);
+  const [applyToLeasing, setApplyToLeasing] = useState(true);
+  const [excessMethod, setExcessMethod] = useState<'cash' | 'advance'>('cash');
+  const [advanceInstallments, setAdvanceInstallments] = useState(10);
+  const [advanceStartDate, setAdvanceStartDate] = useState<string>(defaultDate);
+
+  const cargarLeasing = async () => {
+    setLeasingLoading(true);
+    setLeasingCheckError(false);
+    try {
+      const { data } = await api.get<LeasingInfo>(`/ingresos/${ingresoId}/renting-leasing`);
+      setLeasingInfo(data);
+    } catch {
+      setLeasingInfo(null);
+      setLeasingCheckError(true);
+    } finally {
+      setLeasingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) cargarLeasing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, ingresoId]);
 
   const handleItemChange = (index: number, field: keyof RentingSyncItem, value: any) => {
     const updated = [...items];
@@ -75,6 +109,14 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
   };
 
   const totalAmount = items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+
+  const tieneLeasing = Boolean(leasingInfo?.has_leasing);
+  const fondoDisponible = Number(leasingInfo?.maintenance_fund_available ?? 0);
+  const cubiertoFondo = Math.min(totalAmount, fondoDisponible);
+  const excedente = Math.max(0, totalAmount - fondoDisponible);
+  const usarLeasing = tieneLeasing && applyToLeasing;
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +152,13 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
     setLoading(true);
 
     try {
-      await api.post(`/ingresos/${ingresoId}/renting-sync`, {
+      const { data } = await api.post(`/ingresos/${ingresoId}/renting-sync`, {
+        ...(usarLeasing && {
+          apply_to_leasing: true,
+          leasing_excess_method: excessMethod,
+          leasing_advance_installments: advanceInstallments,
+          leasing_advance_start_date: advanceStartDate
+        }),
         date,
         description: description.trim(),
         items: items.map(it => ({
@@ -121,6 +169,12 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
       });
 
       setSuccess(true);
+      if (data?.debit_note_error) {
+        // El gasto quedó creado pero sin Nota Débito: no cerrar automáticamente
+        setWarning(data.debit_note_error);
+        if (onSuccess) onSuccess();
+        return;
+      }
       setTimeout(() => {
         if (onSuccess) onSuccess();
         onClose();
@@ -173,6 +227,13 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
             <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
               <span>¡Gasto creado exitosamente en AllAtYou Renting Hub!</span>
+            </div>
+          )}
+
+          {warning && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
+              <span>{warning} Genera la Nota Débito manualmente en Renting.</span>
             </div>
           )}
 
@@ -302,6 +363,109 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
               </table>
             </div>
           </div>
+
+          {/* Leasing: descuento del fondo de mantenimiento */}
+          {leasingLoading && (
+            <div className="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800 text-slate-400 text-xs flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Verificando si el vehículo tiene leasing activo...
+            </div>
+          )}
+
+          {!leasingLoading && leasingCheckError && (
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-3">
+              <span>No se pudo verificar si el vehículo tiene leasing. Reintenta antes de crear el gasto.</span>
+              <button type="button" onClick={cargarLeasing} className="shrink-0 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 font-medium">
+                Reintentar
+              </button>
+            </div>
+          )}
+
+          {!leasingLoading && tieneLeasing && (
+            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-300">Vehículo con leasing activo</p>
+                    {leasingInfo?.driver_name && <p className="text-xs text-slate-400">Conductor: {leasingInfo.driver_name}</p>}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Fondo Mtto. disponible</p>
+                  <p className="font-mono font-bold text-amber-300">${fondoDisponible.toLocaleString('es-CO')}</p>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={applyToLeasing}
+                  onChange={(e) => setApplyToLeasing(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-amber-500 text-amber-500 focus:ring-amber-500"
+                />
+                <span className="text-xs text-slate-200">Descontar del Fondo de Mantenimiento y emitir Nota Débito</span>
+              </label>
+
+              {applyToLeasing && (
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-2.5 rounded-lg bg-slate-950/50 border border-emerald-500/20 flex justify-between">
+                    <span className="text-slate-400">Cubierto por el fondo</span>
+                    <span className="font-mono font-bold text-emerald-400">${cubiertoFondo.toLocaleString('es-CO')}</span>
+                  </div>
+                  <div className={`p-2.5 rounded-lg bg-slate-950/50 border flex justify-between ${excedente > 0 ? 'border-rose-500/40' : 'border-slate-800'}`}>
+                    <span className="text-slate-400">Excedente</span>
+                    <span className={`font-mono font-bold ${excedente > 0 ? 'text-rose-400' : 'text-slate-300'}`}>${excedente.toLocaleString('es-CO')}</span>
+                  </div>
+                </div>
+              )}
+
+              {applyToLeasing && excedente > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-rose-300">El fondo no alcanza. ¿Cómo se cubre el excedente?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExcessMethod('cash')}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${excessMethod === 'cash' ? 'border-amber-500 bg-amber-500/15 text-amber-200' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}
+                    >
+                      Pago en efectivo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExcessMethod('advance')}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${excessMethod === 'advance' ? 'border-amber-500 bg-amber-500/15 text-amber-200' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}
+                    >
+                      Anticipo operativo
+                    </button>
+                  </div>
+                  {excessMethod === 'advance' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1"># Cuotas diarias (0% interés)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={60}
+                          value={advanceInstallments}
+                          onChange={(e) => setAdvanceInstallments(Math.min(60, Math.max(1, parseInt(e.target.value) || 1)))}
+                          className="w-full bg-slate-950/40 border border-slate-700/70 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">Fecha primer cobro</label>
+                        <input
+                          type="date"
+                          value={advanceStartDate}
+                          onChange={(e) => setAdvanceStartDate(e.target.value)}
+                          className="w-full bg-slate-950/40 border border-slate-700/70 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </form>
 
         {/* Footer */}
@@ -318,7 +482,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading || success}
+            disabled={loading || success || leasingLoading || leasingCheckError}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-semibold text-xs transition-all shadow-md shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (

@@ -12,7 +12,9 @@ import {
 } from '../services/catalog.service';
 import {
   evaluarAplicaRenting,
-  procesarSincronizacionRenting
+  procesarSincronizacionRenting,
+  consultarLeasingRenting,
+  LeasingSyncOptions
 } from '../services/allatyouSync.service';
 
 // ─── Helper: Registrar evento en la bitácora ─────────────────────────────────
@@ -1596,10 +1598,72 @@ export const getBitacora = async (req: Request, res: Response): Promise<void> =>
  * - Valida estructura del payload enviado desde el modal.
  * - Ejecuta reclamo atómico optimista y dispara el gasto en Renting.
  */
+/**
+ * Carga la orden con aislamiento de tenant y valida que pueda sincronizarse con Renting
+ * (estado entregado, flota autorizada, placa presente). Devuelve la placa o el error HTTP a responder.
+ */
+async function validarOrdenRenting(
+  empresaId: string,
+  ingresoId: string
+): Promise<{ placa: string } | { status: number; error: string }> {
+  const { data: ingreso, error: fetchErr } = await supabase
+    .from('taller_ingresos')
+    .select('id, estado, renting_sync_at, taller_vehiculos(placa, taller_clientes(documento))')
+    .eq('empresa_id', empresaId)
+    .eq('id', ingresoId)
+    .single();
+
+  if (fetchErr || !ingreso) {
+    return { status: 404, error: 'Orden no encontrada en este taller' };
+  }
+
+  if (ingreso.estado !== 'entregado') {
+    return { status: 400, error: 'Solo se pueden sincronizar con Renting órdenes que se encuentren en estado entregado.' };
+  }
+
+  // Re-validar elegibilidad multi-tenant y de propietario (Fail-Closed)
+  const clienteDoc = (ingreso.taller_vehiculos as any)?.taller_clientes?.documento;
+  if (!evaluarAplicaRenting(empresaId, clienteDoc)) {
+    return { status: 403, error: 'Acceso denegado: Esta orden no pertenece a la flota autorizada para sincronización con Renting.' };
+  }
+
+  // La placa es tomada directamente de la DB (inmutable)
+  const placa = (ingreso.taller_vehiculos as any)?.placa;
+  if (!placa) {
+    return { status: 400, error: 'La orden no tiene un vehículo con placa asociado' };
+  }
+
+  return { placa };
+}
+
+/**
+ * GET /api/ingresos/:id/renting-leasing
+ * Indica si el vehículo de la orden tiene leasing activo en Renting y su fondo de mantenimiento disponible.
+ */
+export const getRentingLeasingInfo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.empresa_id) {
+      res.status(401).json({ error: 'Sesión sin empresa identificada' });
+      return;
+    }
+
+    const orden = await validarOrdenRenting(req.empresa_id, req.params.id as string);
+    if ('error' in orden) {
+      res.status(orden.status).json({ error: orden.error });
+      return;
+    }
+
+    res.json(await consultarLeasingRenting(orden.placa));
+  } catch (err: any) {
+    console.error('[getRentingLeasingInfo] Error:', err.message);
+    res.status(502).json({ error: 'No se pudo consultar el leasing en Renting' });
+  }
+};
+
 export const syncIngresoToRenting = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { date, description, items } = req.body || {};
+    const { date, description, items, apply_to_leasing, leasing_excess_method, leasing_advance_installments, leasing_advance_start_date } = req.body || {};
 
     if (!req.empresa_id) {
       res.status(401).json({ error: 'Sesión sin empresa identificada' });
@@ -1633,47 +1697,43 @@ export const syncIngresoToRenting = async (req: Request, res: Response): Promise
       }
     }
 
-    // 2. Consultar orden desde la base de datos con aislamiento estricto de tenant
-    const { data: ingreso, error: fetchErr } = await supabase
-      .from('taller_ingresos')
-      .select('id, estado, renting_sync_at, taller_vehiculos(placa, taller_clientes(documento))')
-      .eq('empresa_id', req.empresa_id)
-      .eq('id', id)
-      .single();
-
-    if (fetchErr || !ingreso) {
-      res.status(404).json({ error: 'Orden no encontrada en este taller' });
-      return;
+    // 2. Validar campos de leasing (descuento del fondo de mantenimiento)
+    let leasing: LeasingSyncOptions | undefined;
+    if (apply_to_leasing === true) {
+      if (leasing_excess_method !== 'cash' && leasing_excess_method !== 'advance') {
+        res.status(400).json({ error: 'El método para cubrir el excedente del leasing debe ser "cash" o "advance"' });
+        return;
+      }
+      const cuotas = Number(leasing_advance_installments ?? 10);
+      if (!Number.isInteger(cuotas) || cuotas < 1 || cuotas > 60) {
+        res.status(400).json({ error: 'El número de cuotas del anticipo debe estar entre 1 y 60' });
+        return;
+      }
+      const inicioAnticipo = leasing_advance_start_date ?? date;
+      if (typeof inicioAnticipo !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(inicioAnticipo)) {
+        res.status(400).json({ error: 'La fecha de primer cobro del anticipo debe tener formato YYYY-MM-DD' });
+        return;
+      }
+      leasing = { excessMethod: leasing_excess_method, advanceInstallments: cuotas, advanceStartDate: inicioAnticipo };
     }
 
-    // 3. Exigir que la orden esté en estado entregado
-    if (ingreso.estado !== 'entregado') {
-      res.status(400).json({ error: 'Solo se pueden sincronizar con Renting órdenes que se encuentren en estado entregado.' });
+    // 3. Validar orden: tenant, estado entregado, flota autorizada y placa inmutable desde la DB
+    const orden = await validarOrdenRenting(req.empresa_id, id as string);
+    if ('error' in orden) {
+      res.status(orden.status).json({ error: orden.error });
       return;
     }
+    const placaDb = orden.placa;
 
-    // 4. Re-validar elegibilidad multi-tenant y de propietario (Fail-Closed)
-    const clienteDoc = (ingreso.taller_vehiculos as any)?.taller_clientes?.documento;
-    if (!evaluarAplicaRenting(req.empresa_id, clienteDoc)) {
-      res.status(403).json({ error: 'Acceso denegado: Esta orden no pertenece a la flota autorizada para sincronización con Renting.' });
-      return;
-    }
-
-    // 5. La placa es tomada directamente de la DB (inmutable)
-    const placaDb = (ingreso.taller_vehiculos as any)?.placa;
-    if (!placaDb) {
-      res.status(400).json({ error: 'La orden no tiene un vehículo con placa asociado' });
-      return;
-    }
-
-    // 6. Ejecutar reclamo atómico y llamada a Renting
+    // 4. Ejecutar reclamo atómico y llamada a Renting
     const result = await procesarSincronizacionRenting({
       ingresoId: id as string,
       empresaId: req.empresa_id,
       placa: placaDb,
       date,
       description,
-      items
+      items,
+      leasing
     });
 
     if (!result.ok) {
@@ -1688,13 +1748,14 @@ export const syncIngresoToRenting = async (req: Request, res: Response): Promise
       'nota',
       'Gasto Sincronizado en Renting',
       `Se crearon ${result.expenseIds?.length || 0} gastos en AllAtYou Renting Hub. Placa: ${placaDb}`,
-      { expense_ids: result.expenseIds }
+      { expense_ids: result.expenseIds, aplica_leasing: Boolean(leasing), debit_note_error: result.debitNoteError ?? null }
     );
 
     res.json({
       ok: true,
       message: 'Gasto registrado exitosamente en AllAtYou Renting',
-      expense_ids: result.expenseIds
+      expense_ids: result.expenseIds,
+      debit_note_error: result.debitNoteError ?? null
     });
   } catch (err: any) {
     console.error('[syncIngresoToRenting] Error:', err.message);

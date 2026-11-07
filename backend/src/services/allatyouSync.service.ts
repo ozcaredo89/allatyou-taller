@@ -13,12 +13,67 @@ export interface SincronizarGastoParams {
   date: string;
   description: string;
   items: SincronizarGastoItem[];
+  leasing?: LeasingSyncOptions;
+}
+
+/** Descuento del fondo de mantenimiento del leasing (Nota Débito en Renting). */
+export interface LeasingSyncOptions {
+  excessMethod: 'cash' | 'advance';
+  advanceInstallments: number;
+  advanceStartDate: string;
 }
 
 export interface RentingSyncResult {
   ok: boolean;
   message?: string;
   expenseIds?: number[];
+  debitNoteError?: string | null;
+}
+
+export interface LeasingResumen {
+  has_leasing: boolean;
+  maintenance_fund_available?: number;
+  driver_name?: string | null;
+}
+
+function getRentingConfig() {
+  const apiUrl = process.env.ALLATYOU_RENTING_API_URL;
+  const user = process.env.ALLATYOU_RENTING_USER;
+  const pass = process.env.ALLATYOU_RENTING_PASS;
+
+  if (!apiUrl || !user || !pass) {
+    throw new Error('Variables de entorno de Renting API no configuradas en el servidor.');
+  }
+
+  return {
+    baseUrl: apiUrl.replace(/\/+$/, ''),
+    authHeader: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64')
+  };
+}
+
+/**
+ * Consulta en Renting si la placa tiene un contrato de leasing activo y su fondo de mantenimiento disponible.
+ */
+export async function consultarLeasingRenting(placa: string): Promise<LeasingResumen> {
+  const { baseUrl, authHeader } = getRentingConfig();
+
+  const response = await fetch(`${baseUrl}/leasing/summary?plate=${encodeURIComponent(placa.toUpperCase().trim())}`, {
+    headers: { 'Authorization': authHeader },
+    signal: AbortSignal.timeout(10_000)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Renting API respondió HTTP ${response.status} al consultar leasing`);
+  }
+
+  const data: any = await response.json();
+  if (!data?.has_leasing) return { has_leasing: false };
+
+  return {
+    has_leasing: true,
+    maintenance_fund_available: Math.max(0, Number(data.maintenance_fund_available ?? 0)),
+    driver_name: data.driver_name ?? null
+  };
 }
 
 /**
@@ -42,15 +97,9 @@ export function evaluarAplicaRenting(empresaId?: string, clienteDoc?: string): b
  * Si falla, revierte el reclamo (renting_sync_at = null) y persiste el mensaje de error.
  */
 export async function procesarSincronizacionRenting(params: SincronizarGastoParams): Promise<RentingSyncResult> {
-  const { ingresoId, empresaId, placa, date, description, items } = params;
+  const { ingresoId, empresaId, placa, date, description, items, leasing } = params;
 
-  const apiUrl = process.env.ALLATYOU_RENTING_API_URL;
-  const user = process.env.ALLATYOU_RENTING_USER;
-  const pass = process.env.ALLATYOU_RENTING_PASS;
-
-  if (!apiUrl || !user || !pass) {
-    throw new Error('Variables de entorno de Renting API no configuradas en el servidor.');
-  }
+  const { baseUrl, authHeader } = getRentingConfig();
 
   // 1. Reclamo Atómico (Optimistic Lock)
   const nowIso = new Date().toISOString();
@@ -82,17 +131,22 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
     amount: Number(i.amount.toFixed(2))
   }));
 
-  const payload = {
+  const payload: Record<string, any> = {
     date,
     description: description.trim(),
     items: payloadItems,
     plates: [placa.toUpperCase().trim()]
   };
 
-  const authHeader = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
+  if (leasing) {
+    payload.apply_to_leasing = true;
+    payload.leasing_excess_method = leasing.excessMethod;
+    payload.leasing_advance_installments = leasing.advanceInstallments;
+    payload.leasing_advance_start_date = leasing.advanceStartDate;
+  }
 
   try {
-    const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/expenses`, {
+    const response = await fetch(`${baseUrl}/expenses`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -108,15 +162,17 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
     }
 
     const resJson: any = await response.json().catch(() => null);
-    const createdExpenses = resJson?.created_expenses || [];
+    const createdExpenses = resJson?.expenses || [];
     const createdIds = createdExpenses.map((e: any) => e.id);
+    // 207: el gasto se creó pero la Nota Débito del leasing falló
+    const debitNoteError: string | null = resJson?.debit_note_error || null;
 
     // Actualizar éxito en BD
     await supabase
       .from('taller_ingresos')
       .update({
         renting_expense_ids: createdIds,
-        renting_sync_error: null
+        renting_sync_error: debitNoteError
       })
       .eq('id', ingresoId)
       .eq('empresa_id', empresaId);
@@ -125,7 +181,8 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
 
     return {
       ok: true,
-      expenseIds: createdIds
+      expenseIds: createdIds,
+      debitNoteError
     };
   } catch (err: any) {
     console.error(`[RentingSync] Fallo en sincronización de orden #${ingresoId}:`, err.message);
