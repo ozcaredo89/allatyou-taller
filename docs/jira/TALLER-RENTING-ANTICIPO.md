@@ -12,26 +12,29 @@ h2. 📌 Metadatos: TALLER-RENTING-ANTICIPO — Pagar arreglo con anticipo opera
 ---
 
 h2. 🎯 Objetivo
-Desde el modal del taller, permitir que el valor total del arreglo lo pague el conductor con un anticipo operativo en cuotas diarias, sin depender del fondo de mantenimiento del leasing. Es un gasto: el anticipo va al 0% de interés.
+Desde el modal del taller, permitir que el valor total del arreglo lo pague el conductor con un anticipo operativo con tasa, en cuotas diarias, sin depender del fondo de mantenimiento del leasing.
 
 ---
 
 h2. 🧩 Contexto
-Hoy Renting solo crea un anticipo para el excedente que no cubre el fondo (`apply_to_leasing` + `leasing_excess_method: 'advance'`). No hay forma de financiar el arreglo completo con un anticipo.
+* Renting ya tiene `POST /advances` (Basic Auth): `person_name`, `person_type: 'driver'`, `driver_id`, `plate`, `amount`, `rate_percent` (15 por defecto), `installments`, `start_date`, `daily_installment` (obligatoria). Valida la tasa (`advanceRateError`) y permite un solo anticipo activo por placa.
+* Bug del fix anterior: cuando el fondo del leasing no alcanza y el excedente se cubre con anticipo, el taller no envía `leasing_advance_rate_percent` ni `leasing_advance_daily_installment`, así que el anticipo queda al 0%.
 
 ---
 
 h2. 🛠️ Cambios
-* [ ] **Renting `POST /expenses`:** nuevo campo `payment_method: 'advance'` con `advance_installments` (1-60) y `advance_start_date`. Reutiliza el bloque actual de creación de anticipo + cronograma + rollback atómico, por el monto total del gasto y al 0%. Se extiende el endpoint actual en vez de crear uno nuevo para no duplicar la lógica transaccional.
-* [ ] **Renting:** mantener la regla de un anticipo activo por placa (responder 400 con mensaje claro).
-* [ ] **Renting:** definir el conductor responsable cuando la placa no tiene leasing (contrato activo o asignación del vehículo). Si no hay conductor, responder 400.
-* [ ] **Taller backend:** validar y reenviar `payment_method`, `advance_installments` y `advance_start_date` en `POST /api/ingresos/:id/renting-sync` (con la validación de tenant y flota que ya existe).
-* [ ] **Taller modal:** opción "Cobrar al conductor con anticipo", excluyente con "Descontar del fondo de mantenimiento", con el número de cuotas, la fecha de primer cobro y el valor de la cuota diaria calculado.
+* [ ] **Taller service:** `crearAnticipoRenting()` que llama `POST /advances`. Orden: 1) crear el anticipo; 2) crear el gasto con `POST /expenses`; 3) si el gasto falla, `DELETE /advances/:id` (Renting no tiene DELETE de gastos). Guardar `renting_advance_id` en `taller_ingresos` (migración).
+* [ ] **Conductor:** tomarlo de `/leasing/summary` si hay leasing. Sin leasing, definir de dónde sale en Renting (asignación del vehículo); si no hay conductor, bloquear la opción.
+* [ ] **Taller backend:** `POST /api/ingresos/:id/renting-sync` acepta `payment_method: 'advance'` con `advance_rate_percent`, `advance_installments` y `advance_start_date`, y calcula `daily_installment` (redondeo a 100, igual que Renting) con la validación de tenant y flota que ya existe.
+* [ ] **Taller modal:** opción "Cobrar al conductor con anticipo", excluyente con "Descontar del fondo de mantenimiento", con tasa (15% por defecto), número de cuotas, fecha de primer cobro y cuota diaria calculada.
+* [ ] **Fix excedente leasing:** enviar `leasing_advance_rate_percent` y `leasing_advance_daily_installment` cuando el excedente se cubre con anticipo, con los mismos campos de tasa en el modal.
 
 ---
 
 h2. ✅ Verificación
 * [ ] Type-check de backend y frontend del taller, y de Renting.
-* [ ] Placa sin leasing: se crean el gasto, el anticipo y el cronograma de N cuotas que suman el total.
+* [ ] Arreglo con anticipo al 15%: se crean el gasto, el anticipo con esa tasa y el cronograma de N cuotas.
 * [ ] Placa con un anticipo activo: Renting rechaza y no queda ningún gasto creado.
+* [ ] Si el gasto falla después de crear el anticipo, el anticipo se elimina.
+* [ ] Excedente de leasing con anticipo: el anticipo queda con la tasa elegida, no al 0%.
 ```
