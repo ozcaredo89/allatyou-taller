@@ -17,6 +17,7 @@ Desde el modal del taller, permitir que el valor total del arreglo lo pague el c
 ---
 
 h2. 🧩 Contexto
+* *Opcional, nunca por defecto:* la mayoría de los carros no están en leasing y sus arreglos son gastos del taller o de la flota. El modal crea un gasto simple por defecto; el anticipo solo se crea si el usuario marca "Cobrar al conductor con anticipo" y lo confirma.
 * Renting ya tiene `POST /advances` (Basic Auth): `person_name`, `person_type: 'driver'`, `driver_id`, `plate`, `amount`, `rate_percent` (15 por defecto), `installments`, `start_date`, `daily_installment` (obligatoria). Valida la tasa (`advanceRateError`) y permite un solo anticipo activo por placa.
 * Bug del fix anterior: cuando el fondo del leasing no alcanza y el excedente se cubre con anticipo, el taller no envía `leasing_advance_rate_percent` ni `leasing_advance_daily_installment`, así que el anticipo queda al 0%.
 
