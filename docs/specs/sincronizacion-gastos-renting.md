@@ -74,3 +74,18 @@ El backend valida rigurosamente los datos provenientes del modal:
    - `amount`: Número positivo finito (`typeof amount === 'number' && isFinite(amount) && amount > 0`).
    - `category`: `"Mantenimiento"`.
 5. `placa`: Se toma directamente de la orden en la base de datos (inmutable desde el frontend).
+
+---
+
+## 5. Forma de Pago del Gasto (opcional, por defecto gasto simple)
+La mayoría de los carros de la flota no tienen leasing y sus arreglos son gastos del taller o de la flota. Por eso **la opción por defecto es un gasto simple** (`POST /expenses` sin campos extra) y las demás solo se aplican si el usuario las elige en el modal.
+
+| Opción | Cuándo aparece | Qué envía a Renting |
+|---|---|---|
+| Gasto simple (defecto) | Siempre | `POST /expenses` |
+| Descontar del Fondo de Mantenimiento | Solo si `GET /api/ingresos/:id/renting-leasing` devuelve `has_leasing: true` | `POST /expenses` + `apply_to_leasing: true`, `leasing_excess_method` (`cash` \| `advance`) y, si hay anticipo por el excedente, `leasing_advance_installments`, `leasing_advance_start_date`, `leasing_advance_rate_percent`, `leasing_advance_daily_installment` |
+| Cobrar al conductor con anticipo | Solo si el usuario la marca y la placa tiene conductor (ticket `TALLER-RENTING-ANTICIPO`) | Primero `POST /advances` (con tasa), luego `POST /expenses`; si el gasto falla, `DELETE /advances/:id` |
+
+- El fondo y el anticipo del arreglo completo son excluyentes.
+- No se crea ningún anticipo sin que el usuario lo haya elegido y confirmado explícitamente.
+- Si no se pudo verificar el leasing, el modal bloquea el envío hasta reintentar.
