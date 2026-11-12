@@ -11,8 +11,9 @@ import {
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getBogotaRange, bogotaToday } from '../utils/dateUtils';
+import ReporteRepuestos from '../components/ReporteRepuestos';
 
-type TabType = 'financiero' | 'operativo';
+type TabType = 'financiero' | 'operativo' | 'repuestos';
 type OpSubView = 'total' | 'detalle';
 
 interface FinanzasKpis {
@@ -126,7 +127,8 @@ const Reportes: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<TabType>(() => {
-    return searchParams.get('tab') === 'operativo' ? 'operativo' : 'financiero';
+    const tabParam = searchParams.get('tab');
+    return tabParam === 'operativo' || tabParam === 'repuestos' ? tabParam : 'financiero';
   });
 
   // ── Financiero ──
@@ -239,8 +241,8 @@ const Reportes: React.FC = () => {
     if (!initialDeepLinkHandledRef.current) return;
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      if (activeTab === 'operativo') {
-        next.set('tab', 'operativo');
+      if (activeTab !== 'financiero') {
+        next.set('tab', activeTab);
       } else {
         next.delete('tab');
       }
@@ -1586,7 +1588,24 @@ const Reportes: React.FC = () => {
         >
           <Activity size={16} /> {t('reportes.tab_operativo')}
         </button>
+        <button
+          onClick={() => setActiveTab('repuestos')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition ${activeTab === 'repuestos' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <Package size={16} /> {t('reportes.tab_repuestos', 'Repuestos')}
+        </button>
       </div>
+
+      {/* ═══════ TAB REPUESTOS ═══════ */}
+      {activeTab === 'repuestos' && (
+        <ReporteRepuestos
+          start={currentRange.start}
+          end={currentRange.end}
+          slug={currentSlug}
+          disabled={isCustomRangeIncomplete || isCustomRangeInvalid}
+          filtros={renderFiltros()}
+        />
+      )}
 
       {/* ═══════ TAB FINANCIERO ═══════ */}
       {activeTab === 'financiero' && (

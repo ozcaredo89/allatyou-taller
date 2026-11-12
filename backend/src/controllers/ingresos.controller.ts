@@ -1210,6 +1210,179 @@ export const getReportesFinanzasDetalle = async (req: Request, res: Response): P
 };
 
 
+// ─── Reporte: Repuestos más usados (cantidad, precio/costo promedio, utilidad) ───
+// Venta: items_factura tipo 'repuesto' de órdenes entregadas en el rango.
+// Costo: taller_gastos vinculados al ítem vía item_id.
+const normalizarDescripcionRepuesto = (s: string): string =>
+  (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+export const getReportesRepuestos = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { start, end } = req.query;
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (typeof start !== 'string' || typeof end !== 'string' || !dateRe.test(start) || !dateRe.test(end) || start > end) {
+      res.status(400).json({ error: 'Los parámetros start y end deben tener formato YYYY-MM-DD.' });
+      return;
+    }
+
+    const { ingresos, bitacoraMap } = await getIngresosEntregadosEnRango(
+      req.empresa_id!,
+      start,
+      end,
+      `
+        id,
+        updated_at,
+        items_factura,
+        taller_vehiculos (
+          placa,
+          marca,
+          linea,
+          taller_clientes ( nombre_completo )
+        )
+      `
+    );
+
+    // ── Costos vinculados a ítems (chunked) ──
+    const ingresoIds = ingresos.map((i: any) => i.id);
+    const costoPorItem: Record<string, number> = {};
+    const CHUNK = 100;
+    for (let i = 0; i < ingresoIds.length; i += CHUNK) {
+      const chunk = ingresoIds.slice(i, i + CHUNK);
+      const { data, error } = await supabase
+        .from('taller_gastos')
+        .select('ingreso_id, item_id, monto')
+        .eq('empresa_id', req.empresa_id)
+        .in('ingreso_id', chunk)
+        .not('item_id', 'is', null);
+      if (error) throw error;
+      (data || []).forEach((g: any) => {
+        const key = `${g.ingreso_id}::${g.item_id}`;
+        costoPorItem[key] = (costoPorItem[key] || 0) + Number(g.monto || 0);
+      });
+    }
+
+    type Detalle = {
+      ingreso_id: string;
+      fecha_entrega: string;
+      placa: string;
+      vehiculo: string;
+      cliente: string;
+      descripcion: string;
+      cantidad: number;
+      precio_unitario: number;
+      total: number;
+      costo: number | null;
+      utilidad: number | null;
+    };
+    type Grupo = {
+      key: string;
+      descripcion: string;
+      descripcionesConteo: Record<string, number>;
+      cantidad: number;
+      ordenes: Set<string>;
+      ventaTotal: number;
+      ventaConCosto: number;
+      cantidadConCosto: number;
+      costoTotal: number;
+      detalle: Detalle[];
+    };
+
+    const grupos: Record<string, Grupo> = {};
+
+    ingresos.forEach((ing: any) => {
+      const dia = bitacoraMap[ing.id] ?? toBogotaDateStr(ing.updated_at);
+      const veh = ing.taller_vehiculos as any;
+      (ing.items_factura || []).forEach((it: any) => {
+        if (!it || it.tipo !== 'repuesto') return;
+        const descripcion = String(it.descripcion || '').trim() || 'Sin descripción';
+        const key = normalizarDescripcionRepuesto(descripcion) || 'sin descripcion';
+        const cantidad = Number(it.cantidad || 1);
+        const total = Number(it.total || 0);
+        const precioUnit = Number(it.precio_unitario || (cantidad ? total / cantidad : 0));
+        const costoKey = it.id ? `${ing.id}::${it.id}` : null;
+        const tieneCosto = costoKey !== null && costoPorItem[costoKey] !== undefined;
+        const costo = tieneCosto ? costoPorItem[costoKey!] : null;
+
+        if (!grupos[key]) {
+          grupos[key] = {
+            key, descripcion, descripcionesConteo: {}, cantidad: 0, ordenes: new Set(),
+            ventaTotal: 0, ventaConCosto: 0, cantidadConCosto: 0, costoTotal: 0, detalle: [],
+          };
+        }
+        const g = grupos[key];
+        g.descripcionesConteo[descripcion] = (g.descripcionesConteo[descripcion] || 0) + 1;
+        g.cantidad += cantidad;
+        g.ordenes.add(ing.id);
+        g.ventaTotal += total;
+        if (tieneCosto) {
+          g.ventaConCosto += total;
+          g.cantidadConCosto += cantidad;
+          g.costoTotal += costo!;
+        }
+        g.detalle.push({
+          ingreso_id: ing.id,
+          fecha_entrega: dia,
+          placa: veh?.placa || 'Sin placa',
+          vehiculo: [veh?.marca, veh?.linea].filter(Boolean).join(' '),
+          cliente: veh?.taller_clientes?.nombre_completo || 'Cliente no registrado',
+          descripcion,
+          cantidad,
+          precio_unitario: precioUnit,
+          total,
+          costo,
+          utilidad: tieneCosto ? total - costo! : null,
+        });
+      });
+    });
+
+    const repuestos = Object.values(grupos).map((g) => {
+      // Nombre más frecuente como etiqueta del grupo
+      const descripcion = Object.entries(g.descripcionesConteo).sort((a, b) => b[1] - a[1])[0]?.[0] || g.descripcion;
+      const utilidad = g.cantidadConCosto > 0 ? g.ventaConCosto - g.costoTotal : null;
+      g.detalle.sort((a, b) => b.fecha_entrega.localeCompare(a.fecha_entrega));
+      return {
+        key: g.key,
+        descripcion,
+        cantidad: g.cantidad,
+        ordenes: g.ordenes.size,
+        ventaTotal: g.ventaTotal,
+        precioPromedio: g.cantidad > 0 ? g.ventaTotal / g.cantidad : 0,
+        cantidadConCosto: g.cantidadConCosto,
+        costoTotal: g.costoTotal,
+        costoPromedio: g.cantidadConCosto > 0 ? g.costoTotal / g.cantidadConCosto : null,
+        utilidad,
+        margenPct: utilidad !== null && g.ventaConCosto > 0 ? (utilidad / g.ventaConCosto) * 100 : null,
+        detalle: g.detalle,
+      };
+    });
+
+    repuestos.sort((a, b) => b.cantidad - a.cantidad || b.ventaTotal - a.ventaTotal);
+
+    const ventaConCosto = Object.values(grupos).reduce((s, g) => s + g.ventaConCosto, 0);
+    const costoTotal = Object.values(grupos).reduce((s, g) => s + g.costoTotal, 0);
+    const resumen = {
+      repuestosDistintos: repuestos.length,
+      unidades: repuestos.reduce((s, r) => s + r.cantidad, 0),
+      ventaTotal: repuestos.reduce((s, r) => s + r.ventaTotal, 0),
+      ventaConCosto,
+      costoTotal,
+      utilidad: ventaConCosto - costoTotal,
+      margenPct: ventaConCosto > 0 ? ((ventaConCosto - costoTotal) / ventaConCosto) * 100 : 0,
+      lineasTotal: repuestos.reduce((s, r) => s + r.detalle.length, 0),
+      lineasConCosto: repuestos.reduce((s, r) => s + r.detalle.filter((d) => d.costo !== null).length, 0),
+    };
+
+    res.json({ rango: { start, end }, resumen, repuestos });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getReportesOperaciones = async (req: Request, res: Response): Promise<void> => {
   try {
     const { start, end } = req.query;

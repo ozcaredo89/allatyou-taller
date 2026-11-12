@@ -279,6 +279,7 @@
     "alerta_termometro": "⚠️ Attention: It's past 3:00 PM and today's revenue (${{hoy}}) is well below your daily average (${{promedio}}). Have you registered all delivered orders?",
     "tab_financiero": "Financials",
     "tab_operativo": "Operational Performance",
+    "tab_repuestos": "Spare Parts",
     "op_title": "Operational Performance",
     "op_subtitle": "Average time per service stage",
     "op_total": "Shop Total",
