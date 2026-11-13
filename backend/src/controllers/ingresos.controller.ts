@@ -47,20 +47,28 @@ async function registrarEventoBitacora(
 // Incluye estado_desde y promedios históricos de SLA por empresa
 export const getIngresosActivos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { data, error } = await supabase
-      .from('taller_ingresos')
-      .select('*, taller_vehiculos(*, taller_clientes(*)), taller_ingresos_tecnicos(taller_tecnicos(id, nombre))')
-      .eq('empresa_id', req.empresa_id)
-      .in('estado', ['recepcion', 'diagnostico', 'cotizacion', 'esperando_aprobacion', 'en_reparacion']);
-      
+    const [{ data, error }, { data: empresaCfg }, { data: tiempos }] = await Promise.all([
+      supabase
+        .from('taller_ingresos')
+        .select('*, taller_vehiculos(*, taller_clientes(*)), taller_ingresos_tecnicos(taller_tecnicos(id, nombre))')
+        .eq('empresa_id', req.empresa_id)
+        .in('estado', ['recepcion', 'diagnostico', 'cotizacion', 'esperando_aprobacion', 'en_reparacion']),
+      supabase
+        .from('taller_empresas')
+        .select('intervalo_seguimiento_horas')
+        .eq('id', req.empresa_id)
+        .maybeSingle(),
+      supabase
+        .from('taller_ingresos_tiempos')
+        .select('estado, duracion_minutos')
+        .eq('empresa_id', req.empresa_id)
+    ]);
+
     if (error) throw error;
 
-    // Calcular promedios SLA por estado para esta empresa
-    const { data: tiempos } = await supabase
-      .from('taller_ingresos_tiempos')
-      .select('estado, duracion_minutos')
-      .eq('empresa_id', req.empresa_id);
+    const intervaloSeguimientoHoras: number = empresaCfg?.intervalo_seguimiento_horas || 6;
 
+    // Calcular promedios SLA por estado para esta empresa
     const promediosSLA: Record<string, number> = {};
     if (tiempos && tiempos.length > 0) {
       const agrupado: Record<string, number[]> = {};
@@ -74,12 +82,45 @@ export const getIngresosActivos = async (req: Request, res: Response): Promise<v
       });
     }
 
-    const ingresosConRenting = (data || []).map((ing: any) => ({
-      ...ing,
-      aplica_renting: evaluarAplicaRenting(req.empresa_id, ing.taller_vehiculos?.taller_clientes?.documento)
-    }));
+    const ahoraMs = Date.now();
+    const ingresosConRenting = (data || []).map((ing: any) => {
+      const estadoDesdeMs = ing.estado_desde ? new Date(ing.estado_desde).getTime() : new Date(ing.fecha_ingreso).getTime();
+      const ultActMs = ing.ultima_actualizacion_estado
+        ? new Date(ing.ultima_actualizacion_estado).getTime()
+        : estadoDesdeMs;
 
-    res.json({ ingresos: ingresosConRenting, promediosSLA });
+      const minutosEnEstado = Math.max(0, Math.round((ahoraMs - estadoDesdeMs) / 60000));
+      const horasSinActualizacion = Math.max(0, Number(((ahoraMs - ultActMs) / 3600000).toFixed(1)));
+      const requiereActualizacion = horasSinActualizacion >= intervaloSeguimientoHoras;
+
+      const promedioEstado = promediosSLA[ing.estado] || 0;
+      const entregaEstMs = ing.fecha_entrega_estimada ? new Date(ing.fecha_entrega_estimada).getTime() : null;
+      const minutosParaEntrega = entregaEstMs !== null ? Math.round((entregaEstMs - ahoraMs) / 60000) : null;
+
+      let estadoDemora: 'vencido' | 'en_riesgo' | 'demorado_promedio' | 'a_tiempo' = 'a_tiempo';
+      if (minutosParaEntrega !== null && minutosParaEntrega < 0) {
+        estadoDemora = 'vencido';
+      } else if (
+        (minutosParaEntrega !== null && minutosParaEntrega <= 120) ||
+        (promedioEstado > 0 && minutosEnEstado >= promedioEstado * 1.5)
+      ) {
+        estadoDemora = 'en_riesgo';
+      } else if (promedioEstado > 0 && minutosEnEstado >= promedioEstado) {
+        estadoDemora = 'demorado_promedio';
+      }
+
+      return {
+        ...ing,
+        aplica_renting: evaluarAplicaRenting(req.empresa_id, ing.taller_vehiculos?.taller_clientes?.documento),
+        minutos_en_estado_actual: minutosEnEstado,
+        horas_sin_actualizacion: horasSinActualizacion,
+        requiere_actualizacion: requiereActualizacion,
+        minutos_para_entrega: minutosParaEntrega,
+        estado_demora: estadoDemora
+      };
+    });
+
+    res.json({ ingresos: ingresosConRenting, promediosSLA, intervaloSeguimientoHoras });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -333,7 +374,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     // 1. Obtener estado actual para SLA y comisiones
     const { data: current, error: fetchError } = await supabase
       .from('taller_ingresos')
-      .select('estado, estado_desde, items_factura, vehiculo_id, motivo_visita, kilometraje, nivel_gasolina, fecha_ingreso, renting_sync_at, taller_vehiculos(id, marca, linea, modelo_anio, color, placa, cliente_id, taller_clientes(id, documento, nombre_completo, telefono))')
+      .select('estado, estado_desde, fecha_entrega_estimada, reprogramaciones_count, items_factura, vehiculo_id, motivo_visita, kilometraje, nivel_gasolina, fecha_ingreso, renting_sync_at, taller_vehiculos(id, marca, linea, modelo_anio, color, placa, cliente_id, taller_clientes(id, documento, nombre_completo, telefono))')
       .eq('empresa_id', req.empresa_id)
       .eq('id', id)
       .single();
@@ -362,8 +403,10 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         console.error('[updateIngreso] Error insertando en taller_ingresos_tiempos:', insertTiemposError);
       }
 
-      // Resetear estado_desde para el nuevo estado
-      body.estado_desde = new Date().toISOString();
+      // Resetear estado_desde y ultima_actualizacion_estado para el nuevo estado
+      const nowIso = new Date().toISOString();
+      body.estado_desde = nowIso;
+      body.ultima_actualizacion_estado = nowIso;
     }
 
     // 3. ── AUTOMATISMO DE COMISIONES (MODELO PORCENTAJE) ──────────────────
@@ -445,8 +488,27 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
       cliente,
       vehiculo_datos,
       cliente_datos,
+      motivo_reprogramacion,
       ...camposIngreso
     } = body;
+
+    // Control de reprogramación si cambia fecha_entrega_estimada
+    let cambioFechaEstimada: 'ninguno' | 'primera_vez' | 'reprogramacion' = 'ninguno';
+    if (camposIngreso.fecha_entrega_estimada !== undefined && current) {
+      const prevMs = current.fecha_entrega_estimada ? new Date(current.fecha_entrega_estimada).getTime() : null;
+      const nextMs = camposIngreso.fecha_entrega_estimada ? new Date(camposIngreso.fecha_entrega_estimada).getTime() : null;
+      if (nextMs !== null && prevMs === null) {
+        cambioFechaEstimada = 'primera_vez';
+        camposIngreso.ultima_actualizacion_estado = camposIngreso.ultima_actualizacion_estado || new Date().toISOString();
+      } else if (nextMs !== null && prevMs !== null && Math.abs(nextMs - prevMs) > 60000) {
+        cambioFechaEstimada = 'reprogramacion';
+        camposIngreso.reprogramaciones_count = (current.reprogramaciones_count || 0) + 1;
+        camposIngreso.ultima_actualizacion_estado = new Date().toISOString();
+        if (motivo_reprogramacion) {
+          camposIngreso.motivo_demora_actual = String(motivo_reprogramacion).trim();
+        }
+      }
+    }
 
     // 1. Whitelist y validación estricta de vehiculo_datos (prevenir mass assignment y cruce de tenant)
     const safeVehiculoData: Record<string, any> = {};
@@ -576,6 +638,39 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         'Cotización Actualizada',
         'Se actualizaron los ítems de repuestos o mano de obra.'
       );
+    }
+
+    if (req.empresa_id && cambioFechaEstimada !== 'ninguno' && camposIngreso.fecha_entrega_estimada) {
+      const fechaFormateada = new Date(camposIngreso.fecha_entrega_estimada).toLocaleString('es-CO', {
+        timeZone: 'America/Bogota',
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      if (cambioFechaEstimada === 'primera_vez') {
+        await registrarEventoBitacora(
+          req.empresa_id,
+          id as string,
+          'diagnostico',
+          'Fecha Estimada de Salida Definida',
+          `Promesa de entrega establecida para: ${fechaFormateada}`,
+          { fecha_entrega_estimada: camposIngreso.fecha_entrega_estimada }
+        );
+      } else {
+        await registrarEventoBitacora(
+          req.empresa_id,
+          id as string,
+          'reprogramacion',
+          'Fecha de Entrega Reprogramada',
+          `Nueva fecha estimada: ${fechaFormateada}${motivo_reprogramacion ? ` — Motivo: ${motivo_reprogramacion}` : ''}`,
+          {
+            fecha_anterior: current?.fecha_entrega_estimada,
+            fecha_nueva: camposIngreso.fecha_entrega_estimada,
+            motivo: motivo_reprogramacion || null
+          }
+        );
+      }
     }
 
     // 5. ── LIMPIEZA DE HUÉRFANOS DE GASTOS ────────────────────────────────
@@ -1933,5 +2028,396 @@ export const syncIngresoToRenting = async (req: Request, res: Response): Promise
   } catch (err: any) {
     console.error('[syncIngresoToRenting] Error:', err.message);
     res.status(500).json({ error: err.message || 'Error al sincronizar gasto con Renting' });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SEGUIMIENTO PERIÓDICO (4/6/10h) Y REPORTE POST-MORTEM SEMANAL / MENSUAL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/ingresos/:id/seguimiento
+ * Registra un check-in rápido de avance del vehículo (cada 4h/6h/10h o manual),
+ * opcionalmente reprograma la fecha estimada de salida y deja traza en bitácora.
+ */
+export const registrarSeguimiento = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresa_id = req.empresa_id;
+    const { id } = req.params;
+    if (!empresa_id) {
+      res.status(401).json({ error: 'No autorizado' });
+      return;
+    }
+
+    const { estado_avance, nota, nueva_fecha_entrega_estimada, motivo_reprogramacion } = req.body || {};
+    if (!estado_avance || typeof estado_avance !== 'string') {
+      res.status(400).json({ error: 'El campo estado_avance es obligatorio.' });
+      return;
+    }
+
+    const { data: current, error: fetchError } = await supabase
+      .from('taller_ingresos')
+      .select('id, estado, fecha_entrega_estimada, reprogramaciones_count')
+      .eq('empresa_id', empresa_id)
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !current) {
+      res.status(404).json({ error: 'Orden de ingreso no encontrada.' });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const updatePayload: Record<string, any> = {
+      ultima_actualizacion_estado: nowIso,
+      motivo_demora_actual: nota ? `${estado_avance}: ${String(nota).trim()}` : estado_avance
+    };
+
+    let reprogramo = false;
+    if (nueva_fecha_entrega_estimada) {
+      const prevMs = current.fecha_entrega_estimada ? new Date(current.fecha_entrega_estimada).getTime() : null;
+      const nextMs = new Date(nueva_fecha_entrega_estimada).getTime();
+      if (Number.isNaN(nextMs)) {
+        res.status(400).json({ error: 'La nueva fecha estimada de entrega no es válida.' });
+        return;
+      }
+      updatePayload.fecha_entrega_estimada = new Date(nextMs).toISOString();
+      if (prevMs === null || Math.abs(nextMs - prevMs) > 60000) {
+        reprogramo = true;
+        if (prevMs !== null) {
+          updatePayload.reprogramaciones_count = (current.reprogramaciones_count || 0) + 1;
+        }
+      }
+    }
+
+    const { data: updated, error: updateError } = await supabase
+      .from('taller_ingresos')
+      .update(updatePayload)
+      .eq('empresa_id', empresa_id)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    const fechaNuevaTxt = updatePayload.fecha_entrega_estimada
+      ? new Date(updatePayload.fecha_entrega_estimada).toLocaleString('es-CO', {
+          timeZone: 'America/Bogota',
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : null;
+
+    const descripcion = [
+      `Estado reportado: ${estado_avance}`,
+      nota ? `Nota: ${String(nota).trim()}` : null,
+      fechaNuevaTxt ? `Nueva salida estimada: ${fechaNuevaTxt}` : null,
+      motivo_reprogramacion ? `Motivo ajuste: ${String(motivo_reprogramacion).trim()}` : null
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    await registrarEventoBitacora(
+      empresa_id,
+      id as string,
+      reprogramo && current.fecha_entrega_estimada ? 'reprogramacion' : 'seguimiento',
+      reprogramo && current.fecha_entrega_estimada
+        ? `Seguimiento y Reprogramación: ${estado_avance}`
+        : `Seguimiento de Avance: ${estado_avance}`,
+      descripcion,
+      {
+        estado_avance,
+        nota: nota ? String(nota).trim() : null,
+        estado_orden: current.estado,
+        fecha_anterior: current.fecha_entrega_estimada || null,
+        fecha_nueva: updatePayload.fecha_entrega_estimada || null,
+        motivo_reprogramacion: motivo_reprogramacion || null
+      }
+    );
+
+    res.json({ ok: true, ingreso: updated });
+  } catch (error: any) {
+    console.error('[registrarSeguimiento] Error:', error.message);
+    res.status(500).json({ error: error.message || 'Error registrando seguimiento' });
+  }
+};
+
+/**
+ * GET /api/ingresos/config/seguimiento
+ * Obtiene el intervalo de actualización periódica configurado para el taller (4, 6 u 10 horas).
+ */
+export const getConfigSeguimiento = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresa_id = req.empresa_id;
+    if (!empresa_id) {
+      res.status(401).json({ error: 'No autorizado' });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('taller_empresas')
+      .select('intervalo_seguimiento_horas')
+      .eq('id', empresa_id)
+      .single();
+
+    if (error) throw error;
+    res.json({ intervalo_seguimiento_horas: data?.intervalo_seguimiento_horas || 6 });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * PUT /api/ingresos/config/seguimiento
+ * Actualiza el intervalo de seguimiento periódico del taller (4, 6 o 10 horas).
+ */
+export const updateConfigSeguimiento = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresa_id = req.empresa_id;
+    if (!empresa_id) {
+      res.status(401).json({ error: 'No autorizado' });
+      return;
+    }
+
+    const horas = Number(req.body?.intervalo_seguimiento_horas);
+    if (![4, 6, 10].includes(horas)) {
+      res.status(400).json({ error: 'El intervalo permitido es 4, 6 o 10 horas.' });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('taller_empresas')
+      .update({ intervalo_seguimiento_horas: horas })
+      .eq('id', empresa_id)
+      .select('intervalo_seguimiento_horas')
+      .single();
+
+    if (error) throw error;
+    res.json({ ok: true, intervalo_seguimiento_horas: data?.intervalo_seguimiento_horas || horas });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * GET /api/ingresos/reportes/postmortem?start=YYYY-MM-DD&end=YYYY-MM-DD&limit=30
+ * Reporte semanal o mensual de vehículos entregados que más tardaron, con desglose por etapa,
+ * cumplimiento de promesa de salida y motivos registrados en bitácora.
+ */
+export const getReportePostmortem = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresa_id = req.empresa_id;
+    if (!empresa_id) {
+      res.status(401).json({ error: 'No autorizado' });
+      return;
+    }
+
+    const { start, end, limit } = req.query;
+    const startStr = (start as string) || bogotaToday();
+    const endStr = (end as string) || bogotaToday();
+    const maxLimit = Math.min(100, Math.max(5, Number(limit) || 30));
+
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const isValidDate = (s: string) =>
+      dateRe.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+
+    if (!isValidDate(startStr) || !isValidDate(endStr)) {
+      res.status(400).json({ error: 'Los parámetros start y end deben tener formato YYYY-MM-DD con valores válidos' });
+      return;
+    }
+
+    const { startISO, endExclusiveISO } = bogotaDayBounds(startStr, endStr);
+
+    // 1. Obtener órdenes entregadas en el rango (por updated_at como cota rápida y validar con bitácora si existe)
+    const { data: entregadasRaw, error: errEnt } = await supabase
+      .from('taller_ingresos')
+      .select(`
+        id, estado, fecha_ingreso, updated_at, fecha_entrega_estimada,
+        reprogramaciones_count, motivo_demora_actual, motivo_visita,
+        taller_vehiculos(placa, marca, linea, taller_clientes(nombre_completo))
+      `)
+      .eq('empresa_id', empresa_id)
+      .eq('estado', 'entregado')
+      .gte('updated_at', startISO)
+      .lt('updated_at', endExclusiveISO);
+
+    if (errEnt) throw errEnt;
+
+    const ordenesRaw = entregadasRaw || [];
+    if (ordenesRaw.length === 0) {
+      res.json({
+        resumen: {
+          totalEntregados: 0,
+          promedioTotalMinutos: 0,
+          conPromesaCount: 0,
+          cumplimientoPromesaPct: null,
+          ordenesDemoradasCount: 0,
+          etapaCuelloBotellaPrincipal: null
+        },
+        cuellosPorEtapa: [],
+        ordenes: []
+      });
+      return;
+    }
+
+    const ingresoIds = ordenesRaw.map((o: any) => o.id);
+
+    // 2. Consultar tiempos por etapa y bitácora de seguimiento/reprogramación/entrega en paralelo
+    const CHUNK_SIZE = 100;
+    const tiemposPorIngreso: Record<string, Record<string, number>> = {};
+    const bitacoraPorIngreso: Record<string, any[]> = {};
+    const entregaRealMap: Record<string, string> = {};
+
+    for (let i = 0; i < ingresoIds.length; i += CHUNK_SIZE) {
+      const chunk = ingresoIds.slice(i, i + CHUNK_SIZE);
+      const [{ data: tRows, error: tErr }, { data: bRows, error: bErr }] = await Promise.all([
+        supabase
+          .from('taller_ingresos_tiempos')
+          .select('ingreso_id, estado, duracion_minutos')
+          .eq('empresa_id', empresa_id)
+          .in('ingreso_id', chunk),
+        supabase
+          .from('taller_ingresos_bitacora')
+          .select('ingreso_id, tipo_evento, titulo, descripcion, created_at')
+          .eq('empresa_id', empresa_id)
+          .in('tipo_evento', ['entrega', 'seguimiento', 'reprogramacion'])
+          .in('ingreso_id', chunk)
+          .order('created_at', { ascending: true })
+      ]);
+
+      if (tErr) throw tErr;
+      if (bErr) throw bErr;
+
+      (tRows || []).forEach((r: any) => {
+        if (!tiemposPorIngreso[r.ingreso_id]) tiemposPorIngreso[r.ingreso_id] = {};
+        tiemposPorIngreso[r.ingreso_id][r.estado] =
+          (tiemposPorIngreso[r.ingreso_id][r.estado] || 0) + (r.duracion_minutos || 0);
+      });
+
+      (bRows || []).forEach((b: any) => {
+        if (b.tipo_evento === 'entrega') {
+          if (!entregaRealMap[b.ingreso_id]) entregaRealMap[b.ingreso_id] = b.created_at;
+        } else {
+          if (!bitacoraPorIngreso[b.ingreso_id]) bitacoraPorIngreso[b.ingreso_id] = [];
+          bitacoraPorIngreso[b.ingreso_id].push({
+            tipo: b.tipo_evento,
+            titulo: b.titulo,
+            descripcion: b.descripcion,
+            fecha: b.created_at
+          });
+        }
+      });
+    }
+
+    // 3. Construir filas post-mortem
+    const etapasAcumuladas: Record<string, { totalMinutos: number; count: number }> = {};
+
+    const ordenesProcesadas = ordenesRaw.map((ing: any) => {
+      const etapas = tiemposPorIngreso[ing.id] || {};
+      const sumaEtapas = Object.values(etapas).reduce((a, b) => a + b, 0);
+
+      const fechaIngresoMs = new Date(ing.fecha_ingreso).getTime();
+      const fechaEntregaIso = entregaRealMap[ing.id] || ing.updated_at;
+      const fechaEntregaMs = new Date(fechaEntregaIso).getTime();
+      const duracionCalendarioMin = Math.max(0, Math.round((fechaEntregaMs - fechaIngresoMs) / 60000));
+      const duracionTotalMin = sumaEtapas > 0 ? sumaEtapas : duracionCalendarioMin;
+
+      // Detectar cuello de botella individual
+      let cuelloEstado: string | null = null;
+      let cuelloMinutos = 0;
+      Object.entries(etapas).forEach(([estado, mins]) => {
+        if (!etapasAcumuladas[estado]) etapasAcumuladas[estado] = { totalMinutos: 0, count: 0 };
+        etapasAcumuladas[estado].totalMinutos += mins;
+        etapasAcumuladas[estado].count += 1;
+
+        if (mins > cuelloMinutos) {
+          cuelloMinutos = mins;
+          cuelloEstado = estado;
+        }
+      });
+
+      // Evaluar promesa de entrega
+      let cumplioPromesa: boolean | null = null;
+      let desviacionPromesaMinutos: number | null = null;
+      if (ing.fecha_entrega_estimada) {
+        const estMs = new Date(ing.fecha_entrega_estimada).getTime();
+        desviacionPromesaMinutos = Math.round((fechaEntregaMs - estMs) / 60000);
+        cumplioPromesa = desviacionPromesaMinutos <= 0;
+      }
+
+      const veh = ing.taller_vehiculos;
+      const cli = veh?.taller_clientes;
+
+      return {
+        ingreso_id: ing.id,
+        placa: veh?.placa || 'S/P',
+        vehiculo: [veh?.marca, veh?.linea].filter(Boolean).join(' ') || 'Vehículo',
+        cliente: cli?.nombre_completo || 'Cliente',
+        motivo_visita: ing.motivo_visita || '',
+        fecha_ingreso: ing.fecha_ingreso,
+        fecha_entrega_real: fechaEntregaIso,
+        fecha_entrega_estimada: ing.fecha_entrega_estimada || null,
+        duracion_total_minutos: duracionTotalMin,
+        desglose_etapas: {
+          recepcion: etapas.recepcion || 0,
+          diagnostico: etapas.diagnostico || 0,
+          cotizacion: etapas.cotizacion || 0,
+          esperando_aprobacion: etapas.esperando_aprobacion || 0,
+          en_reparacion: etapas.en_reparacion || 0
+        },
+        cuello_botella_estado: cuelloEstado,
+        cuello_botella_minutos: cuelloMinutos,
+        cumplio_promesa: cumplioPromesa,
+        desviacion_promesa_minutos: desviacionPromesaMinutos,
+        reprogramaciones_count: ing.reprogramaciones_count || 0,
+        motivo_demora_actual: ing.motivo_demora_actual || null,
+        eventos_seguimiento: bitacoraPorIngreso[ing.id] || []
+      };
+    });
+
+    // 4. Calcular métricas globales del período
+    const totalEntregados = ordenesProcesadas.length;
+    const sumaTotalMin = ordenesProcesadas.reduce((acc, o) => acc + o.duracion_total_minutos, 0);
+    const promedioTotalMinutos = totalEntregados > 0 ? Math.round(sumaTotalMin / totalEntregados) : 0;
+
+    const conPromesa = ordenesProcesadas.filter(o => o.cumplio_promesa !== null);
+    const cumplieron = conPromesa.filter(o => o.cumplio_promesa === true).length;
+    const cumplimientoPromesaPct = conPromesa.length > 0 ? Math.round((cumplieron / conPromesa.length) * 100) : null;
+
+    const ordenesDemoradasCount = ordenesProcesadas.filter(
+      o => o.cumplio_promesa === false || (promedioTotalMinutos > 0 && o.duracion_total_minutos >= promedioTotalMinutos * 1.5)
+    ).length;
+
+    const cuellosPorEtapa = Object.entries(etapasAcumuladas)
+      .map(([estado, info]) => ({
+        estado,
+        promedio_minutos: Math.round(info.totalMinutos / info.count),
+        total_minutos: info.totalMinutos,
+        ordenes: info.count
+      }))
+      .sort((a, b) => b.promedio_minutos - a.promedio_minutos);
+
+    const etapaCuelloBotellaPrincipal = cuellosPorEtapa[0]?.estado || null;
+
+    // 5. Ordenar por duración total descendente (los que más tardaron primero)
+    ordenesProcesadas.sort((a, b) => b.duracion_total_minutos - a.duracion_total_minutos);
+
+    res.json({
+      resumen: {
+        totalEntregados,
+        promedioTotalMinutos,
+        conPromesaCount: conPromesa.length,
+        cumplimientoPromesaPct,
+        ordenesDemoradasCount,
+        etapaCuelloBotellaPrincipal
+      },
+      cuellosPorEtapa,
+      ordenes: ordenesProcesadas.slice(0, maxLimit)
+    });
+  } catch (error: any) {
+    console.error('[getReportePostmortem] Error:', error.message);
+    res.status(500).json({ error: error.message || 'Error generando reporte post-mortem' });
   }
 };
