@@ -13,8 +13,9 @@ import { useAuth } from '../context/AuthContext';
 import { getBogotaRange, bogotaToday } from '../utils/dateUtils';
 import ReporteRepuestos from '../components/ReporteRepuestos';
 import ReportePostmortem from '../components/ReportePostmortem';
+import ReporteHorasTecnicos from '../components/ReporteHorasTecnicos';
 
-type TabType = 'financiero' | 'operativo' | 'repuestos' | 'postmortem';
+type TabType = 'financiero' | 'operativo' | 'repuestos' | 'postmortem' | 'horas_tecnicos';
 type OpSubView = 'total' | 'detalle';
 
 interface FinanzasKpis {
@@ -129,7 +130,9 @@ const Reportes: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const tabParam = searchParams.get('tab');
-    return tabParam === 'operativo' || tabParam === 'repuestos' || tabParam === 'postmortem' ? tabParam : 'financiero';
+    return tabParam === 'operativo' || tabParam === 'repuestos' || tabParam === 'postmortem' || tabParam === 'horas_tecnicos'
+      ? tabParam
+      : 'financiero';
   });
 
   // ── Financiero ──
@@ -1601,7 +1604,29 @@ const Reportes: React.FC = () => {
         >
           <Clock size={16} /> Post-Mortem
         </button>
+        <button
+          onClick={() => setActiveTab('horas_tecnicos')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition ${activeTab === 'horas_tecnicos' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <Wrench size={16} /> Horas Mecánicos
+        </button>
       </div>
+
+      {/* ═══════ TAB HORAS MECÁNICOS ═══════ */}
+      {activeTab === 'horas_tecnicos' && (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Horas Trabajadas por Mecánico</h2>
+              <p className="text-sm text-slate-500">Calculado exclusivamente en horario laboral durante las etapas de Diagnóstico y Reparación.</p>
+            </div>
+            {renderFiltros()}
+          </div>
+          {!isCustomRangeIncomplete && !isCustomRangeInvalid && (
+            <ReporteHorasTecnicos startDate={currentRange.start} endDate={currentRange.end} />
+          )}
+        </div>
+      )}
 
       {/* ═══════ TAB POST-MORTEM ═══════ */}
       {activeTab === 'postmortem' && (

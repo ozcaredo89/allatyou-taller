@@ -2421,3 +2421,330 @@ export const getReportePostmortem = async (req: Request, res: Response): Promise
     res.status(500).json({ error: error.message || 'Error generando reporte post-mortem' });
   }
 };
+
+// ─── Helper: Calcular minutos dentro del horario laboral (America/Bogota, UTC-5) ───
+interface HorarioLaboralConfig {
+  lvStartMin: number;
+  lvEndMin: number;
+  sabStartMin: number;
+  sabEndMin: number;
+  domLaboral: boolean;
+  domStartMin: number;
+  domEndMin: number;
+}
+
+function parseHHMM(val: unknown, fallbackMin: number): number {
+  if (typeof val !== 'string') return fallbackMin;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(val.trim());
+  if (!m) return fallbackMin;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return fallbackMin;
+  return hh * 60 + mm;
+}
+
+function calcularMinutosLaborales(
+  startMs: number,
+  endMs: number,
+  cfg: HorarioLaboralConfig
+): number {
+  if (endMs <= startMs) return 0;
+
+  const BOGOTA_OFFSET_MS = 5 * 3600000;
+  const DAY_MS = 24 * 3600000;
+
+  // Convertir inicio a fecha calendario en Bogotá
+  const startBogota = new Date(startMs - BOGOTA_OFFSET_MS);
+  let cursorDayUtc = Date.UTC(
+    startBogota.getUTCFullYear(),
+    startBogota.getUTCMonth(),
+    startBogota.getUTCDate(),
+    0, 0, 0
+  ) + BOGOTA_OFFSET_MS;
+
+  let totalMs = 0;
+  // Límite de seguridad (máx 400 días por intervalo)
+  let iter = 0;
+  while (cursorDayUtc < endMs && iter < 400) {
+    iter++;
+    const dayBogota = new Date(cursorDayUtc - BOGOTA_OFFSET_MS);
+    const dow = dayBogota.getUTCDay(); // 0=Dom, 1..5=Lun..Vie, 6=Sáb
+
+    let winStart = 0;
+    let winEnd = 0;
+    if (dow >= 1 && dow <= 5) {
+      winStart = cfg.lvStartMin;
+      winEnd = cfg.lvEndMin;
+    } else if (dow === 6) {
+      winStart = cfg.sabStartMin;
+      winEnd = cfg.sabEndMin;
+    } else if (cfg.domLaboral) {
+      winStart = cfg.domStartMin;
+      winEnd = cfg.domEndMin;
+    }
+
+    if (winEnd > winStart) {
+      const wStartMs = cursorDayUtc + winStart * 60000;
+      const wEndMs = cursorDayUtc + winEnd * 60000;
+      const overlap = Math.min(endMs, wEndMs) - Math.max(startMs, wStartMs);
+      if (overlap > 0) totalMs += overlap;
+    }
+
+    cursorDayUtc += DAY_MS;
+  }
+
+  return Math.round(totalMs / 60000);
+}
+
+/**
+ * GET /api/ingresos/reportes/horas-tecnicos?start=YYYY-MM-DD&end=YYYY-MM-DD
+ * Calcula las horas trabajadas por cada mecánico (etapas diagnostico + en_reparacion)
+ * contando exclusivamente dentro del horario laboral configurado (America/Bogota).
+ */
+export const getReporteHorasTecnicos = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresa_id = req.empresa_id;
+    if (!empresa_id) {
+      res.status(401).json({ error: 'No autorizado' });
+      return;
+    }
+
+    const { start, end, lvStart, lvEnd, sabStart, sabEnd, domLaboral } = req.query;
+    const startStr = (start as string) || bogotaToday();
+    const endStr = (end as string) || bogotaToday();
+
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const isValidDate = (s: string) =>
+      dateRe.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+
+    if (!isValidDate(startStr) || !isValidDate(endStr)) {
+      res.status(400).json({ error: 'Los parámetros start y end deben tener formato YYYY-MM-DD con valores válidos' });
+      return;
+    }
+
+    const { startISO, endExclusiveISO } = bogotaDayBounds(startStr, endStr);
+    const rangeStartMs = new Date(startISO).getTime();
+    const ahoraMs = Date.now();
+    const rangeEndMs = Math.min(new Date(endExclusiveISO).getTime(), ahoraMs);
+
+    const horarioCfg: HorarioLaboralConfig = {
+      lvStartMin: parseHHMM(lvStart, 8 * 60),
+      lvEndMin: parseHHMM(lvEnd, 18 * 60),
+      sabStartMin: parseHHMM(sabStart, 8 * 60),
+      sabEndMin: parseHHMM(sabEnd, 13 * 60),
+      domLaboral: String(domLaboral) === 'true',
+      domStartMin: 8 * 60,
+      domEndMin: 13 * 60
+    };
+
+    // 1. Obtener técnicos de la empresa y órdenes potencialmente activas en el rango
+    const [{ data: tecnicosRows, error: tecErr }, { data: ordenesRaw, error: ordErr }] = await Promise.all([
+      supabase
+        .from('taller_tecnicos')
+        .select('id, nombre, estado')
+        .eq('empresa_id', empresa_id)
+        .order('nombre', { ascending: true }),
+      supabase
+        .from('taller_ingresos')
+        .select(`
+          id, estado, fecha_ingreso, estado_desde, updated_at,
+          taller_vehiculos(placa, marca, linea),
+          taller_ingresos_tecnicos(tecnico_id)
+        `)
+        .eq('empresa_id', empresa_id)
+        .neq('estado', 'cancelado')
+        .lt('fecha_ingreso', endExclusiveISO)
+        .or(`estado.in.(recepcion,diagnostico,cotizacion,esperando_aprobacion,en_reparacion),updated_at.gte.${startISO}`)
+    ]);
+
+    if (tecErr) throw tecErr;
+    if (ordErr) throw ordErr;
+
+    const ordenesConTecnico = (ordenesRaw || []).filter(
+      (o: any) => Array.isArray(o.taller_ingresos_tecnicos) && o.taller_ingresos_tecnicos.length > 0
+    );
+
+    // Inicializar acumuladores por técnico
+    const mapaTecnicos: Record<string, {
+      tecnico_id: string;
+      nombre: string;
+      estado: string;
+      minutos_laborales_total: number;
+      minutos_diagnostico: number;
+      minutos_reparacion: number;
+      ordenes_ids: Set<string>;
+      ordenes_entregadas_count: number;
+      ordenes_activas_count: number;
+      detalle_ordenes: any[];
+    }> = {};
+
+    (tecnicosRows || []).forEach((t: any) => {
+      mapaTecnicos[t.id] = {
+        tecnico_id: t.id,
+        nombre: t.nombre,
+        estado: t.estado || 'activo',
+        minutos_laborales_total: 0,
+        minutos_diagnostico: 0,
+        minutos_reparacion: 0,
+        ordenes_ids: new Set(),
+        ordenes_entregadas_count: 0,
+        ordenes_activas_count: 0,
+        detalle_ordenes: []
+      };
+    });
+
+    if (ordenesConTecnico.length > 0 && rangeEndMs > rangeStartMs) {
+      const ingresoIds = ordenesConTecnico.map((o: any) => o.id);
+      const CHUNK_SIZE = 100;
+      const bitacoraPorOrden: Record<string, any[]> = {};
+
+      for (let i = 0; i < ingresoIds.length; i += CHUNK_SIZE) {
+        const chunk = ingresoIds.slice(i, i + CHUNK_SIZE);
+        const { data: bRows, error: bErr } = await supabase
+          .from('taller_ingresos_bitacora')
+          .select('ingreso_id, tipo_evento, metadata, created_at')
+          .eq('empresa_id', empresa_id)
+          .in('tipo_evento', ['creacion', 'cambio_estado', 'cotizacion', 'entrega', 'cancelacion', 'rediagnostico', 'asignacion_tecnicos'])
+          .in('ingreso_id', chunk)
+          .order('created_at', { ascending: true });
+
+        if (bErr) throw bErr;
+
+        (bRows || []).forEach((b: any) => {
+          if (!bitacoraPorOrden[b.ingreso_id]) bitacoraPorOrden[b.ingreso_id] = [];
+          bitacoraPorOrden[b.ingreso_id].push(b);
+        });
+      }
+
+      // 2. Reconstruir intervalos de trabajo (diagnostico / en_reparacion) por orden
+      for (const ord of ordenesConTecnico) {
+        const eventos = bitacoraPorOrden[ord.id] || [];
+        const fechaIngresoMs = new Date(ord.fecha_ingreso).getTime();
+        const finOrdenMs = ord.estado === 'entregado'
+          ? new Date(ord.updated_at).getTime()
+          : ahoraMs;
+
+        // Detectar primera asignación de técnicos (si existe en bitácora)
+        const eventoAsig = eventos.find((e: any) => e.tipo_evento === 'asignacion_tecnicos');
+        const inicioAsignacionMs = eventoAsig ? new Date(eventoAsig.created_at).getTime() : fechaIngresoMs;
+
+        // Extraer transiciones de estado desde bitácora
+        const transiciones = eventos.filter((e: any) => e.metadata && e.metadata.estado_nuevo);
+
+        interface SegmentoEstado {
+          estado: string;
+          startMs: number;
+          endMs: number;
+        }
+        const segmentos: SegmentoEstado[] = [];
+
+        if (transiciones.length > 0) {
+          let estadoActual = transiciones[0].metadata.estado_anterior || 'recepcion';
+          let cursorMs = fechaIngresoMs;
+
+          for (const tr of transiciones) {
+            const trMs = new Date(tr.created_at).getTime();
+            if (trMs > cursorMs) {
+              segmentos.push({ estado: estadoActual, startMs: cursorMs, endMs: trMs });
+            }
+            estadoActual = tr.metadata.estado_nuevo;
+            cursorMs = trMs;
+          }
+          if (finOrdenMs > cursorMs) {
+            segmentos.push({ estado: ord.estado || estadoActual, startMs: cursorMs, endMs: finOrdenMs });
+          }
+        } else {
+          // Sin bitácora de transiciones: usar estado actual desde estado_desde o fecha_ingreso
+          const desdeMs = ord.estado_desde ? new Date(ord.estado_desde).getTime() : fechaIngresoMs;
+          segmentos.push({ estado: ord.estado, startMs: desdeMs, endMs: finOrdenMs });
+        }
+
+        // Calcular minutos laborales en diagnostico y en_reparacion dentro del rango solicitado
+        let minDiag = 0;
+        let minRep = 0;
+
+        for (const seg of segmentos) {
+          if (seg.estado !== 'diagnostico' && seg.estado !== 'en_reparacion') continue;
+          // No contar tiempo antes de que se asignara al mecánico (salvo si la asignación fue posterior pero durante la misma etapa, usamos el máximo razonable)
+          const segStart = Math.max(seg.startMs, rangeStartMs, Math.min(inicioAsignacionMs, seg.endMs));
+          const segEnd = Math.min(seg.endMs, rangeEndMs);
+          if (segEnd <= segStart) continue;
+
+          const mins = calcularMinutosLaborales(segStart, segEnd, horarioCfg);
+          if (seg.estado === 'diagnostico') minDiag += mins;
+          if (seg.estado === 'en_reparacion') minRep += mins;
+        }
+
+        const totalOrdenMin = minDiag + minRep;
+        if (totalOrdenMin <= 0) continue;
+
+        const veh = (ord as any).taller_vehiculos;
+        const placa = veh?.placa || 'S/P';
+        const vehiculoNombre = [veh?.marca, veh?.linea].filter(Boolean).join(' ') || 'Vehículo';
+
+        for (const rel of (ord as any).taller_ingresos_tecnicos) {
+          const tec = mapaTecnicos[rel.tecnico_id];
+          if (!tec) continue;
+
+          tec.minutos_laborales_total += totalOrdenMin;
+          tec.minutos_diagnostico += minDiag;
+          tec.minutos_reparacion += minRep;
+
+          if (!tec.ordenes_ids.has(ord.id)) {
+            tec.ordenes_ids.add(ord.id);
+            if (ord.estado === 'entregado') tec.ordenes_entregadas_count += 1;
+            else tec.ordenes_activas_count += 1;
+
+            tec.detalle_ordenes.push({
+              ingreso_id: ord.id,
+              placa,
+              vehiculo: vehiculoNombre,
+              estado_actual: ord.estado,
+              minutos_laborales: totalOrdenMin,
+              minutos_diagnostico: minDiag,
+              minutos_reparacion: minRep,
+              fecha_ingreso: ord.fecha_ingreso
+            });
+          }
+        }
+      }
+    }
+
+    const tecnicosResultado = Object.values(mapaTecnicos)
+      .map((t) => ({
+        tecnico_id: t.tecnico_id,
+        nombre: t.nombre,
+        estado: t.estado,
+        minutos_laborales_total: t.minutos_laborales_total,
+        horas_laborales_total: Number((t.minutos_laborales_total / 60).toFixed(1)),
+        minutos_diagnostico: t.minutos_diagnostico,
+        minutos_reparacion: t.minutos_reparacion,
+        ordenes_count: t.ordenes_ids.size,
+        ordenes_entregadas_count: t.ordenes_entregadas_count,
+        ordenes_activas_count: t.ordenes_activas_count,
+        detalle_ordenes: t.detalle_ordenes.sort((a, b) => b.minutos_laborales - a.minutos_laborales)
+      }))
+      .sort((a, b) => b.minutos_laborales_total - a.minutos_laborales_total);
+
+    const totalMinutosGlobal = tecnicosResultado.reduce((acc, t) => acc + t.minutos_laborales_total, 0);
+    const tecnicosConHoras = tecnicosResultado.filter((t) => t.minutos_laborales_total > 0);
+    const ordenesUnicas = new Set<string>();
+    tecnicosResultado.forEach((t) => t.detalle_ordenes.forEach((o) => ordenesUnicas.add(o.ingreso_id)));
+
+    res.json({
+      resumen: {
+        totalTecnicosConRegistro: tecnicosConHoras.length,
+        totalTecnicos: tecnicosResultado.length,
+        totalHorasLaborales: Number((totalMinutosGlobal / 60).toFixed(1)),
+        promedioHorasPorTecnico: tecnicosConHoras.length > 0
+          ? Number(((totalMinutosGlobal / 60) / tecnicosConHoras.length).toFixed(1))
+          : 0,
+        totalOrdenesAtendidas: ordenesUnicas.size
+      },
+      tecnicos: tecnicosResultado
+    });
+  } catch (error: any) {
+    console.error('[getReporteHorasTecnicos] Error:', error.message);
+    res.status(500).json({ error: error.message || 'Error calculando horas trabajadas por mecánico' });
+  }
+};
