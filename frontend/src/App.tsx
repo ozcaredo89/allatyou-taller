@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt, Menu, X } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useState, useRef, useEffect } from 'react';
@@ -147,85 +147,204 @@ const ProfileMenu = () => {
 const Navbar = () => {
   const location = useLocation();
   const { slug } = useParams<{ slug: string }>();
+  const { empresaNombre } = useAuth();
   const { t } = useTranslation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Cerrar drawer al cambiar de ruta
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  // Cerrar con Escape y bloquear scroll del body cuando el drawer móvil está abierto
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [mobileOpen]);
+
+  const navItems = [
+    {
+      to: `/${slug}`,
+      label: t('navbar.dashboard'),
+      icon: LayoutDashboard,
+      active: location.pathname === `/${slug}`,
+    },
+    {
+      to: `/${slug}/nuevo-ingreso`,
+      label: t('navbar.nuevo_ingreso'),
+      icon: PlusCircle,
+      active: location.pathname === `/${slug}/nuevo-ingreso`,
+    },
+    {
+      to: `/${slug}/historial`,
+      label: t('navbar.historial'),
+      icon: History,
+      active: location.pathname.includes('/historial'),
+      onClick: () => trackEvent('navbar.click_historial', { from_path: location.pathname }),
+    },
+    {
+      to: `/${slug}/reportes`,
+      label: t('navbar.reportes'),
+      icon: BarChart3,
+      active: location.pathname.includes('/reportes'),
+    },
+    {
+      to: `/${slug}/crm`,
+      label: t('navbar.crm', 'CRM'),
+      icon: Target,
+      active: location.pathname.includes('/crm'),
+    },
+    {
+      to: `/${slug}/equipo`,
+      label: t('navbar.equipo'),
+      icon: Users,
+      active: location.pathname.includes('/equipo'),
+    },
+    {
+      to: `/${slug}/liquidaciones`,
+      label: t('navbar.liquidaciones'),
+      icon: Coins,
+      active: location.pathname.includes('/liquidaciones'),
+    },
+    {
+      to: `/${slug}/gastos`,
+      label: t('navbar.gastos'),
+      icon: Receipt,
+      active: location.pathname.includes('/gastos'),
+      activeClass: 'bg-red-600 text-white shadow-md',
+    },
+  ];
+
+  const activeItem = navItems.find(item => item.active);
 
   return (
-    <nav className="bg-slate-900 border-b border-slate-800 text-white shadow-xl sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center gap-2">
-          {/* Logo */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="p-2 bg-indigo-500 rounded-lg shadow-lg shadow-indigo-500/30">
-              <Wrench className="h-6 w-6 text-white" />
+    <>
+      <nav className="bg-slate-900 border-b border-slate-800 text-white shadow-xl sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center gap-2">
+            {/* Izquierda: botón menú móvil + logo + título de sección actual en móvil */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMobileOpen(prev => !prev)}
+                className="lg:hidden p-2 -ml-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                aria-label={mobileOpen ? 'Cerrar menú' : 'Abrir menú'}
+                aria-expanded={mobileOpen}
+              >
+                {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+              </button>
+
+              <Link
+                to={`/${slug}`}
+                className="flex items-center gap-2.5 shrink-0"
+                aria-label={t('navbar.dashboard')}
+              >
+                <div className="p-2 bg-indigo-500 rounded-lg shadow-lg shadow-indigo-500/30">
+                  <Wrench className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                </div>
+              </Link>
+
+              <span className="lg:hidden text-sm font-semibold text-white truncate">
+                {activeItem?.label || empresaNombre || 'TallerPro'}
+              </span>
+            </div>
+
+            {/* Links en escritorio (lg+) */}
+            <div className="hidden lg:flex gap-1.5 items-center flex-1 justify-start px-2">
+              {navItems.map(item => {
+                const Icon = item.icon;
+                const activeClasses = item.activeClass ?? 'bg-indigo-600 text-white shadow-md';
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={item.onClick}
+                    className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${
+                      item.active
+                        ? activeClasses
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Profile menu — always visible */}
+            <ProfileMenu />
+          </div>
+        </div>
+      </nav>
+
+      {/* Drawer lateral móvil/tablet (< lg) */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex" role="dialog" aria-modal="true" aria-label="Menú de navegación">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            onClick={() => setMobileOpen(false)}
+          />
+
+          {/* Panel lateral */}
+          <div className="relative w-72 max-w-[82vw] h-full bg-slate-900 border-r border-slate-800 shadow-2xl flex flex-col animate-slide-right">
+            <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-2 bg-indigo-500 rounded-lg shadow-lg shadow-indigo-500/30 shrink-0">
+                  <Wrench className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-white font-bold text-sm truncate">
+                  {empresaNombre || 'TallerPro'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                aria-label="Cerrar menú"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+              {navItems.map(item => {
+                const Icon = item.icon;
+                const activeClasses = item.activeClass ?? 'bg-indigo-600 text-white shadow-md';
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => {
+                      item.onClick?.();
+                      setMobileOpen(false);
+                    }}
+                    className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      item.active
+                        ? activeClasses
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <Icon size={18} className="shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
-
-          {/* Nav links — overflow-x scrollable on very small screens */}
-          <div className="flex gap-1 sm:gap-2 items-center overflow-x-auto scrollbar-none flex-1 justify-start px-1">
-            <Link
-              to={`/${slug}`}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname === `/${slug}` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <LayoutDashboard size={16} />
-              <span className="hidden lg:inline">{t('navbar.dashboard')}</span>
-            </Link>
-            <Link
-              to={`/${slug}/nuevo-ingreso`}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname === `/${slug}/nuevo-ingreso` ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <PlusCircle size={16} />
-              <span className="hidden lg:inline">{t('navbar.nuevo_ingreso')}</span>
-            </Link>
-            <Link
-              to={`/${slug}/historial`}
-              onClick={() => trackEvent('navbar.click_historial', { from_path: location.pathname })}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/historial') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <History size={16} />
-              <span className="hidden lg:inline">{t('navbar.historial')}</span>
-            </Link>
-            <Link
-              to={`/${slug}/reportes`}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/reportes') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <BarChart3 size={16} />
-              <span className="hidden lg:inline">{t('navbar.reportes')}</span>
-            </Link>
-            <Link
-              to={`/${slug}/crm`}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/crm') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <Target size={16} />
-              <span className="hidden lg:inline">{t('navbar.crm', 'CRM')}</span>
-            </Link>
-            <Link
-              to={`/${slug}/equipo`}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/equipo') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <Users size={16} />
-              <span className="hidden lg:inline">{t('navbar.equipo')}</span>
-            </Link>
-            <Link
-              to={`/${slug}/liquidaciones`}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/liquidaciones') ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <Coins size={16} />
-              <span className="hidden lg:inline">{t('navbar.liquidaciones')}</span>
-            </Link>
-            <Link
-              to={`/${slug}/gastos`}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md transition-all duration-200 whitespace-nowrap text-sm ${location.pathname.includes('/gastos') ? 'bg-red-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <Receipt size={16} />
-              <span className="hidden lg:inline">{t('navbar.gastos')}</span>
-            </Link>
-          </div>
-
-          {/* Profile menu — always visible, never overflows */}
-          <ProfileMenu />
         </div>
-      </div>
-    </nav>
+      )}
+    </>
   );
 };
 
