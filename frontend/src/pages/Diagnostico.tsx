@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon, Settings, Eye, EyeOff, Plus, X, XCircle, FileEdit, Gauge, Fuel } from 'lucide-react';
+import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon, Settings, Eye, EyeOff, Plus, X, XCircle, FileEdit, Gauge, Fuel, CalendarClock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -94,6 +94,22 @@ const Diagnostico: React.FC = () => {
   const [error, setError] = useState('');
   const [uploadingItem, setUploadingItem] = useState<string | null>(null);
   const [showModalEditarIngreso, setShowModalEditarIngreso] = useState(false);
+  const [fechaEntregaEstimada, setFechaEntregaEstimada] = useState<string>('');
+
+  const toLocalInputFormat = (iso: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const setPresetEntrega = (daysOffset: number, hour: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysOffset);
+    d.setHours(hour, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setFechaEntregaEstimada(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`);
+  };
 
   const isFirstRender = useRef(true);
 
@@ -117,6 +133,9 @@ const Diagnostico: React.FC = () => {
     try {
       const { data } = await api.get(`/ingresos/${id}`);
       setIngreso(data);
+      if (data.fecha_entrega_estimada) {
+        setFechaEntregaEstimada(toLocalInputFormat(data.fecha_entrega_estimada));
+      }
       
       if (data.diagnostico_mecanico && Object.keys(data.diagnostico_mecanico).length > 0) {
         const incoming = data.diagnostico_mecanico;
@@ -224,10 +243,14 @@ const Diagnostico: React.FC = () => {
   const finalizarDiagnostico = async () => {
     try {
       setSaving(true);
-      await api.put(`/ingresos/${id}`, {
+      const payload: Record<string, any> = {
         diagnostico_mecanico: diagnostico,
         estado: 'cotizacion'
-      });
+      };
+      if (fechaEntregaEstimada) {
+        payload.fecha_entrega_estimada = new Date(fechaEntregaEstimada).toISOString();
+      }
+      await api.put(`/ingresos/${id}`, payload);
       navigate(`/${slug}`);
     } catch (err: any) {
       setError('Error al finalizar el diagnóstico.');
@@ -576,6 +599,69 @@ const Diagnostico: React.FC = () => {
           );
         })}
       </div>
+
+      {!isEditMode && (
+        <div className="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                <CalendarClock size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-base">Fecha y hora estimada de salida</h3>
+                <p className="text-xs text-slate-500">Define cuándo debería estar listo el vehículo para medir cumplimiento y alertas de demora.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setPresetEntrega(0, 17)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
+            >
+              Hoy 5:00 PM
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresetEntrega(1, 12)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
+            >
+              Mañana 12:00 PM
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresetEntrega(1, 17)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
+            >
+              Mañana 5:00 PM
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresetEntrega(2, 17)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
+            >
+              En 2 días 5:00 PM
+            </button>
+            {fechaEntregaEstimada && (
+              <button
+                type="button"
+                onClick={() => setFechaEntregaEstimada('')}
+                className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-red-600 transition-colors"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+
+          <input
+            type="datetime-local"
+            value={fechaEntregaEstimada}
+            onChange={(e) => setFechaEntregaEstimada(e.target.value)}
+            className="w-full sm:w-72 border border-slate-300 rounded-xl px-3.5 py-2 text-sm text-slate-800 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none"
+          />
+        </div>
+      )}
 
       {!isEditMode && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] flex justify-center z-40">

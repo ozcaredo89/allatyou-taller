@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Car, CalendarDays, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity, FileEdit, Clock } from 'lucide-react';
+import { Car, CalendarDays, CalendarClock, BellRing, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity, FileEdit, Clock } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { trackEvent } from '../utils/analytics';
@@ -9,6 +9,7 @@ import { generarLinkWhatsApp } from '../utils/whatsapp';
 import CronometroInteligente from '../components/CronometroInteligente';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
+import ModalSeguimientoIngreso from '../components/ModalSeguimientoIngreso';
 import TimelineDrawer from '../components/TimelineDrawer';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
 import { useDashboardCentinela } from '../hooks/useDashboardCentinela';
@@ -34,6 +35,13 @@ interface Ingreso {
   fecha_ingreso: string;
   estado: string;
   estado_desde?: string;
+  fecha_entrega_estimada?: string | null;
+  ultima_actualizacion_estado?: string | null;
+  reprogramaciones_count?: number;
+  motivo_demora_actual?: string | null;
+  horas_sin_actualizacion?: number;
+  requiere_actualizacion?: boolean;
+  estado_demora?: 'vencido' | 'en_riesgo' | 'demorado_promedio' | 'a_tiempo';
   motivo_visita: string;
   diagnostico_mecanico?: any;
   items_factura?: any[];
@@ -133,6 +141,9 @@ const normalizeString = (s: string) => s ? s.toLowerCase().normalize('NFD').repl
 const Dashboard: React.FC = () => {
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
   const [promediosSLA, setPromediosSLA] = useState<Record<string, number>>({});
+  const [intervaloSeguimiento, setIntervaloSeguimiento] = useState<number>(6);
+  const [soloAlertasDemora, setSoloAlertasDemora] = useState<boolean>(false);
+  const [ingresoParaSeguimiento, setIngresoParaSeguimiento] = useState<Ingreso | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string | null>(null);
@@ -217,10 +228,23 @@ const Dashboard: React.FC = () => {
       const { data } = await api.get('/ingresos/activos');
       setIngresos(data?.ingresos || []);
       setPromediosSLA(data?.promediosSLA || {});
+      if (data?.intervaloSeguimientoHoras) {
+        setIntervaloSeguimiento(data.intervaloSeguimientoHoras);
+      }
     } catch (error) {
       console.error('Error fetching ingresos:', error);
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  const handleCambiarIntervalo = async (horas: 4 | 6 | 10) => {
+    try {
+      setIntervaloSeguimiento(horas);
+      await api.put('/ingresos/config/seguimiento', { intervalo_seguimiento_horas: horas });
+      fetchIngresos(true);
+    } catch (err) {
+      console.error('Error actualizando intervalo de seguimiento:', err);
     }
   };
 
@@ -233,6 +257,7 @@ const Dashboard: React.FC = () => {
     entregarTarget ||
     ingresoParaTimeline ||
     ingresoParaEditar ||
+    ingresoParaSeguimiento ||
     showRentingModal
   );
 
@@ -686,6 +711,57 @@ const Dashboard: React.FC = () => {
             })}
           </div>
 
+          {/* Barra de alerta de demoras + frecuencia de seguimiento */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            {(() => {
+              const totalAlertas = ingresos.filter(
+                (i) => i.requiere_actualizacion || (i.estado_demora && i.estado_demora !== 'a_tiempo')
+              ).length;
+              return (
+                <button
+                  type="button"
+                  onClick={() => setSoloAlertasDemora((prev) => !prev)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${
+                    soloAlertasDemora
+                      ? 'bg-red-600 text-white border-red-600 shadow-sm'
+                      : totalAlertas > 0
+                        ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <BellRing size={14} />
+                  <span>Demorados / Pendientes de reporte</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[11px] font-extrabold ${
+                      soloAlertasDemora ? 'bg-white/25 text-white' : totalAlertas > 0 ? 'bg-amber-200 text-amber-900' : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {totalAlertas}
+                  </span>
+                </button>
+              );
+            })()}
+
+            <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+              <Clock size={13} className="text-slate-400" />
+              <span className="hidden sm:inline">Recordar reporte cada:</span>
+              {([4, 6, 10] as const).map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => handleCambiarIntervalo(h)}
+                  className={`px-2 py-0.5 rounded-lg font-bold transition cursor-pointer ${
+                    intervaloSeguimiento === h
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {h}h
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Indicador de filtro activo */}
           {filtroEstado && (
             <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl w-fit">
@@ -773,6 +849,10 @@ const Dashboard: React.FC = () => {
         const ingresosFiltrados = ingresos.filter(ing => {
           if (filtroEstado && ing.estado !== filtroEstado) {
             return false;
+          }
+          if (soloAlertasDemora) {
+            const tieneAlerta = Boolean(ing.requiere_actualizacion) || (ing.estado_demora && ing.estado_demora !== 'a_tiempo');
+            if (!tieneAlerta) return false;
           }
           const placa = normalizeString(ing.taller_vehiculos?.placa ?? '');
           const cliente = normalizeString(ing.taller_vehiculos?.taller_clientes?.nombre_completo ?? '');
@@ -888,6 +968,56 @@ const Dashboard: React.FC = () => {
                         <span className="font-medium text-slate-900 mr-1">{t('card.ingreso')}</span>
                         {new Date(ingreso.fecha_ingreso).toLocaleDateString()}
                       </span>
+                    </div>
+
+                    {/* Promesa de salida y seguimiento periódico */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      {ingreso.fecha_entrega_estimada ? (
+                        <div
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                            ingreso.estado_demora === 'vencido'
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : ingreso.estado_demora === 'en_riesgo'
+                                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
+                          <CalendarClock size={13} />
+                          <span>
+                            Salida est.:{' '}
+                            {new Date(ingreso.fecha_entrega_estimada).toLocaleString('es-CO', {
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          {ingreso.estado_demora === 'vencido' && <span className="font-extrabold">· Vencido</span>}
+                          {ingreso.estado_demora === 'en_riesgo' && <span className="font-extrabold">· En riesgo</span>}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic flex items-center gap-1">
+                          <CalendarClock size={12} /> Sin fecha estimada
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setIngresoParaSeguimiento(ingreso)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                          ingreso.requiere_actualizacion
+                            ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 animate-pulse'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200'
+                        }`}
+                        title="Registrar actualización de avance o reprogramar salida"
+                      >
+                        <BellRing size={12} />
+                        <span>
+                          {ingreso.requiere_actualizacion
+                            ? `Reportar avance (${ingreso.horas_sin_actualizacion}h)`
+                            : 'Reportar avance'}
+                        </span>
+                      </button>
                     </div>
                     {ingreso.taller_ingresos_tecnicos && ingreso.taller_ingresos_tecnicos.length > 0 ? (
                       <div className="flex items-start gap-3 text-slate-600 text-sm">
@@ -1031,6 +1161,18 @@ const Dashboard: React.FC = () => {
           onClose={() => setIngresoParaEditar(null)}
           onSuccess={() => {
             setIngresoParaEditar(null);
+            fetchIngresos();
+          }}
+        />
+      )}
+
+      {/* ── Modal Seguimiento Periódico / Reprogramar Salida ── */}
+      {ingresoParaSeguimiento && (
+        <ModalSeguimientoIngreso
+          ingreso={ingresoParaSeguimiento}
+          onClose={() => setIngresoParaSeguimiento(null)}
+          onSuccess={() => {
+            setIngresoParaSeguimiento(null);
             fetchIngresos();
           }}
         />
