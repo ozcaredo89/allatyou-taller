@@ -2497,6 +2497,31 @@ function calcularMinutosLaborales(
   return Math.round(totalMs / 60000);
 }
 
+function unirIntervalos(intervalos: Array<[number, number]>): Array<[number, number]> {
+  if (intervalos.length === 0) return [];
+  const ordenados = [...intervalos].sort((a, b) => a[0] - b[0]);
+  const resultado: Array<[number, number]> = [[ordenados[0][0], ordenados[0][1]]];
+
+  for (let i = 1; i < ordenados.length; i++) {
+    const [s, e] = ordenados[i];
+    const ultimo = resultado[resultado.length - 1];
+    if (s <= ultimo[1]) {
+      ultimo[1] = Math.max(ultimo[1], e);
+    } else {
+      resultado.push([s, e]);
+    }
+  }
+  return resultado;
+}
+
+function calcularMinutosLaboralesUnidos(
+  intervalos: Array<[number, number]>,
+  cfg: HorarioLaboralConfig
+): number {
+  const unidos = unirIntervalos(intervalos);
+  return unidos.reduce((acc, [s, e]) => acc + calcularMinutosLaborales(s, e, cfg), 0);
+}
+
 /**
  * GET /api/ingresos/reportes/horas-tecnicos?start=YYYY-MM-DD&end=YYYY-MM-DD
  * Calcula las horas trabajadas por cada mecánico (etapas diagnostico + en_reparacion)
@@ -2570,9 +2595,9 @@ export const getReporteHorasTecnicos = async (req: Request, res: Response): Prom
       tecnico_id: string;
       nombre: string;
       estado: string;
-      minutos_laborales_total: number;
-      minutos_diagnostico: number;
-      minutos_reparacion: number;
+      intervalos_total: Array<[number, number]>;
+      intervalos_diagnostico: Array<[number, number]>;
+      intervalos_reparacion: Array<[number, number]>;
       ordenes_ids: Set<string>;
       ordenes_entregadas_count: number;
       ordenes_activas_count: number;
@@ -2584,9 +2609,9 @@ export const getReporteHorasTecnicos = async (req: Request, res: Response): Prom
         tecnico_id: t.id,
         nombre: t.nombre,
         estado: t.estado || 'activo',
-        minutos_laborales_total: 0,
-        minutos_diagnostico: 0,
-        minutos_reparacion: 0,
+        intervalos_total: [],
+        intervalos_diagnostico: [],
+        intervalos_reparacion: [],
         ordenes_ids: new Set(),
         ordenes_entregadas_count: 0,
         ordenes_activas_count: 0,
@@ -2663,17 +2688,28 @@ export const getReporteHorasTecnicos = async (req: Request, res: Response): Prom
         // Calcular minutos laborales en diagnostico y en_reparacion dentro del rango solicitado
         let minDiag = 0;
         let minRep = 0;
+        const ordenIntervalosTotal: Array<[number, number]> = [];
+        const ordenIntervalosDiag: Array<[number, number]> = [];
+        const ordenIntervalosRep: Array<[number, number]> = [];
 
         for (const seg of segmentos) {
           if (seg.estado !== 'diagnostico' && seg.estado !== 'en_reparacion') continue;
-          // No contar tiempo antes de que se asignara al mecánico (salvo si la asignación fue posterior pero durante la misma etapa, usamos el máximo razonable)
           const segStart = Math.max(seg.startMs, rangeStartMs, Math.min(inicioAsignacionMs, seg.endMs));
           const segEnd = Math.min(seg.endMs, rangeEndMs);
           if (segEnd <= segStart) continue;
 
           const mins = calcularMinutosLaborales(segStart, segEnd, horarioCfg);
-          if (seg.estado === 'diagnostico') minDiag += mins;
-          if (seg.estado === 'en_reparacion') minRep += mins;
+          if (mins <= 0) continue;
+
+          ordenIntervalosTotal.push([segStart, segEnd]);
+          if (seg.estado === 'diagnostico') {
+            minDiag += mins;
+            ordenIntervalosDiag.push([segStart, segEnd]);
+          }
+          if (seg.estado === 'en_reparacion') {
+            minRep += mins;
+            ordenIntervalosRep.push([segStart, segEnd]);
+          }
         }
 
         const totalOrdenMin = minDiag + minRep;
@@ -2687,9 +2723,9 @@ export const getReporteHorasTecnicos = async (req: Request, res: Response): Prom
           const tec = mapaTecnicos[rel.tecnico_id];
           if (!tec) continue;
 
-          tec.minutos_laborales_total += totalOrdenMin;
-          tec.minutos_diagnostico += minDiag;
-          tec.minutos_reparacion += minRep;
+          tec.intervalos_total.push(...ordenIntervalosTotal);
+          tec.intervalos_diagnostico.push(...ordenIntervalosDiag);
+          tec.intervalos_reparacion.push(...ordenIntervalosRep);
 
           if (!tec.ordenes_ids.has(ord.id)) {
             tec.ordenes_ids.add(ord.id);
@@ -2712,19 +2748,25 @@ export const getReporteHorasTecnicos = async (req: Request, res: Response): Prom
     }
 
     const tecnicosResultado = Object.values(mapaTecnicos)
-      .map((t) => ({
-        tecnico_id: t.tecnico_id,
-        nombre: t.nombre,
-        estado: t.estado,
-        minutos_laborales_total: t.minutos_laborales_total,
-        horas_laborales_total: Number((t.minutos_laborales_total / 60).toFixed(1)),
-        minutos_diagnostico: t.minutos_diagnostico,
-        minutos_reparacion: t.minutos_reparacion,
-        ordenes_count: t.ordenes_ids.size,
-        ordenes_entregadas_count: t.ordenes_entregadas_count,
-        ordenes_activas_count: t.ordenes_activas_count,
-        detalle_ordenes: t.detalle_ordenes.sort((a, b) => b.minutos_laborales - a.minutos_laborales)
-      }))
+      .map((t) => {
+        const minTotalUnido = calcularMinutosLaboralesUnidos(t.intervalos_total, horarioCfg);
+        const minDiagUnido = calcularMinutosLaboralesUnidos(t.intervalos_diagnostico, horarioCfg);
+        const minRepUnido = calcularMinutosLaboralesUnidos(t.intervalos_reparacion, horarioCfg);
+
+        return {
+          tecnico_id: t.tecnico_id,
+          nombre: t.nombre,
+          estado: t.estado,
+          minutos_laborales_total: minTotalUnido,
+          horas_laborales_total: Number((minTotalUnido / 60).toFixed(1)),
+          minutos_diagnostico: minDiagUnido,
+          minutos_reparacion: minRepUnido,
+          ordenes_count: t.ordenes_ids.size,
+          ordenes_entregadas_count: t.ordenes_entregadas_count,
+          ordenes_activas_count: t.ordenes_activas_count,
+          detalle_ordenes: t.detalle_ordenes.sort((a, b) => b.minutos_laborales - a.minutos_laborales)
+        };
+      })
       .sort((a, b) => b.minutos_laborales_total - a.minutos_laborales_total);
 
     const totalMinutosGlobal = tecnicosResultado.reduce((acc, t) => acc + t.minutos_laborales_total, 0);
