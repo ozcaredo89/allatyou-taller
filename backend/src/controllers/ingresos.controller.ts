@@ -8,7 +8,8 @@ import {
 } from '../utils/gastosProrrateo';
 import {
   sincronizarPreciosOrdenEntregada,
-  eliminarPreciosOrdenEntregada
+  eliminarPreciosOrdenEntregada,
+  obtenerSugerenciasCatalogoTaller
 } from '../services/catalog.service';
 import {
   evaluarAplicaRenting,
@@ -2746,5 +2747,41 @@ export const getReporteHorasTecnicos = async (req: Request, res: Response): Prom
   } catch (error: any) {
     console.error('[getReporteHorasTecnicos] Error:', error.message);
     res.status(500).json({ error: error.message || 'Error calculando horas trabajadas por mecánico' });
+  }
+};
+
+/**
+ * GET /api/ingresos/catalogo-items?q=&tipo=&marca=&linea=&limit=
+ * Retorna sugerencias de repuestos y mano de obra aprendidas de órdenes del taller.
+ */
+export const getCatalogoItems = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresa_id = req.empresa_id;
+    if (!empresa_id) {
+      res.status(401).json({ error: 'No autorizado' });
+      return;
+    }
+
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+    const tipoRaw = typeof req.query.tipo === 'string' ? req.query.tipo : undefined;
+    const tipo = tipoRaw === 'repuesto' || tipoRaw === 'mano_obra' ? tipoRaw : undefined;
+    const marca = typeof req.query.marca === 'string' ? req.query.marca : undefined;
+    const linea = typeof req.query.linea === 'string' ? req.query.linea : undefined;
+    const limitRaw = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 50;
+    const limit = Number.isFinite(limitRaw) ? limitRaw : 50;
+
+    const items = await obtenerSugerenciasCatalogoTaller({
+      empresaId: empresa_id,
+      q,
+      tipo,
+      marca,
+      linea,
+      limit,
+    });
+
+    res.json({ items });
+  } catch (error: any) {
+    console.error('[getCatalogoItems] Error:', error.message);
+    res.status(500).json({ error: error.message || 'Error consultando catálogo de ítems' });
   }
 };

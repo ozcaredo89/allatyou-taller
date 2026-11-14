@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users, FileEdit, Gauge, Fuel, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +20,27 @@ interface ItemFactura {
   total: number;
   categoria_crm?: 'aceite' | 'frenos' | 'aire' | 'general' | null;
   justificacion?: string;
+}
+
+interface ItemCatalogoSugerencia {
+  descripcion: string;
+  tipo: 'repuesto' | 'mano_obra';
+  categoria_crm: 'aceite' | 'frenos' | 'aire' | 'general' | null;
+  precio_sugerido: number;
+  precio_promedio: number;
+  precio_min: number;
+  precio_max: number;
+  ocurrencias: number;
+  ocurrencias_totales: number;
+  vehiculo_match: boolean;
+}
+
+function normalizarParaFiltro(texto: string): string {
+  return texto
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 const Checkout: React.FC = () => {
@@ -49,6 +70,13 @@ const Checkout: React.FC = () => {
   const [nuevoCant, setNuevoCant] = useState(1);
   const [nuevoPrecio, setNuevoPrecio] = useState<string>('');
   const [nuevoCategoria, setNuevoCategoria] = useState<ItemFactura['categoria_crm']>(null);
+
+  // Autocompletado aprendido de repuestos y mano de obra
+  const [catalogoItems, setCatalogoItems] = useState<ItemCatalogoSugerencia[]>([]);
+  const [showSugerencias, setShowSugerencias] = useState(false);
+  const [sugerenciaIdx, setSugerenciaIdx] = useState(-1);
+  const [sugerenciaAplicada, setSugerenciaAplicada] = useState<ItemCatalogoSugerencia | null>(null);
+  const autocompletarRef = useRef<HTMLDivElement>(null);
 
   // Edición inline de ítem existente
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -106,6 +134,44 @@ const Checkout: React.FC = () => {
     cargarGastos();
   }, [id]);
 
+  const cargarCatalogoItems = async (marca?: string, linea?: string) => {
+    try {
+      const params = new URLSearchParams({ limit: '80' });
+      if (marca) params.set('marca', marca);
+      if (linea) params.set('linea', linea);
+      const { data } = await api.get(`/ingresos/catalogo-items?${params.toString()}`);
+      setCatalogoItems(Array.isArray(data?.items) ? data.items : []);
+    } catch (err) {
+      console.error('[cargarCatalogoItems] Error:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!ingreso) return;
+    const v = ingreso.taller_vehiculos;
+    cargarCatalogoItems(v?.marca, v?.linea);
+  }, [ingreso?.id, ingreso?.taller_vehiculos?.marca, ingreso?.taller_vehiculos?.linea]);
+
+  useEffect(() => {
+    if (!showSugerencias) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (autocompletarRef.current && !autocompletarRef.current.contains(e.target as Node)) {
+        setShowSugerencias(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSugerencias]);
+
+  const sugerenciasFiltradas = useMemo(() => {
+    const q = normalizarParaFiltro(nuevoDesc);
+    const delTipo = catalogoItems.filter(item => item.tipo === nuevoTipo);
+    if (!q) return delTipo.slice(0, 8);
+    return delTipo
+      .filter(item => normalizarParaFiltro(item.descripcion).includes(q))
+      .slice(0, 8);
+  }, [catalogoItems, nuevoTipo, nuevoDesc]);
+
   const handleOpenModalGasto = (itemId?: string, itemDesc?: string, tab: 'nuevo' | 'existente' = 'nuevo') => {
     setModalGastoItemId(itemId || null);
     setModalGastoItemDesc(itemDesc || '');
@@ -157,19 +223,45 @@ const Checkout: React.FC = () => {
     setNuevoPrecio(formatCurrencyInput(e.target.value));
   };
 
+  const detectarCategoria = (texto: string): ItemFactura['categoria_crm'] => {
+    const lowerVal = texto.toLowerCase();
+    if (lowerVal.includes('aceite')) return 'aceite';
+    if (lowerVal.includes('freno') || lowerVal.includes('pastilla')) return 'frenos';
+    if (lowerVal.includes('aire')) return 'aire';
+    return null;
+  };
+
   const handleDescChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setNuevoDesc(val);
+    setSugerenciaAplicada(null);
+    setShowSugerencias(true);
+    setSugerenciaIdx(-1);
+    setNuevoCategoria(detectarCategoria(val));
+  };
 
-    const lowerVal = val.toLowerCase();
-    if (lowerVal.includes('aceite')) {
-      setNuevoCategoria('aceite');
-    } else if (lowerVal.includes('freno') || lowerVal.includes('pastilla')) {
-      setNuevoCategoria('frenos');
-    } else if (lowerVal.includes('aire')) {
-      setNuevoCategoria('aire');
-    } else {
-      setNuevoCategoria(null);
+  const seleccionarSugerencia = (sug: ItemCatalogoSugerencia) => {
+    setNuevoDesc(sug.descripcion);
+    setNuevoPrecio(sug.precio_sugerido > 0 ? sug.precio_sugerido.toLocaleString('es-CO') : '');
+    setNuevoCategoria(sug.categoria_crm ?? detectarCategoria(sug.descripcion));
+    setSugerenciaAplicada(sug);
+    setShowSugerencias(false);
+    setSugerenciaIdx(-1);
+  };
+
+  const handleDescKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSugerencias || sugerenciasFiltradas.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSugerenciaIdx(prev => (prev + 1) % sugerenciasFiltradas.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSugerenciaIdx(prev => (prev <= 0 ? sugerenciasFiltradas.length - 1 : prev - 1));
+    } else if (e.key === 'Enter' && sugerenciaIdx >= 0) {
+      e.preventDefault();
+      seleccionarSugerencia(sugerenciasFiltradas[sugerenciaIdx]);
+    } else if (e.key === 'Escape') {
+      setShowSugerencias(false);
     }
   };
 
@@ -186,7 +278,9 @@ const Checkout: React.FC = () => {
       categoria_crm: nuevoCategoria,
     };
     setItems(prev => [...prev, newItem]);
-    setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(''); setNuevoCategoria(null); setShowForm(false);
+    setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(''); setNuevoCategoria(null);
+    setSugerenciaAplicada(null); setShowSugerencias(false); setSugerenciaIdx(-1);
+    setShowForm(false);
   };
 
   const eliminarItem = (itemId: string) => {
@@ -315,6 +409,8 @@ const Checkout: React.FC = () => {
         setIngreso((prev: any) => ({ ...prev, ...data }));
       }
       await cargarGastos();
+      const v = ingreso?.taller_vehiculos;
+      cargarCatalogoItems(v?.marca, v?.linea);
     } catch {
       setError('Error al guardar la orden.');
     } finally {
@@ -786,15 +882,69 @@ const Checkout: React.FC = () => {
           {showForm && (
             <div className="mb-4 p-4 bg-indigo-50 border border-dashed border-indigo-200 rounded-xl space-y-3 print:hidden">
               <div className="flex gap-2">
-                <button onClick={() => setNuevoTipo('repuesto')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border transition ${nuevoTipo === 'repuesto' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                <button
+                  type="button"
+                  onClick={() => { setNuevoTipo('repuesto'); setSugerenciaAplicada(null); setSugerenciaIdx(-1); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border transition ${nuevoTipo === 'repuesto' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                >
                   <Package size={14} /> {t('checkout.repuesto')}
                 </button>
-                <button onClick={() => setNuevoTipo('mano_obra')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border transition ${nuevoTipo === 'mano_obra' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                <button
+                  type="button"
+                  onClick={() => { setNuevoTipo('mano_obra'); setSugerenciaAplicada(null); setSugerenciaIdx(-1); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border transition ${nuevoTipo === 'mano_obra' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                >
                   <Wrench size={14} /> {t('checkout.mano_obra')}
                 </button>
               </div>
               <div className="flex gap-2">
-                <input type="text" placeholder={t('checkout.desc_placeholder')} value={nuevoDesc} onChange={handleDescChange} className="flex-[2] border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <div ref={autocompletarRef} className="relative flex-[2]">
+                  <input
+                    type="text"
+                    placeholder={t('checkout.desc_placeholder')}
+                    value={nuevoDesc}
+                    onChange={handleDescChange}
+                    onFocus={() => setShowSugerencias(true)}
+                    onKeyDown={handleDescKeyDown}
+                    autoComplete="off"
+                    className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                  {showSugerencias && sugerenciasFiltradas.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto divide-y divide-slate-100">
+                      {sugerenciasFiltradas.map((sug, idx) => (
+                        <button
+                          key={`${sug.tipo}-${sug.descripcion}`}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            seleccionarSugerencia(sug);
+                          }}
+                          className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 text-sm transition ${
+                            idx === sugerenciaIdx ? 'bg-indigo-50 text-indigo-900' : 'hover:bg-slate-50 text-slate-800'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium truncate">{sug.descripcion}</div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                              {sug.vehiculo_match && ingreso?.taller_vehiculos?.linea && (
+                                <span className="bg-indigo-100 text-indigo-700 font-semibold px-1.5 py-0.2 rounded">
+                                  {ingreso.taller_vehiculos.linea}
+                                </span>
+                              )}
+                              <span>Usado {sug.ocurrencias_totales} {sug.ocurrencias_totales === 1 ? 'vez' : 'veces'}</span>
+                              {sug.precio_promedio !== sug.precio_sugerido && (
+                                <span>· Prom: ${sug.precio_promedio.toLocaleString('es-CO')}</span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="font-bold text-indigo-700 whitespace-nowrap">
+                            ${sug.precio_sugerido.toLocaleString('es-CO')}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <select value={nuevoCategoria || ''} onChange={e => setNuevoCategoria((e.target.value as any) || null)} className="flex-1 border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
                   <option value="">{t('checkout.crm_categoria_label')}</option>
                   <option value="aceite">{t('checkout.crm_aceite')}</option>
@@ -811,6 +961,11 @@ const Checkout: React.FC = () => {
                 <div className="flex-[2]">
                   <label className="text-xs text-slate-500 mb-0.5 block">{t('checkout.precio_unitario')}</label>
                   <input type="text" placeholder="0" value={nuevoPrecio} onChange={handlePrecioChange} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  {sugerenciaAplicada && (
+                    <p className="text-[11px] text-indigo-600 mt-1">
+                      Valor sugerido{sugerenciaAplicada.vehiculo_match && ingreso?.taller_vehiculos?.linea ? ` para ${ingreso.taller_vehiculos.linea}` : ''} ({sugerenciaAplicada.ocurrencias} {sugerenciaAplicada.ocurrencias === 1 ? 'registro' : 'registros'}) · editable
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-end pb-0.5">
                   <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-2 rounded-lg whitespace-nowrap">

@@ -736,3 +736,181 @@ function capitalizar(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
+// ─── Autocompletado Interno de Ítems para Órdenes de Trabajo ──────────────────
+
+export interface ItemSugerenciaCatalogo {
+  descripcion: string;
+  tipo: 'repuesto' | 'mano_obra';
+  categoria_crm: 'aceite' | 'frenos' | 'aire' | 'general' | null;
+  precio_sugerido: number;
+  precio_promedio: number;
+  precio_min: number;
+  precio_max: number;
+  ocurrencias: number;
+  ocurrencias_totales: number;
+  vehiculo_match: boolean;
+}
+
+function normalizarTextoBusqueda(texto: string): string {
+  return texto
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Obtiene sugerencias de repuestos y mano de obra aprendidas de órdenes previas
+ * del mismo taller (aislado por empresa_id), priorizando coincidencias del mismo vehículo.
+ */
+export async function obtenerSugerenciasCatalogoTaller(params: {
+  empresaId: string;
+  q?: string;
+  tipo?: 'repuesto' | 'mano_obra';
+  marca?: string;
+  linea?: string;
+  limit?: number;
+}): Promise<ItemSugerenciaCatalogo[]> {
+  const { empresaId, q, tipo, marca, linea } = params;
+  const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+
+  const { data: ingresos, error } = await supabase
+    .from('taller_ingresos')
+    .select('items_factura, created_at, taller_vehiculos(marca, linea)')
+    .eq('empresa_id', empresaId)
+    .neq('estado', 'cancelado')
+    .not('items_factura', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(350);
+
+  if (error) {
+    console.error('[Catalogo] Error consultando sugerencias de ítems:', error.message);
+    return [];
+  }
+
+  const marcaObjetivo = marca ? normalizarMarca(marca) : null;
+  const lineaObjetivo = linea ? normalizarLinea(linea) : null;
+
+  interface AcumuladorItem {
+    descripcion: string;
+    descNorm: string;
+    canonicoNorm: string;
+    tipo: 'repuesto' | 'mano_obra';
+    categoria_crm: 'aceite' | 'frenos' | 'aire' | 'general' | null;
+    ultimoPrecioGeneral: number;
+    preciosGeneral: number[];
+    ultimoPrecioVehiculo: number | null;
+    preciosVehiculo: number[];
+  }
+
+  const mapa = new Map<string, AcumuladorItem>();
+
+  for (const ing of (ingresos || []) as any[]) {
+    const items = Array.isArray(ing.items_factura) ? ing.items_factura : [];
+    const vehiculoRaw = Array.isArray(ing.taller_vehiculos)
+      ? ing.taller_vehiculos[0]
+      : ing.taller_vehiculos;
+
+    const esMismoVehiculo = Boolean(
+      marcaObjetivo &&
+      lineaObjetivo &&
+      vehiculoRaw?.marca &&
+      vehiculoRaw?.linea &&
+      normalizarMarca(vehiculoRaw.marca) === marcaObjetivo &&
+      normalizarLinea(vehiculoRaw.linea) === lineaObjetivo
+    );
+
+    for (const item of items) {
+      if (!item || typeof item.descripcion !== 'string') continue;
+      const descLimpia = item.descripcion.trim();
+      if (!descLimpia) continue;
+
+      const itemTipo: 'repuesto' | 'mano_obra' =
+        item.tipo === 'mano_obra' ? 'mano_obra' : 'repuesto';
+      if (tipo && itemTipo !== tipo) continue;
+
+      const precio = Number(item.precio_unitario);
+      if (!Number.isFinite(precio) || precio <= 0) continue;
+
+      const descNorm = normalizarTextoBusqueda(descLimpia);
+      if (!descNorm) continue;
+
+      const key = `${itemTipo}::${descNorm}`;
+      let acc = mapa.get(key);
+
+      if (!acc) {
+        const canon = canonizarItem(descLimpia);
+        const cat =
+          item.categoria_crm === 'aceite' ||
+          item.categoria_crm === 'frenos' ||
+          item.categoria_crm === 'aire' ||
+          item.categoria_crm === 'general'
+            ? item.categoria_crm
+            : null;
+
+        acc = {
+          descripcion: descLimpia,
+          descNorm,
+          canonicoNorm: canon ? normalizarTextoBusqueda(canon.nombre) : '',
+          tipo: itemTipo,
+          categoria_crm: cat,
+          ultimoPrecioGeneral: Math.round(precio),
+          preciosGeneral: [],
+          ultimoPrecioVehiculo: null,
+          preciosVehiculo: [],
+        };
+        mapa.set(key, acc);
+      }
+
+      acc.preciosGeneral.push(Math.round(precio));
+      if (esMismoVehiculo) {
+        if (acc.ultimoPrecioVehiculo === null) {
+          acc.ultimoPrecioVehiculo = Math.round(precio);
+        }
+        acc.preciosVehiculo.push(Math.round(precio));
+      }
+    }
+  }
+
+  const queryNorm = q ? normalizarTextoBusqueda(q) : '';
+  const resultados: Array<ItemSugerenciaCatalogo & { _startsWith: boolean }> = [];
+
+  for (const acc of mapa.values()) {
+    if (queryNorm) {
+      const matchDesc = acc.descNorm.includes(queryNorm);
+      const matchCanon = acc.canonicoNorm && acc.canonicoNorm.includes(queryNorm);
+      if (!matchDesc && !matchCanon) continue;
+    }
+
+    const vehiculoMatch = acc.preciosVehiculo.length > 0;
+    const basePrecios = vehiculoMatch ? acc.preciosVehiculo : acc.preciosGeneral;
+    const suma = basePrecios.reduce((s, p) => s + p, 0);
+
+    resultados.push({
+      descripcion: acc.descripcion,
+      tipo: acc.tipo,
+      categoria_crm: acc.categoria_crm,
+      precio_sugerido: acc.ultimoPrecioVehiculo ?? acc.ultimoPrecioGeneral,
+      precio_promedio: Math.round(suma / basePrecios.length),
+      precio_min: Math.min(...basePrecios),
+      precio_max: Math.max(...basePrecios),
+      ocurrencias: basePrecios.length,
+      ocurrencias_totales: acc.preciosGeneral.length,
+      vehiculo_match: vehiculoMatch,
+      _startsWith: queryNorm ? acc.descNorm.startsWith(queryNorm) : false,
+    });
+  }
+
+  resultados.sort((a, b) => {
+    if (a._startsWith !== b._startsWith) return a._startsWith ? -1 : 1;
+    if (a.vehiculo_match !== b.vehiculo_match) return a.vehiculo_match ? -1 : 1;
+    if (b.ocurrencias_totales !== a.ocurrencias_totales) {
+      return b.ocurrencias_totales - a.ocurrencias_totales;
+    }
+    return a.descripcion.localeCompare(b.descripcion, 'es');
+  });
+
+  return resultados.slice(0, limit).map(({ _startsWith, ...rest }) => rest);
+}
+
