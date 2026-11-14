@@ -31,12 +31,31 @@ export function bogotaToday(base?: Date): string {
 }
 
 /**
+ * Calcula el rango { start, end } (lunes a domingo) en "YYYY-MM-DD" en zona Bogotá
+ * para la semana desplazada en `offsetWeeks` (0 = semana actual, -1 = semana pasada, etc.).
+ */
+export function getBogotaWeekRange(
+  offsetWeeks = 0,
+  base?: Date
+): { start: string; end: string } {
+  const now = base ?? new Date();
+  const todayBogota = toBogotaDateStr(now);
+  const [year, month, day] = todayBogota.split('-').map(Number);
+  const dt = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const dayOfWeek = dt.getUTCDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+  const diffToMonday = (dayOfWeek + 6) % 7;
+  const mondayUTC = new Date(Date.UTC(year, month - 1, day - diffToMonday + offsetWeeks * 7, 12, 0, 0));
+  const sundayUTC = new Date(Date.UTC(year, month - 1, day - diffToMonday + offsetWeeks * 7 + 6, 12, 0, 0));
+  return { start: toBogotaDateStr(mondayUTC), end: toBogotaDateStr(sundayUTC) };
+}
+
+/**
  * Calcula el rango { start, end } en "YYYY-MM-DD" para el filtro dado,
  * siempre anclado a America/Bogota independientemente de la zona horaria
  * del navegador del usuario.
  */
 export function getBogotaRange(
-  filtro: 'hoy' | 'ayer' | 'semana' | 'mes',
+  filtro: 'hoy' | 'ayer' | 'semana' | 'semana_pasada' | 'dos_semanas' | 'mes',
   base?: Date
 ): { start: string; end: string } {
   const now = base ?? new Date();
@@ -53,15 +72,17 @@ export function getBogotaRange(
   }
 
   if (filtro === 'semana') {
-    // Semana calendario de lunes a domingo en zona Bogotá
-    const todayBogota = toBogotaDateStr(now);
-    const [year, month, day] = todayBogota.split('-').map(Number);
-    const dt = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-    const dayOfWeek = dt.getUTCDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
-    const diffToMonday = (dayOfWeek + 6) % 7;
-    const mondayUTC = new Date(Date.UTC(year, month - 1, day - diffToMonday, 12, 0, 0));
-    const sundayUTC = new Date(Date.UTC(year, month - 1, day - diffToMonday + 6, 12, 0, 0));
-    return { start: toBogotaDateStr(mondayUTC), end: toBogotaDateStr(sundayUTC) };
+    return getBogotaWeekRange(0, now);
+  }
+
+  if (filtro === 'semana_pasada') {
+    return getBogotaWeekRange(-1, now);
+  }
+
+  if (filtro === 'dos_semanas') {
+    const prev = getBogotaWeekRange(-1, now);
+    const curr = getBogotaWeekRange(0, now);
+    return { start: prev.start, end: curr.end };
   }
 
   // 'mes' → últimos 29 días + hoy = 30 días

@@ -294,6 +294,8 @@
     "subtitle": "Visualiza el rendimiento financiero de tu taller",
     "filtro_hoy": "Hoy",
     "filtro_semana": "Esta Semana",
+    "filtro_semana_pasada": "Semana Pasada",
+    "filtro_dos_semanas": "Últ. 2 Semanas",
     "filtro_mes": "Este Mes",
     "filtro_rango": "Rango Personalizado",
     "ingresos_totales": "Ingresos del Período",

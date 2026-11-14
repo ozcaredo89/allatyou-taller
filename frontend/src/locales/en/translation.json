@@ -250,6 +250,8 @@
     "subtitle": "Visualize your shop's financial performance",
     "filtro_hoy": "Today",
     "filtro_semana": "This Week",
+    "filtro_semana_pasada": "Last Week",
+    "filtro_dos_semanas": "Last 2 Weeks",
     "filtro_mes": "This Month",
     "filtro_rango": "Custom Range",
     "ingresos_totales": "Period Revenue",
