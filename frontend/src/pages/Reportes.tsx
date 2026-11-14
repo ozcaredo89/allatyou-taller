@@ -6,11 +6,11 @@ import {
   Calendar, DollarSign, TrendingUp, TrendingDown, AlertTriangle,
   Loader2, BarChart3, Clock, Activity, PieChart as PieChartIcon,
   Receipt, ArrowRight, ExternalLink, Car, Search, X,
-  ChevronDown, ChevronUp, Wrench, Package, Link2, Check, Download, FileSpreadsheet, FileText, Printer
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Wrench, Package, Link2, Check, Download, FileSpreadsheet, FileText, Printer
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { getBogotaRange, bogotaToday } from '../utils/dateUtils';
+import { getBogotaRange, getBogotaWeekRange, bogotaToday } from '../utils/dateUtils';
 import ReporteRepuestos from '../components/ReporteRepuestos';
 import ReportePostmortem from '../components/ReportePostmortem';
 import ReporteHorasTecnicos from '../components/ReporteHorasTecnicos';
@@ -140,13 +140,17 @@ const Reportes: React.FC = () => {
   const [finanzasError, setFinanzasError] = useState<string | null>(null);
   const [filtro, setFiltro] = useState(() => {
     const paramFiltro = searchParams.get('filtro');
-    if (paramFiltro && ['hoy', 'ayer', 'semana', 'mes', 'personalizado'].includes(paramFiltro)) {
+    if (paramFiltro && ['hoy', 'ayer', 'semana', 'semana_pasada', 'dos_semanas', 'mes', 'personalizado'].includes(paramFiltro)) {
       return paramFiltro;
     }
     if (searchParams.get('start') || searchParams.get('end')) {
       return 'personalizado';
     }
     return 'mes';
+  });
+  const [weekOffset, setWeekOffset] = useState<number>(() => {
+    const semParam = Number(searchParams.get('sem') || '0');
+    return Number.isFinite(semParam) && semParam <= 0 ? Math.trunc(semParam) : 0;
   });
   const [chartData, setChartData] = useState<ChartDataItem[]>([]);
   const [kpis, setKpis] = useState<FinanzasKpis>({
@@ -229,7 +233,10 @@ const Reportes: React.FC = () => {
       const hoy = bogotaToday();
       return { start: hoy, end: hoy };
     }
-    if (filtro === 'ayer' || filtro === 'semana' || filtro === 'mes') {
+    if (filtro === 'semana') {
+      return getBogotaWeekRange(weekOffset);
+    }
+    if (filtro === 'ayer' || filtro === 'semana_pasada' || filtro === 'dos_semanas' || filtro === 'mes') {
       return getBogotaRange(filtro);
     }
     // personalizado
@@ -240,7 +247,7 @@ const Reportes: React.FC = () => {
     };
   };
 
-  // Mantener la URL sincronizada con el estado principal (tab, filtro, customStart, customEnd)
+  // Mantener la URL sincronizada con el estado principal (tab, filtro, weekOffset, customStart, customEnd)
   useEffect(() => {
     if (!initialDeepLinkHandledRef.current) return;
     setSearchParams((prev) => {
@@ -257,6 +264,12 @@ const Reportes: React.FC = () => {
         next.delete('filtro');
       }
 
+      if (filtro === 'semana' && weekOffset !== 0) {
+        next.set('sem', String(weekOffset));
+      } else {
+        next.delete('sem');
+      }
+
       if (filtro === 'personalizado') {
         if (customStart) next.set('start', customStart);
         else next.delete('start');
@@ -271,13 +284,13 @@ const Reportes: React.FC = () => {
       }
       return next;
     }, { replace: true });
-  }, [activeTab, filtro, customStart, customEnd, setSearchParams]);
+  }, [activeTab, filtro, weekOffset, customStart, customEnd, setSearchParams]);
 
   useEffect(() => {
     if (filtro === 'personalizado' && (isCustomRangeIncomplete || isCustomRangeInvalid)) return;
     cargarFinanciero();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtro, customStart, customEnd, isCustomRangeIncomplete, isCustomRangeInvalid]);
+  }, [filtro, weekOffset, customStart, customEnd, isCustomRangeIncomplete, isCustomRangeInvalid]);
 
   useEffect(() => {
     if (activeTab === 'operativo') {
@@ -285,7 +298,7 @@ const Reportes: React.FC = () => {
       cargarOperativo();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, filtro, customStart, customEnd, isCustomRangeIncomplete, isCustomRangeInvalid]);
+  }, [activeTab, filtro, weekOffset, customStart, customEnd, isCustomRangeIncomplete, isCustomRangeInvalid]);
 
   // ── Drill-down Ingresos: fetch de órdenes para el período o día actual ──
   const fetchIngresosDetalle = async (start: string, end: string, fechaPuntual?: string) => {
@@ -1483,18 +1496,16 @@ const Reportes: React.FC = () => {
   const horaActual = new Date().getHours();
   const hoyStr = bogotaToday();
   const currentRange = getFechaRango();
-  const rangoIncluyeHoy =
-    filtro === 'hoy' ||
-    filtro === 'semana' ||
-    filtro === 'mes' ||
-    (filtro === 'personalizado' && currentRange.start <= hoyStr && currentRange.end >= hoyStr);
+  const rangoIncluyeHoy = currentRange.start <= hoyStr && currentRange.end >= hoyStr;
   const showAlertaTermometro = rangoIncluyeHoy && horaActual >= 15 && facturadoHoy < (promedioDiarioHistorico * 0.6);
 
   const margenColor = margenPct >= 40 ? 'text-emerald-600' : margenPct >= 20 ? 'text-amber-600' : 'text-red-600';
   const margenBg = margenPct >= 40 ? 'bg-emerald-50' : margenPct >= 20 ? 'bg-amber-50' : 'bg-red-50';
   const filtroBadge = filtro === 'hoy' ? t('reportes.filtro_hoy')
     : filtro === 'ayer' ? t('reportes.filtro_ayer')
-    : filtro === 'semana' ? t('reportes.filtro_semana')
+    : filtro === 'semana' ? (weekOffset === 0 ? t('reportes.filtro_semana') : `${formatearFecha(currentRange.start)} - ${formatearFecha(currentRange.end)}`)
+    : filtro === 'semana_pasada' ? t('reportes.filtro_semana_pasada', 'Semana Pasada')
+    : filtro === 'dos_semanas' ? t('reportes.filtro_dos_semanas', 'Últ. 2 Semanas')
     : filtro === 'mes' ? t('reportes.filtro_mes')
     : `${formatearFecha(currentRange.start)} - ${formatearFecha(currentRange.end)}`;
 
@@ -1506,12 +1517,17 @@ const Reportes: React.FC = () => {
             { id: 'hoy', label: t('reportes.filtro_hoy'), short: t('reportes.filtro_hoy') },
             { id: 'ayer', label: t('reportes.filtro_ayer'), short: t('reportes.filtro_ayer') },
             { id: 'semana', label: t('reportes.filtro_semana'), short: t('reportes.filtro_semana') },
+            { id: 'semana_pasada', label: t('reportes.filtro_semana_pasada', 'Semana Pasada'), short: t('reportes.filtro_semana_pasada', 'Sem. Pasada') },
+            { id: 'dos_semanas', label: t('reportes.filtro_dos_semanas', 'Últ. 2 Semanas'), short: '2 Sem.' },
             { id: 'mes', label: t('reportes.filtro_mes'), short: t('reportes.filtro_mes') },
             { id: 'personalizado', label: `📅 ${t('reportes.filtro_rango', 'Personalizado')}`, short: '📅' }
           ].map(opt => (
             <button
               key={opt.id}
               onClick={() => {
+                if (opt.id === 'semana') {
+                  setWeekOffset(0);
+                }
                 if (opt.id === 'personalizado' && (!customStart || !customEnd)) {
                   const r = getFechaRango();
                   setCustomStart(customStart || r.start);
@@ -1520,13 +1536,38 @@ const Reportes: React.FC = () => {
                 setFiltro(opt.id);
               }}
               title={opt.label}
-              className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition whitespace-nowrap ${filtro === opt.id ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition whitespace-nowrap ${filtro === opt.id ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <span className="sm:hidden">{opt.short}</span>
               <span className="hidden sm:inline">{opt.label}</span>
             </button>
           ))}
         </div>
+
+        {filtro === 'semana' && (
+          <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-xl shadow-sm">
+            <button
+              type="button"
+              onClick={() => setWeekOffset(w => w - 1)}
+              title={t('reportes.semana_anterior', 'Semana anterior')}
+              className="p-1 rounded-lg text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition cursor-pointer"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-xs font-semibold text-slate-700 px-1.5 whitespace-nowrap">
+              {formatearFecha(currentRange.start)} – {formatearFecha(currentRange.end)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setWeekOffset(w => Math.min(0, w + 1))}
+              disabled={weekOffset >= 0}
+              title={t('reportes.semana_siguiente', 'Semana siguiente')}
+              className="p-1 rounded-lg text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
 
         {filtro === 'personalizado' && (
           <div className={`flex items-center gap-2 bg-white border p-2 rounded-xl shadow-sm w-full sm:w-auto ${isCustomRangeInvalid ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}>
@@ -1554,6 +1595,16 @@ const Reportes: React.FC = () => {
           </div>
         )}
       </div>
+      {filtro !== 'personalizado' && filtro !== 'semana' && (
+        <p className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+          <Calendar size={12} className="text-slate-400" />
+          <span>
+            {currentRange.start === currentRange.end
+              ? formatearFecha(currentRange.start)
+              : `${formatearFecha(currentRange.start)} – ${formatearFecha(currentRange.end)}`}
+          </span>
+        </p>
+      )}
       {isCustomRangeInvalid && (
         <p className="text-xs font-semibold text-red-600 flex items-center gap-1">
           <AlertTriangle size={13} />
