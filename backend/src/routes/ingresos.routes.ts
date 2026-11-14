@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getIngresosActivos, getCentinelaStatus, getHistorial, createIngreso, getIngresoById, updateIngreso, getReportesFinanzas, getReportesFinanzasDetalle, getReportesOperaciones, getReportesRepuestos, getReportePostmortem, getReporteHorasTecnicos, asignarTecnicos, rediagnosticarIngreso, getBitacora, buscarIngresosPorPlaca, syncIngresoToRenting, getRentingLeasingInfo, registrarSeguimiento, getConfigSeguimiento, updateConfigSeguimiento } from '../controllers/ingresos.controller';
+import { getIngresosActivos, getCentinelaStatus, getHistorial, createIngreso, getIngresoById, updateIngreso, getReportesFinanzas, getReportesFinanzasDetalle, getReportesOperaciones, getReportesRepuestos, getReportePostmortem, getReporteHorasTecnicos, asignarTecnicos, rediagnosticarIngreso, getBitacora, buscarIngresosPorPlaca, syncIngresoToRenting, getRentingLeasingInfo, registrarSeguimiento, getConfigSeguimiento, updateConfigSeguimiento, getCatalogoItems } from '../controllers/ingresos.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -10,6 +10,7 @@ router.get('/activos', getIngresosActivos);
 router.get('/centinela', getCentinelaStatus);
 router.get('/historial', getHistorial);
 router.get('/buscar', buscarIngresosPorPlaca);
+router.get('/catalogo-items', getCatalogoItems);
 router.get('/config/seguimiento', getConfigSeguimiento);
 router.put('/config/seguimiento', updateConfigSeguimiento);
 router.post('/', createIngreso);
