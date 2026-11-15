@@ -14,6 +14,7 @@ import { getBogotaRange, getBogotaWeekRange, bogotaToday } from '../utils/dateUt
 import ReporteRepuestos from '../components/ReporteRepuestos';
 import ReportePostmortem from '../components/ReportePostmortem';
 import ReporteHorasTecnicos from '../components/ReporteHorasTecnicos';
+import ReporteIngresosDiarios from '../components/ReporteIngresosDiarios';
 
 type TabType = 'financiero' | 'operativo' | 'repuestos' | 'postmortem' | 'horas_tecnicos';
 type OpSubView = 'total' | 'detalle';
@@ -2065,6 +2066,10 @@ const Reportes: React.FC = () => {
               {renderFiltros()}
             </div>
           </div>
+
+          {!isCustomRangeIncomplete && !isCustomRangeInvalid && (
+            <ReporteIngresosDiarios startDate={currentRange.start} endDate={currentRange.end} />
+          )}
 
           {opError ? (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center gap-3">

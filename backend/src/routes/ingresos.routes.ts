@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getIngresosActivos, getCentinelaStatus, getHistorial, createIngreso, getIngresoById, updateIngreso, getReportesFinanzas, getReportesFinanzasDetalle, getReportesOperaciones, getReportesRepuestos, getReportePostmortem, getReporteHorasTecnicos, asignarTecnicos, rediagnosticarIngreso, getBitacora, buscarIngresosPorPlaca, syncIngresoToRenting, getRentingLeasingInfo, registrarSeguimiento, getConfigSeguimiento, updateConfigSeguimiento, getCatalogoItems } from '../controllers/ingresos.controller';
+import { getIngresosActivos, getCentinelaStatus, getHistorial, createIngreso, getIngresoById, updateIngreso, getReportesFinanzas, getReportesFinanzasDetalle, getReportesOperaciones, getReportesRepuestos, getReportePostmortem, getReporteHorasTecnicos, getReporteIngresosDiarios, asignarTecnicos, rediagnosticarIngreso, getBitacora, buscarIngresosPorPlaca, syncIngresoToRenting, getRentingLeasingInfo, registrarSeguimiento, getConfigSeguimiento, updateConfigSeguimiento, getCatalogoItems } from '../controllers/ingresos.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -20,6 +20,7 @@ router.get('/reportes/operaciones', getReportesOperaciones);
 router.get('/reportes/repuestos', getReportesRepuestos);
 router.get('/reportes/postmortem', getReportePostmortem);
 router.get('/reportes/horas-tecnicos', getReporteHorasTecnicos);
+router.get('/reportes/ingresos-diarios', getReporteIngresosDiarios);
 router.get('/:id', getIngresoById);
 router.put('/:id', updateIngreso);
 router.post('/:id/seguimiento', registrarSeguimiento);
