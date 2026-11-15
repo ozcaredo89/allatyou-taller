@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users, FileEdit, Gauge, Fuel, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { pareceManoObra } from '../utils/tipoItemUtils';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -268,9 +269,17 @@ const Checkout: React.FC = () => {
   const agregarItem = () => {
     const precioNumerico = parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10);
     if (!nuevoDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
+    let tipoFinal = nuevoTipo;
+    if (tipoFinal === 'repuesto' && pareceManoObra(nuevoDesc)) {
+      const cambiar = window.confirm(
+        `"${nuevoDesc.trim()}" parece MANO DE OBRA, pero está marcado como REPUESTO.\n\n` +
+        'Aceptar = guardarlo como Mano de obra\nCancelar = dejarlo como Repuesto'
+      );
+      if (cambiar) tipoFinal = 'mano_obra';
+    }
     const newItem: ItemFactura = {
       id: crypto.randomUUID(),
-      tipo: nuevoTipo,
+      tipo: tipoFinal,
       descripcion: nuevoDesc.trim(),
       cantidad: nuevoCant,
       precio_unitario: precioNumerico,
@@ -358,12 +367,20 @@ const Checkout: React.FC = () => {
     if (!editingItemId) return;
     const precioNumerico = parseInt(editPrecio.replace(/\D/g, '') || '0', 10);
     if (!editDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
+    let tipoFinal = editTipo;
+    if (tipoFinal === 'repuesto' && pareceManoObra(editDesc)) {
+      const cambiar = window.confirm(
+        `"${editDesc.trim()}" parece MANO DE OBRA, pero está marcado como REPUESTO.\n\n` +
+        'Aceptar = guardarlo como Mano de obra\nCancelar = dejarlo como Repuesto'
+      );
+      if (cambiar) tipoFinal = 'mano_obra';
+    }
     
     setItems(prev => prev.map(item => {
       if (item.id === editingItemId) {
         return {
           ...item,
-          tipo: editTipo,
+          tipo: tipoFinal,
           descripcion: editDesc.trim(),
           cantidad: editCant,
           precio_unitario: precioNumerico,
@@ -897,6 +914,19 @@ const Checkout: React.FC = () => {
                   <Wrench size={14} /> {t('checkout.mano_obra')}
                 </button>
               </div>
+              {nuevoTipo === 'repuesto' && pareceManoObra(nuevoDesc) && (
+                <div className="flex flex-wrap items-center gap-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-3 py-2 text-xs">
+                  <AlertTriangle size={14} className="shrink-0" />
+                  <span className="flex-1">Esta descripción parece <b>mano de obra</b>, pero está marcada como <b>repuesto</b>.</span>
+                  <button
+                    type="button"
+                    onClick={() => { setNuevoTipo('mano_obra'); setSugerenciaAplicada(null); setSugerenciaIdx(-1); }}
+                    className="px-2.5 py-1 rounded-md bg-purple-600 text-white font-semibold hover:bg-purple-700"
+                  >
+                    Cambiar a mano de obra
+                  </button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <div ref={autocompletarRef} className="relative flex-[2]">
                   <input
@@ -1068,6 +1098,22 @@ const Checkout: React.FC = () => {
                         <td className="py-2.5 text-slate-800 font-medium px-2">
                           <div className="flex items-center gap-1.5">
                             <span>{item.descripcion}</span>
+                            {item.tipo === 'repuesto' && pareceManoObra(item.descripcion) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (gastos.some(g => g.item_id === item.id)) {
+                                    window.alert('Este ítem tiene un costo de compra vinculado. Desvincúlalo antes de cambiarlo a mano de obra.');
+                                    return;
+                                  }
+                                  setItems(prev => prev.map(i => (i.id === item.id ? { ...i, tipo: 'mano_obra' } : i)));
+                                }}
+                                className="print:hidden text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-bold hover:bg-amber-200"
+                                title="Parece mano de obra pero está como repuesto. Clic para cambiarlo."
+                              >
+                                ¿Mano de obra?
+                              </button>
+                            )}
                             {item.categoria_crm && (
                               <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
                                 {item.categoria_crm}

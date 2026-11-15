@@ -23,6 +23,7 @@ interface DetalleRepuesto {
 interface RepuestoAgrupado {
   key: string;
   descripcion: string;
+  posibleManoObra?: boolean;
   cantidad: number;
   ordenes: number;
   ventaTotal: number;
@@ -69,6 +70,15 @@ const fmtFecha = (s: string) => {
 
 const margenColor = (m: number | null) =>
   m === null ? 'text-slate-400' : m >= 30 ? 'text-emerald-600' : m >= 10 ? 'text-amber-600' : 'text-red-600';
+
+const BadgeManoObra: React.FC = () => (
+  <span
+    className="inline-block align-middle mr-1.5 text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-bold"
+    title="Parece mano de obra pero está registrado como repuesto en la orden"
+  >
+    ¿Mano de obra?
+  </span>
+);
 
 const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros }) => {
   const [loading, setLoading] = useState(false);
@@ -282,7 +292,9 @@ const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros
                           <div className="hidden md:grid grid-cols-[2rem_minmax(0,2.4fr)_0.8fr_1fr_1fr_1.1fr_0.8fr_1.5rem] gap-3 items-center text-sm">
                             <span className="text-slate-400 font-semibold">{idx + 1}</span>
                             <div className="min-w-0">
-                              <p className="font-semibold text-slate-800 truncate" title={r.descripcion}>{r.descripcion}</p>
+                              <p className="font-semibold text-slate-800 truncate" title={r.descripcion}>
+                                {r.posibleManoObra && <BadgeManoObra />}{r.descripcion}
+                              </p>
                               <div className="flex items-center gap-2 mt-1">
                                 <div className="h-1.5 bg-slate-100 rounded-full flex-1 max-w-[160px] overflow-hidden">
                                   <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(r.cantidad / maxCantidad) * 100}%` }} />
@@ -307,7 +319,7 @@ const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros
                           {/* Mobile card */}
                           <div className="md:hidden">
                             <div className="flex items-start justify-between gap-2">
-                              <p className="font-semibold text-slate-800 text-sm"><span className="text-slate-400 mr-1">{idx + 1}.</span>{r.descripcion}</p>
+                              <p className="font-semibold text-slate-800 text-sm"><span className="text-slate-400 mr-1">{idx + 1}.</span>{r.posibleManoObra && <BadgeManoObra />}{r.descripcion}</p>
                               <span className="text-slate-400 shrink-0">{isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
                             </div>
                             <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
