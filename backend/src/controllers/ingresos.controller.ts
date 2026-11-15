@@ -2231,8 +2231,8 @@ export const getReportePostmortem = async (req: Request, res: Response): Promise
 
     const { startISO, endExclusiveISO } = bogotaDayBounds(startStr, endStr);
 
-    // 1. Obtener órdenes entregadas en el rango (por updated_at como cota rápida y validar con bitácora si existe)
-    const { data: entregadasRaw, error: errEnt } = await supabase
+    // 1. Obtener todas las órdenes del período (activas, entregadas y canceladas)
+    const { data: ordenesQueryRaw, error: errEnt } = await supabase
       .from('taller_ingresos')
       .select(`
         id, estado, fecha_ingreso, updated_at, fecha_entrega_estimada,
@@ -2240,17 +2240,18 @@ export const getReportePostmortem = async (req: Request, res: Response): Promise
         taller_vehiculos(placa, marca, linea, taller_clientes(nombre_completo))
       `)
       .eq('empresa_id', empresa_id)
-      .eq('estado', 'entregado')
-      .gte('updated_at', startISO)
-      .lt('updated_at', endExclusiveISO);
+      .or(`and(updated_at.gte.${startISO},updated_at.lt.${endExclusiveISO}),and(fecha_ingreso.gte.${startISO},fecha_ingreso.lt.${endExclusiveISO})`);
 
     if (errEnt) throw errEnt;
 
-    const ordenesRaw = entregadasRaw || [];
+    const ordenesRaw = ordenesQueryRaw || [];
     if (ordenesRaw.length === 0) {
       res.json({
         resumen: {
+          totalOrdenes: 0,
           totalEntregados: 0,
+          totalActivos: 0,
+          totalCancelados: 0,
           promedioTotalMinutos: 0,
           conPromesaCount: 0,
           cumplimientoPromesaPct: null,
@@ -2320,10 +2321,18 @@ export const getReportePostmortem = async (req: Request, res: Response): Promise
       const sumaEtapas = Object.values(etapas).reduce((a, b) => a + b, 0);
 
       const fechaIngresoMs = new Date(ing.fecha_ingreso).getTime();
-      const fechaEntregaIso = entregaRealMap[ing.id] || ing.updated_at;
-      const fechaEntregaMs = new Date(fechaEntregaIso).getTime();
-      const duracionCalendarioMin = Math.max(0, Math.round((fechaEntregaMs - fechaIngresoMs) / 60000));
-      const duracionTotalMin = sumaEtapas > 0 ? sumaEtapas : duracionCalendarioMin;
+      const esEntregado = ing.estado === 'entregado';
+      const esCancelado = ing.estado === 'cancelado';
+      const fechaFinIso = esEntregado
+        ? (entregaRealMap[ing.id] || ing.updated_at)
+        : esCancelado
+          ? ing.updated_at
+          : new Date().toISOString();
+      const fechaFinMs = new Date(fechaFinIso).getTime();
+      const duracionCalendarioMin = Math.max(0, Math.round((fechaFinMs - fechaIngresoMs) / 60000));
+      const duracionTotalMin = (!esEntregado && !esCancelado)
+        ? duracionCalendarioMin
+        : (sumaEtapas > 0 ? sumaEtapas : duracionCalendarioMin);
 
       // Detectar cuello de botella individual
       let cuelloEstado: string | null = null;
@@ -2342,10 +2351,17 @@ export const getReportePostmortem = async (req: Request, res: Response): Promise
       // Evaluar promesa de entrega
       let cumplioPromesa: boolean | null = null;
       let desviacionPromesaMinutos: number | null = null;
-      if (ing.fecha_entrega_estimada) {
+      if (ing.fecha_entrega_estimada && !esCancelado) {
         const estMs = new Date(ing.fecha_entrega_estimada).getTime();
-        desviacionPromesaMinutos = Math.round((fechaEntregaMs - estMs) / 60000);
-        cumplioPromesa = desviacionPromesaMinutos <= 0;
+        const diffMin = Math.round((fechaFinMs - estMs) / 60000);
+        if (esEntregado) {
+          desviacionPromesaMinutos = diffMin;
+          cumplioPromesa = diffMin <= 0;
+        } else if (diffMin > 0) {
+          // Orden activa ya vencida respecto a su fecha estimada
+          desviacionPromesaMinutos = diffMin;
+          cumplioPromesa = false;
+        }
       }
 
       const veh = ing.taller_vehiculos;
@@ -2353,12 +2369,13 @@ export const getReportePostmortem = async (req: Request, res: Response): Promise
 
       return {
         ingreso_id: ing.id,
+        estado: ing.estado,
         placa: veh?.placa || 'S/P',
         vehiculo: [veh?.marca, veh?.linea].filter(Boolean).join(' ') || 'Vehículo',
         cliente: cli?.nombre_completo || 'Cliente',
         motivo_visita: ing.motivo_visita || '',
         fecha_ingreso: ing.fecha_ingreso,
-        fecha_entrega_real: fechaEntregaIso,
+        fecha_entrega_real: esEntregado ? fechaFinIso : null,
         fecha_entrega_estimada: ing.fecha_entrega_estimada || null,
         duracion_total_minutos: duracionTotalMin,
         desglose_etapas: {
@@ -2379,9 +2396,12 @@ export const getReportePostmortem = async (req: Request, res: Response): Promise
     });
 
     // 4. Calcular métricas globales del período
-    const totalEntregados = ordenesProcesadas.length;
+    const totalOrdenes = ordenesProcesadas.length;
+    const totalEntregados = ordenesProcesadas.filter(o => o.estado === 'entregado').length;
+    const totalActivos = ordenesProcesadas.filter(o => o.estado !== 'entregado' && o.estado !== 'cancelado').length;
+    const totalCancelados = ordenesProcesadas.filter(o => o.estado === 'cancelado').length;
     const sumaTotalMin = ordenesProcesadas.reduce((acc, o) => acc + o.duracion_total_minutos, 0);
-    const promedioTotalMinutos = totalEntregados > 0 ? Math.round(sumaTotalMin / totalEntregados) : 0;
+    const promedioTotalMinutos = totalOrdenes > 0 ? Math.round(sumaTotalMin / totalOrdenes) : 0;
 
     const conPromesa = ordenesProcesadas.filter(o => o.cumplio_promesa !== null);
     const cumplieron = conPromesa.filter(o => o.cumplio_promesa === true).length;
@@ -2407,7 +2427,10 @@ export const getReportePostmortem = async (req: Request, res: Response): Promise
 
     res.json({
       resumen: {
+        totalOrdenes,
         totalEntregados,
+        totalActivos,
+        totalCancelados,
         promedioTotalMinutos,
         conPromesaCount: conPromesa.length,
         cumplimientoPromesaPct,
@@ -2789,6 +2812,149 @@ export const getReporteHorasTecnicos = async (req: Request, res: Response): Prom
   } catch (error: any) {
     console.error('[getReporteHorasTecnicos] Error:', error.message);
     res.status(500).json({ error: error.message || 'Error calculando horas trabajadas por mecánico' });
+  }
+};
+
+/**
+ * GET /api/ingresos/reportes/ingresos-diarios?start=YYYY-MM-DD&end=YYYY-MM-DD
+ * Agrupa la cantidad de vehículos ingresados (fecha_ingreso en America/Bogota)
+ * por fecha exacta y por día de la semana (Lunes a Domingo) para detectar días pico y valle.
+ */
+export const getReporteIngresosDiarios = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const empresa_id = req.empresa_id;
+    if (!empresa_id) {
+      res.status(401).json({ error: 'No autorizado' });
+      return;
+    }
+
+    const { start, end } = req.query;
+    const startStr = (start as string) || bogotaToday();
+    const endStr = (end as string) || bogotaToday();
+
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const isValidDate = (s: string) =>
+      dateRe.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+
+    if (!isValidDate(startStr) || !isValidDate(endStr)) {
+      res.status(400).json({ error: 'Los parámetros start y end deben tener formato YYYY-MM-DD con valores válidos' });
+      return;
+    }
+
+    const { startISO, endExclusiveISO } = bogotaDayBounds(startStr, endStr);
+
+    const { data: ingresosRaw, error } = await supabase
+      .from('taller_ingresos')
+      .select('id, fecha_ingreso')
+      .eq('empresa_id', empresa_id)
+      .neq('estado', 'cancelado')
+      .gte('fecha_ingreso', startISO)
+      .lt('fecha_ingreso', endExclusiveISO);
+
+    if (error) throw error;
+
+    // Contar ingresos por fecha YYYY-MM-DD en America/Bogota
+    const conteoPorFecha: Record<string, number> = {};
+    (ingresosRaw || []).forEach((row: any) => {
+      const f = toBogotaDateStr(row.fecha_ingreso);
+      conteoPorFecha[f] = (conteoPorFecha[f] || 0) + 1;
+    });
+
+    // Índices 0..6 mapeados a Lun..Dom para mostrar Lunes primero
+    const DIAS_SEMANA = [
+      { dow: 1, dia: 'Lunes', diaCorto: 'Lun' },
+      { dow: 2, dia: 'Martes', diaCorto: 'Mar' },
+      { dow: 3, dia: 'Miércoles', diaCorto: 'Mié' },
+      { dow: 4, dia: 'Jueves', diaCorto: 'Jue' },
+      { dow: 5, dia: 'Viernes', diaCorto: 'Vie' },
+      { dow: 6, dia: 'Sábado', diaCorto: 'Sáb' },
+      { dow: 0, dia: 'Domingo', diaCorto: 'Dom' }
+    ];
+    const DOW_CORTO: Record<number, string> = {
+      0: 'Dom', 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb'
+    };
+
+    const acumDow: Record<number, { totalIngresos: number; diasEnRango: number }> = {
+      0: { totalIngresos: 0, diasEnRango: 0 },
+      1: { totalIngresos: 0, diasEnRango: 0 },
+      2: { totalIngresos: 0, diasEnRango: 0 },
+      3: { totalIngresos: 0, diasEnRango: 0 },
+      4: { totalIngresos: 0, diasEnRango: 0 },
+      5: { totalIngresos: 0, diasEnRango: 0 },
+      6: { totalIngresos: 0, diasEnRango: 0 }
+    };
+
+    // Recorrer cada día calendario del rango [startStr, endStr] en UTC neutro (YYYY-MM-DD)
+    const porFecha: Array<{ fecha: string; label: string; diaSemana: string; cantidad: number }> = [];
+    const cursor = new Date(`${startStr}T12:00:00Z`);
+    const endDateObj = new Date(`${endStr}T12:00:00Z`);
+
+    let guard = 0;
+    while (cursor <= endDateObj && guard < 400) {
+      guard++;
+      const yyyyMmDd = cursor.toISOString().slice(0, 10);
+      const dow = cursor.getUTCDay();
+      const cantidad = conteoPorFecha[yyyyMmDd] || 0;
+
+      acumDow[dow].totalIngresos += cantidad;
+      acumDow[dow].diasEnRango += 1;
+
+      const [, mm, dd] = yyyyMmDd.split('-');
+      porFecha.push({
+        fecha: yyyyMmDd,
+        label: `${dd}/${mm}`,
+        diaSemana: DOW_CORTO[dow],
+        cantidad
+      });
+
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    const porDiaSemana = DIAS_SEMANA.map((d) => {
+      const info = acumDow[d.dow];
+      const promedioPorDia = info.diasEnRango > 0
+        ? Number((info.totalIngresos / info.diasEnRango).toFixed(1))
+        : 0;
+      return {
+        dia: d.dia,
+        diaCorto: d.diaCorto,
+        dow: d.dow,
+        totalIngresos: info.totalIngresos,
+        diasEnRango: info.diasEnRango,
+        promedioPorDia
+      };
+    });
+
+    const totalIngresos = porFecha.reduce((acc, p) => acc + p.cantidad, 0);
+    const totalDias = porFecha.length || 1;
+    const promedioDiario = Number((totalIngresos / totalDias).toFixed(1));
+
+    // Evaluar día más fuerte y más flojo (excluir Domingo si tuvo 0 ingresos para no sesgar días no laborales)
+    const tieneActividadDomingo = acumDow[0].totalIngresos > 0;
+    const candidatos = porDiaSemana.filter((d) => d.diasEnRango > 0 && (tieneActividadDomingo || d.dow !== 0));
+
+    let diaMasFuerte = null;
+    let diaMasFlojo = null;
+    if (candidatos.length > 0 && totalIngresos > 0) {
+      const ordenados = [...candidatos].sort((a, b) => b.promedioPorDia - a.promedioPorDia || b.totalIngresos - a.totalIngresos);
+      diaMasFuerte = ordenados[0];
+      diaMasFlojo = ordenados[ordenados.length - 1];
+    }
+
+    res.json({
+      resumen: {
+        totalIngresos,
+        totalDias: porFecha.length,
+        promedioDiario,
+        diaMasFuerte,
+        diaMasFlojo
+      },
+      porDiaSemana,
+      porFecha
+    });
+  } catch (error: any) {
+    console.error('[getReporteIngresosDiarios] Error:', error.message);
+    res.status(500).json({ error: error.message || 'Error calculando ingresos diarios' });
   }
 };
 

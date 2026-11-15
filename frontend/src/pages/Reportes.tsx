@@ -1653,7 +1653,7 @@ const Reportes: React.FC = () => {
           onClick={() => setActiveTab('postmortem')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition ${activeTab === 'postmortem' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          <Clock size={16} /> Post-Mortem
+          <Clock size={16} /> Historial y Tiempos
         </button>
         <button
           onClick={() => setActiveTab('horas_tecnicos')}
@@ -1679,13 +1679,13 @@ const Reportes: React.FC = () => {
         </div>
       )}
 
-      {/* ═══════ TAB POST-MORTEM ═══════ */}
+      {/* ═══════ TAB HISTORIAL Y TIEMPOS ═══════ */}
       {activeTab === 'postmortem' && (
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Análisis Post-Mortem de Demoras</h2>
-              <p className="text-sm text-slate-500">Vehículos que más tardaron en el período semanal o mensual, cuellos de botella y cumplimiento de promesas.</p>
+              <h2 className="text-xl font-bold text-slate-900">Historial y Tiempos de Órdenes</h2>
+              <p className="text-sm text-slate-500">Todas las órdenes del período (activas, entregadas y canceladas), tiempos por etapa, cuellos de botella y cumplimiento de entregas.</p>
             </div>
             {renderFiltros()}
           </div>
