@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Car, TrendingUp, TrendingDown, CalendarDays, Loader2, AlertTriangle } from 'lucide-react';
+import { Car, TrendingUp, TrendingDown, CalendarDays, Loader2, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 
 interface ReporteIngresosDiariosProps {
@@ -22,7 +23,25 @@ interface FechaItem {
   label: string;
   diaSemana: string;
   cantidad: number;
+  ingresos?: IngresoDia[];
 }
+
+interface IngresoDia {
+  id: string;
+  placa: string;
+  vehiculo: string;
+  estado: string;
+  hora: string;
+}
+
+const ESTADOS: Record<string, { label: string; cls: string }> = {
+  recepcion: { label: 'Recepción', cls: 'bg-slate-100 text-slate-700' },
+  diagnostico: { label: 'Diagnóstico', cls: 'bg-sky-50 text-sky-700' },
+  cotizacion: { label: 'Cotización', cls: 'bg-violet-50 text-violet-700' },
+  esperando_aprobacion: { label: 'Esp. aprobación', cls: 'bg-amber-50 text-amber-700' },
+  en_reparacion: { label: 'En reparación', cls: 'bg-indigo-50 text-indigo-700' },
+  entregado: { label: 'Entregado', cls: 'bg-emerald-50 text-emerald-700' }
+};
 
 interface IngresosDiariosResponse {
   resumen: {
@@ -41,6 +60,8 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [metricaSemana, setMetricaSemana] = useState<'promedioPorDia' | 'totalIngresos'>('promedioPorDia');
+  const [diaIdx, setDiaIdx] = useState<number>(-1);
+  const { slug } = useParams<{ slug: string }>();
 
   useEffect(() => {
     if (!startDate || !endDate) return;
@@ -54,6 +75,11 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
           signal: controller.signal
         });
         setData(res.data);
+        // Por defecto se abre el último día con ingresos del rango
+        const fechas: FechaItem[] = res.data?.porFecha || [];
+        let ultimo = -1;
+        fechas.forEach((f, i) => { if (f.cantidad > 0) ultimo = i; });
+        setDiaIdx(ultimo);
       } catch (err: any) {
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
         setError(err?.response?.data?.error || 'No se pudo cargar el reporte de ingresos diarios.');
@@ -89,6 +115,8 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
   const { resumen, porDiaSemana, porFecha } = data;
   const dowFuerte = resumen.diaMasFuerte?.dow;
   const dowFlojo = resumen.diaMasFlojo?.dow;
+  const diaSel: FechaItem | undefined = porFecha[diaIdx];
+  const ingresosDia = diaSel?.ingresos || [];
 
   return (
     <div className="space-y-5">
@@ -207,12 +235,20 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
               <TrendingUp size={17} className="text-indigo-600" />
               Ingresos Día a Día
             </h3>
-            <p className="text-xs text-slate-500">Cantidad exacta de vehículos recibidos por fecha calendario.</p>
+            <p className="text-xs text-slate-500">Toca un día para ver las placas recibidas y abrir cada servicio.</p>
           </div>
 
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={porFecha} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+              <BarChart
+                data={porFecha}
+                margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+                style={{ cursor: 'pointer' }}
+                onClick={(state: any) => {
+                  const idx = Number(state?.activeTooltipIndex);
+                  if (state?.activeTooltipIndex != null && Number.isInteger(idx) && porFecha[idx]) setDiaIdx(idx);
+                }}
+              >
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#475569' }} interval="preserveStartEnd" />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                 <Tooltip
@@ -223,10 +259,73 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
                   }}
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
                 />
-                <Bar dataKey="cantidad" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="cantidad" radius={[4, 4, 0, 0]}>
+                  {porFecha.map((f, i) => (
+                    <Cell key={f.fecha} fill={i === diaIdx ? '#312e81' : '#6366f1'} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
+
+          {/* Detalle del día seleccionado: placas con enlace al servicio */}
+          {diaSel && (
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDiaIdx((i) => Math.max(0, i - 1))}
+                  disabled={diaIdx <= 0}
+                  aria-label="Día anterior"
+                  className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <div className="text-center min-w-0">
+                  <p className="text-sm font-bold text-slate-900">{diaSel.diaSemana} {diaSel.label}</p>
+                  <p className="text-xs text-slate-500">
+                    {diaSel.cantidad === 1 ? '1 vehículo' : `${diaSel.cantidad} vehículos`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDiaIdx((i) => Math.min(porFecha.length - 1, i + 1))}
+                  disabled={diaIdx >= porFecha.length - 1}
+                  aria-label="Día siguiente"
+                  className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+
+              {ingresosDia.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-4">Sin vehículos recibidos este día.</p>
+              ) : (
+                <ul className="mt-2 divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                  {ingresosDia.map((ing) => {
+                    const est = ESTADOS[ing.estado] || { label: ing.estado, cls: 'bg-slate-100 text-slate-700' };
+                    return (
+                      <li key={ing.id}>
+                        <Link
+                          to={`/${slug}/historial/${ing.id}`}
+                          className="flex items-center gap-3 min-h-12 py-2 px-1 rounded-lg hover:bg-indigo-50/60 transition"
+                        >
+                          <span className="font-mono text-sm font-bold text-indigo-700 shrink-0">{ing.placa}</span>
+                          <span className="text-xs text-slate-600 truncate min-w-0 flex-1">
+                            {ing.vehiculo || '—'} · {ing.hora}
+                          </span>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${est.cls}`}>
+                            {est.label}
+                          </span>
+                          <ChevronRight size={16} className="text-slate-400 shrink-0" />
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

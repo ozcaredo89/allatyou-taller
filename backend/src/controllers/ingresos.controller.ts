@@ -2847,19 +2847,30 @@ export const getReporteIngresosDiarios = async (req: Request, res: Response): Pr
 
     const { data: ingresosRaw, error } = await supabase
       .from('taller_ingresos')
-      .select('id, fecha_ingreso')
+      .select('id, fecha_ingreso, estado, taller_vehiculos(placa, marca, linea)')
       .eq('empresa_id', empresa_id)
       .neq('estado', 'cancelado')
       .gte('fecha_ingreso', startISO)
-      .lt('fecha_ingreso', endExclusiveISO);
+      .lt('fecha_ingreso', endExclusiveISO)
+      .order('fecha_ingreso', { ascending: true });
 
     if (error) throw error;
 
-    // Contar ingresos por fecha YYYY-MM-DD en America/Bogota
-    const conteoPorFecha: Record<string, number> = {};
+    // Agrupar ingresos por fecha YYYY-MM-DD en America/Bogota (con placa para el detalle del día)
+    type IngresoDia = { id: string; placa: string; vehiculo: string; estado: string; hora: string };
+    const ingresosPorFecha: Record<string, IngresoDia[]> = {};
     (ingresosRaw || []).forEach((row: any) => {
       const f = toBogotaDateStr(row.fecha_ingreso);
-      conteoPorFecha[f] = (conteoPorFecha[f] || 0) + 1;
+      const v = Array.isArray(row.taller_vehiculos) ? row.taller_vehiculos[0] : row.taller_vehiculos;
+      (ingresosPorFecha[f] = ingresosPorFecha[f] || []).push({
+        id: row.id,
+        placa: v?.placa || 'SIN PLACA',
+        vehiculo: [v?.marca, v?.linea].filter(Boolean).join(' '),
+        estado: row.estado,
+        hora: new Date(row.fecha_ingreso).toLocaleTimeString('es-CO', {
+          timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: false
+        })
+      });
     });
 
     // Índices 0..6 mapeados a Lun..Dom para mostrar Lunes primero
@@ -2887,7 +2898,7 @@ export const getReporteIngresosDiarios = async (req: Request, res: Response): Pr
     };
 
     // Recorrer cada día calendario del rango [startStr, endStr] en UTC neutro (YYYY-MM-DD)
-    const porFecha: Array<{ fecha: string; label: string; diaSemana: string; cantidad: number }> = [];
+    const porFecha: Array<{ fecha: string; label: string; diaSemana: string; cantidad: number; ingresos: IngresoDia[] }> = [];
     const cursor = new Date(`${startStr}T12:00:00Z`);
     const endDateObj = new Date(`${endStr}T12:00:00Z`);
 
@@ -2896,7 +2907,8 @@ export const getReporteIngresosDiarios = async (req: Request, res: Response): Pr
       guard++;
       const yyyyMmDd = cursor.toISOString().slice(0, 10);
       const dow = cursor.getUTCDay();
-      const cantidad = conteoPorFecha[yyyyMmDd] || 0;
+      const ingresosDia = ingresosPorFecha[yyyyMmDd] || [];
+      const cantidad = ingresosDia.length;
 
       acumDow[dow].totalIngresos += cantidad;
       acumDow[dow].diasEnRango += 1;
@@ -2906,7 +2918,8 @@ export const getReporteIngresosDiarios = async (req: Request, res: Response): Pr
         fecha: yyyyMmDd,
         label: `${dd}/${mm}`,
         diaSemana: DOW_CORTO[dow],
-        cantidad
+        cantidad,
+        ingresos: ingresosDia
       });
 
       cursor.setUTCDate(cursor.getUTCDate() + 1);
