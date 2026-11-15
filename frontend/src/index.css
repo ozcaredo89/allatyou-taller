@@ -17,6 +17,13 @@ body {
   scroll-behavior: smooth;
 }
 
+/* body es flex: sin este tope, #root crece hasta el contenido más ancho (p. ej. una fila
+   con scroll horizontal) y toda la página queda con scroll lateral en celular. */
+#root {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* ── Custom Backgrounds ── */
 .bg-hex-pattern {
   background-color: #000000;
