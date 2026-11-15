@@ -23,12 +23,13 @@ interface EventoSeguimiento {
 
 interface OrdenPostmortem {
   ingreso_id: string;
+  estado?: string;
   placa: string;
   vehiculo: string;
   cliente: string;
   motivo_visita: string;
   fecha_ingreso: string;
-  fecha_entrega_real: string;
+  fecha_entrega_real: string | null;
   fecha_entrega_estimada: string | null;
   duracion_total_minutos: number;
   desglose_etapas: Record<string, number>;
@@ -43,7 +44,10 @@ interface OrdenPostmortem {
 
 interface PostmortemResponse {
   resumen: {
+    totalOrdenes?: number;
     totalEntregados: number;
+    totalActivos?: number;
+    totalCancelados?: number;
     promedioTotalMinutos: number;
     conPromesaCount: number;
     cumplimientoPromesaPct: number | null;
@@ -59,7 +63,19 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   diagnostico: 'Diagnóstico',
   cotizacion: 'Cotización',
   esperando_aprobacion: 'Esperando Aprobación',
-  en_reparacion: 'En Reparación'
+  en_reparacion: 'En Reparación',
+  entregado: 'Entregado',
+  cancelado: 'Cancelado'
+};
+
+const ESTILO_ESTADO: Record<string, string> = {
+  entregado: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  cancelado: 'bg-slate-100 text-slate-600 border-slate-200',
+  en_reparacion: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  esperando_aprobacion: 'bg-amber-50 text-amber-700 border-amber-200',
+  cotizacion: 'bg-sky-50 text-sky-700 border-sky-200',
+  diagnostico: 'bg-violet-50 text-violet-700 border-violet-200',
+  recepcion: 'bg-slate-50 text-slate-700 border-slate-200'
 };
 
 const formatDuracion = (minutos: number): string => {
@@ -92,7 +108,7 @@ const ReportePostmortem: React.FC<ReportePostmortemProps> = ({ startDate, endDat
         setData(res.data);
       } catch (err: any) {
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
-        setError(err?.response?.data?.error || 'No se pudo cargar el reporte post-mortem.');
+        setError(err?.response?.data?.error || 'No se pudo cargar el reporte de historial y tiempos.');
       } finally {
         setLoading(false);
       }
@@ -120,13 +136,15 @@ const ReportePostmortem: React.FC<ReportePostmortemProps> = ({ startDate, endDat
     );
   }
 
-  if (!data || data.resumen.totalEntregados === 0) {
+  const totalOrdenes = data?.resumen.totalOrdenes ?? data?.resumen.totalEntregados ?? 0;
+
+  if (!data || totalOrdenes === 0) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
         <Clock size={40} className="mx-auto text-slate-300 mb-3" />
-        <h3 className="text-base font-bold text-slate-800">Sin entregas registradas en este período</h3>
+        <h3 className="text-base font-bold text-slate-800">Sin órdenes registradas en este período</h3>
         <p className="text-sm text-slate-500 mt-1">
-          Selecciona otro rango semanal o mensual para analizar los vehículos que más tardaron.
+          Selecciona otro rango semanal o mensual para revisar el historial de órdenes y tiempos.
         </p>
       </div>
     );
@@ -136,12 +154,14 @@ const ReportePostmortem: React.FC<ReportePostmortemProps> = ({ startDate, endDat
 
   return (
     <div className="space-y-6">
-      {/* KPIs Post-Mortem */}
+      {/* KPIs Historial y Tiempos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tiempo Promedio Total</p>
           <p className="text-2xl font-extrabold text-slate-900 mt-1">{formatDuracion(resumen.promedioTotalMinutos)}</p>
-          <p className="text-xs text-slate-500 mt-1">{resumen.totalEntregados} vehículos entregados</p>
+          <p className="text-xs text-slate-500 mt-1">
+            {totalOrdenes} órdenes ({resumen.totalActivos ?? 0} activas · {resumen.totalEntregados} entregadas)
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -198,8 +218,8 @@ const ReportePostmortem: React.FC<ReportePostmortemProps> = ({ startDate, endDat
           <div className="flex items-center gap-2">
             <TrendingDown size={18} className="text-red-600" />
             <div>
-              <h3 className="font-bold text-slate-900 text-base">Ranking Post-Mortem: Carros que más tardaron</h3>
-              <p className="text-xs text-slate-500">Ordenados de mayor a menor duración total para detectar causas raíz y mejorar procesos.</p>
+              <h3 className="font-bold text-slate-900 text-base">Historial y Tiempos por Vehículo</h3>
+              <p className="text-xs text-slate-500">Todas las órdenes del período (activas, entregadas y canceladas), ordenadas de mayor a menor duración.</p>
             </div>
           </div>
         </div>
@@ -231,6 +251,12 @@ const ReportePostmortem: React.FC<ReportePostmortemProps> = ({ startDate, endDat
                   </div>
 
                   <div className="flex items-center gap-2.5 flex-wrap">
+                    {ord.estado && (
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${ESTILO_ESTADO[ord.estado] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                        {ETIQUETA_ESTADO[ord.estado] || ord.estado}
+                      </span>
+                    )}
+
                     <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
                       superoPromedio
                         ? 'bg-red-50 text-red-700 border-red-200'
