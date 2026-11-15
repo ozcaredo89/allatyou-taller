@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { toBogotaDateStr, bogotaToday, getBogotaRange, bogotaDayBounds } from '../utils/dateUtils';
 import { sumarItemsFactura } from '../utils/facturaUtils';
+import { pareceManoObra } from '../utils/tipoItemUtils';
 import {
   obtenerVentanaConsultaGastos,
   calcularGastosPeriodoConProrrateo,
@@ -1444,6 +1445,7 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
       return {
         key: g.key,
         descripcion,
+        posibleManoObra: pareceManoObra(descripcion),
         cantidad: g.cantidad,
         ordenes: g.ordenes.size,
         ventaTotal: g.ventaTotal,
