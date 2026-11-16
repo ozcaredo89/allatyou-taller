@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
+import { identifyTaller, resetAnalytics } from '../utils/analytics';
 
 interface AuthState {
   token: string | null;
@@ -35,6 +36,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('taller_auth');
     }
   }, [auth]);
+
+  // Analytics: la sesión se asocia al taller (nunca al email)
+  useEffect(() => {
+    if (auth.token && auth.empresaId) {
+      identifyTaller(auth.empresaId, auth.empresaSlug, auth.empresaNombre);
+    } else {
+      resetAnalytics();
+    }
+  }, [auth.token, auth.empresaId, auth.empresaSlug, auth.empresaNombre]);
 
   useEffect(() => {
     const handleSessionExpired = () => {

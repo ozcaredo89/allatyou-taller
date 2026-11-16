@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt, Menu, X } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt, Menu, X, MessageSquarePlus } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useState, useRef, useEffect } from 'react';
-import { trackEvent } from './utils/analytics';
+import { trackEvent, trackPageview, seccionDesdePath, isAnalyticsEnabled } from './utils/analytics';
+import { FeedbackModal } from './components/FeedbackModal';
 
 import Dashboard from './pages/Dashboard';
 import NuevoIngreso from './pages/NuevoIngreso';
@@ -29,6 +30,7 @@ const ProfileMenu = () => {
   const { t, i18n } = useTranslation();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -108,6 +110,21 @@ const ProfileMenu = () => {
               {isConfigActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400" />}
             </Link>
 
+            {/* Feedback */}
+            {isAnalyticsEnabled() && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setFeedbackOpen(true);
+                  trackEvent('feedback.abrir', { seccion: seccionDesdePath(location.pathname) });
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+              >
+                <MessageSquarePlus size={16} className="shrink-0" />
+                <span>{t('navbar.feedback', 'Enviar sugerencia')}</span>
+              </button>
+            )}
+
             {/* Separator */}
             <div className="my-1.5 border-t border-slate-700/60" />
 
@@ -139,6 +156,8 @@ const ProfileMenu = () => {
           </div>
         </div>
       )}
+
+      <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 };
@@ -354,6 +373,13 @@ const ProtectedLayout = () => {
   // AI Chat State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'model'; parts: { text: string }[] }[]>([]);
+  const location = useLocation();
+  const sesionValida = !!token && (!empresaSlug || slug === empresaSlug);
+
+  // Pageview por sección (normalizada, sin slug ni ids)
+  useEffect(() => {
+    if (sesionValida) trackPageview(seccionDesdePath(location.pathname));
+  }, [location.pathname, sesionValida]);
 
   if (!token) {
     return <Navigate to={`/login`} replace />;
