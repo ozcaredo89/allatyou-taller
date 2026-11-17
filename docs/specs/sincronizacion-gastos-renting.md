@@ -1,91 +1,27 @@
-# Spec — Sincronización de Gastos hacia AllAtYou Renting
+# Ficha — Sincronización de gastos hacia AllAtYou Renting
 
-**Estado:** Vigente · **Fecha:** 2026-10-14
-**Módulos afectados:**
-- Taller Backend: `backend/src/services/allatyouSync.service.ts`, `backend/src/controllers/ingresos.controller.ts`, `backend/src/routes/ingresos.routes.ts`
-- Taller Frontend: `frontend/src/components/RentingSyncModal.tsx`, `frontend/src/pages/Checkout.tsx`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/HistorialDetalle.tsx`
-- Renting API: `src/routes/expenses.ts` (`POST /expenses`)
+**Leer si:** la tarea toca el envío de gastos a Renting al dar salida a un vehículo de la flota propia · **Actualizada:** 2026-11-16 · **Ticket:** `TALLER-RENTING-ANTICIPO`
 
----
+## Archivos
+- Backend: `services/allatyouSync.service.ts` → `evaluarAplicaRenting`; `controllers/ingresos.controller.ts` → `syncIngresoToRenting`, `getRentingLeasingInfo`
+- Frontend: `components/RentingSyncModal.tsx`; lo abren `pages/{Checkout,Dashboard,HistorialDetalle}.tsx`
+- Datos: `docs/migrations/20261014_renting_sync_fields.sql` → `taller_ingresos`: `renting_sync_at`, `renting_expense_ids`, `renting_sync_error`
+- Entorno: `ALLATYOU_RENTING_EMPRESA_ID`, `ALLATYOU_RENTING_CLIENTE_DOC`, `ALLATYOU_RENTING_API_URL`, `ALLATYOU_RENTING_USER`, `ALLATYOU_RENTING_PASS`
 
-## 1. Contexto y Flujo de Usuario (Human-in-the-Loop)
-Cuando un vehículo de la flota propia administrada por AllAtYou es atendido en el taller y su orden pasa a estado `entregado` (salida del vehículo):
-1. **Detección y Disponibilidad de Datos:**
-   - Tanto `updateIngreso` como `getIngresoById`, `getIngresos` y `getHistorial` devuelven la propiedad `aplica_renting: boolean` (evaluada con función pura `evaluarAplicaRenting(empresa_id, cliente_doc)` con política fail-closed).
-2. **Modal de Confirmación al dar Salida:**
-   - Si `aplica_renting === true` y la orden aún no ha sido sincronizada (`renting_sync_at IS NULL`), el frontend abre un **Modal de Confirmación**:
-     - **Placa:** De solo lectura (bloqueada, tomada de la orden en DB para evitar errores humanos).
-     - **Fecha:** Prellenada con la fecha actual en `America/Bogota` (`YYYY-MM-DD`), editable.
-     - **Descripción:** Prellenada con `[Taller Orden #ID] Motivo`, editable.
-     - **Tabla de Ítems:** Prellenada con los ítems de la orden con `total > 0`. El usuario puede modificar nombres, montos, eliminar filas o agregar ítems adicionales.
-3. **Confirmación y Creación:**
-   - Al confirmar, el frontend envía `POST /api/ingresos/:id/renting-sync` con el payload validado.
-   - El backend re-valida la elegibilidad, ejecuta el reclamo atómico (`WHERE renting_sync_at IS NULL`), llama al API de Renting y registra el éxito (`renting_expense_ids`).
-4. **Si el usuario cierra sin confirmar:**
-   - La orden queda guardada como `entregado`.
-   - En `Checkout.tsx`, `Dashboard.tsx` e `HistorialDetalle.tsx`, la orden muestra el badge **"⚠️ Gasto Renting pendiente"** con un botón activo **`[Crear Gasto en Renting]`** para disparar el modal en cualquier momento posterior.
+## Contratos (`requireAuth`, bajo `/api/ingresos`)
+- `POST /:id/renting-sync` — `{ date: 'YYYY-MM-DD', description, items: [{ item, amount > 0, category: 'Mantenimiento' }], … forma de pago }`. 403 si la orden no aplica, 409 si ya se sincronizó o está en proceso.
+- `GET /:id/renting-leasing` → `{ has_leasing }`.
+- `getIngresoById`, `getIngresosActivos`, `getHistorial` y `updateIngreso` devuelven `aplica_renting: boolean`.
 
----
+## Reglas de negocio
+- Solo aplica cuando la empresa y el documento del cliente coinciden con las dos variables de entorno; si falta cualquiera de los cuatro datos, es `false` (falla cerrado).
+- El usuario siempre confirma en el modal; si lo cierra, la orden queda `entregado` con la insignia "Gasto Renting pendiente" y un botón para reintentar después.
+- Forma de pago, por defecto gasto simple (`POST /expenses`). Opcionales y excluyentes entre sí: descontar del fondo de mantenimiento (solo si `has_leasing`; envía `apply_to_leasing` y `leasing_excess_method` `cash | advance`) o cobrar al conductor con anticipo (`POST /advances` y luego `POST /expenses`).
+- Nunca se crea un anticipo sin que el usuario lo haya elegido y confirmado.
 
-## 2. Reglas de Validación y Aislamiento Multi-Tenant (Fail-Closed)
-1. **Función de Evaluación:**
-   ```ts
-   export function evaluarAplicaRenting(empresaId?: string, clienteDoc?: string): boolean {
-     const targetEmpresaId = process.env.ALLATYOU_RENTING_EMPRESA_ID?.trim();
-     const targetClienteDoc = process.env.ALLATYOU_RENTING_CLIENTE_DOC?.trim();
-     if (!targetEmpresaId || !targetClienteDoc || !empresaId || !clienteDoc) {
-       return false; // Fail-closed
-     }
-     return empresaId === targetEmpresaId && clienteDoc.trim() === targetClienteDoc;
-   }
-   ```
-2. **Doble Validación de Seguridad en el Endpoint:**
-   - `POST /api/ingresos/:id/renting-sync` consulta la orden en la BD y **vuelve a ejecutar** `evaluarAplicaRenting` contra la empresa del token JWT y el documento del cliente en la BD. Si no coincide, responde **403 Forbidden**. Ningún tenant ajeno puede invocar este endpoint para enviar gastos.
-
----
-
-## 3. Idempotencia y Trazabilidad (Backend)
-- **Campos en `taller_ingresos`:**
-  - `renting_sync_at` (TIMESTAMPTZ): Marca temporal de sincronización exitosa.
-  - `renting_expense_ids` (JSONB): IDs de los gastos creados en Renting.
-  - `renting_sync_error` (TEXT): Último error registrado en caso de fallo.
-- **Reclamo Atómico (Optimistic Lock):**
-  ```sql
-  UPDATE taller_ingresos 
-  SET renting_sync_at = NOW() 
-  WHERE id = :id AND empresa_id = :empresa_id AND renting_sync_at IS NULL 
-  RETURNING id;
-  ```
-  - Si 0 filas actualizadas -> responde **409 Conflict** ("La orden ya fue sincronizada o se encuentra en proceso").
-  - Si la llamada HTTP a Renting falla o da timeout (10s):
-    - Se revierte `renting_sync_at = NULL`.
-    - Se persiste `renting_sync_error = :mensajeError`.
-    - Se responde con error al cliente para permitir reintento.
-
----
-
-## 4. Validación Estricta del Payload en `POST /api/ingresos/:id/renting-sync`
-El backend valida rigurosamente los datos provenientes del modal:
-1. `date`: Regex `/^\d{4}-\d{2}-\d{2}$/`.
-2. `description`: String no vacío.
-3. `items`: Arreglo no vacío (`items.length > 0`).
-4. Cada elemento de `items`:
-   - `item`: String no vacío (`item.trim().length > 0`).
-   - `amount`: Número positivo finito (`typeof amount === 'number' && isFinite(amount) && amount > 0`).
-   - `category`: `"Mantenimiento"`.
-5. `placa`: Se toma directamente de la orden en la base de datos (inmutable desde el frontend).
-
----
-
-## 5. Forma de Pago del Gasto (opcional, por defecto gasto simple)
-La mayoría de los carros de la flota no tienen leasing y sus arreglos son gastos del taller o de la flota. Por eso **la opción por defecto es un gasto simple** (`POST /expenses` sin campos extra) y las demás solo se aplican si el usuario las elige en el modal.
-
-| Opción | Cuándo aparece | Qué envía a Renting |
-|---|---|---|
-| Gasto simple (defecto) | Siempre | `POST /expenses` |
-| Descontar del Fondo de Mantenimiento | Solo si `GET /api/ingresos/:id/renting-leasing` devuelve `has_leasing: true` | `POST /expenses` + `apply_to_leasing: true`, `leasing_excess_method` (`cash` \| `advance`) y, si hay anticipo por el excedente, `leasing_advance_installments`, `leasing_advance_start_date`, `leasing_advance_rate_percent`, `leasing_advance_daily_installment` |
-| Cobrar al conductor con anticipo | Solo si el usuario la marca y la placa tiene conductor (ticket `TALLER-RENTING-ANTICIPO`) | Primero `POST /advances` (con tasa), luego `POST /expenses`; si el gasto falla, `DELETE /advances/:id` |
-
-- El fondo y el anticipo del arreglo completo son excluyentes.
-- No se crea ningún anticipo sin que el usuario lo haya elegido y confirmado explícitamente.
-- Si no se pudo verificar el leasing, el modal bloquea el envío hasta reintentar.
+## Trampas / no tocar
+- El endpoint **vuelve a evaluar** `evaluarAplicaRenting` con la empresa del JWT y el documento leído de la base; no confiar en lo que mande el frontend.
+- La placa se toma de la orden en la base, nunca del cuerpo de la petición.
+- Reclamo atómico: `UPDATE … SET renting_sync_at = NOW() WHERE id AND empresa_id AND renting_sync_at IS NULL`. Si Renting falla o tarda más de 10 s, se revierte a `NULL` y se guarda `renting_sync_error`. Quitar la reversión deja órdenes bloqueadas.
+- Con anticipo: si el gasto falla después de crear el anticipo, se borra con `DELETE /advances/:id`. No cambiar el orden.
+- Si no se pudo consultar el leasing, el modal bloquea el envío hasta reintentar.

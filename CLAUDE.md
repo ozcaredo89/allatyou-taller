@@ -1,109 +1,55 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**AllAtYou Taller** ("TallerPro"): SaaS multi-tenant para talleres automotrices (español, Colombia). Dos proyectos npm independientes, sin `package.json` raíz:
 
-## Repository Overview
+- `backend/` — Express + TypeScript, Supabase (Postgres). Deploy: Railway.
+- `frontend/` — React 19 + Vite + Tailwind v4 (SPA). Deploy: Vercel.
+- `docs/migrations/*.sql` — migraciones; `docs/specs/` — fichas por módulo (leer solo la que toque).
 
-**AllAtYou Taller** (a.k.a. "TallerPro") is a multi-tenant SaaS for managing auto repair shops (Spanish-language, Colombia-based). It is a two-project repo with no root package.json — `backend/` and `frontend/` are independent npm projects, each with its own `node_modules`, run separately.
+## Reglas que aplican siempre
 
-- `backend/` — Express + TypeScript API, Supabase (Postgres) as the data layer, deployed on Railway.
-- `frontend/` — React 19 + TypeScript + Vite + Tailwind v4 SPA, deployed on Vercel.
-- `docs/` — Raw SQL: `database_schema.sql.txt` (base schema) and `migrations/*.sql` (point-in-time migrations applied manually against Supabase).
+1. **Aislamiento por taller:** no hay RLS. Toda consulta filtra `.eq('empresa_id', req.empresa_id)` (o `.eq('empresa_slug', slug)` en rutas públicas). `req.empresa_id` lo pone `requireAuth`.
+2. **Zona horaria:** fechas, rangos y topes diarios en `America/Bogota` (Supabase corre en UTC). Usar `utils/dateUtils.ts` (`bogotaToday`, `getBogotaRange`, `bogotaDayBounds`), existe en backend y frontend.
+3. **Tablas:** siempre con prefijo `taller_`.
+4. **Presupuesto de IA fail-closed:** nunca volver `budgetGuard` fail-open ni llamar a un LLM sin verificar presupuesto. Detalle en `docs/specs/ia.md`.
+5. **Secretos:** solo desde `process.env`. No subir llaves reales a `.env.example`.
+6. **Editar solo `.ts`:** en `backend/src/` hay `.js`/`.d.ts`/`.map` versionados junto a algunos `.ts`; no tocarlos.
+7. **Frontend:** llamadas por `src/services/api.ts` (inyecta JWT, maneja 401/403); sesión con `useAuth()`, no `localStorage` directo. Rutas bajo `/:slug/*` en `src/App.tsx`.
+8. **Estados de ingreso:** `recepcion → diagnostico → cotizacion → esperando_aprobacion → en_reparacion → entregado` / `cancelado`. Cada cambio registra en `taller_ingresos_tiempos` y `taller_ingresos_bitacora`; las comisiones se recalculan en `entregado`. Todo en `updateIngreso`.
 
----
+## Mapa: dónde vive cada cosa
 
-## Commands
+Rutas en `backend/src/routes/<x>.routes.ts`, lógica en `backend/src/controllers/<x>.controller.ts`, montadas en `backend/src/index.ts` como `/api/<x>`.
 
-All commands are run from inside `backend/` or `frontend/` respectively (no root scripts).
+| Módulo | Backend (`<x>`) | Frontend (`frontend/src/`) | Ficha |
+|---|---|---|---|
+| Ingresos, tablero, bitácora | `ingresos` | `pages/{Dashboard,NuevoIngreso,Historial,HistorialDetalle}`, `components/{ModalEditarIngreso,TimelineDrawer,SelectorVehiculo}` | — |
+| Diagnóstico | `ingresos` (`PUT /:id`), `upload` | `pages/Diagnostico`, `components/NotaPorVoz` | — |
+| Cotización y salida | `ingresos`, `gastos` | `pages/Checkout` | — |
+| Seguimiento y reportes | `ingresos` (`/reportes/*`, `/:id/seguimiento`) | `pages/Reportes`, `components/Reporte*`, `ModalSeguimientoIngreso` | `reportes-operativos-y-seguimiento.md` |
+| Gastos | `gastos`, `utils/gastosProrrateo` | `pages/Gastos`, `components/ModalVincular*` | — |
+| Sincronización con Renting | `ingresos`, `services/allatyouSync.service` | `components/RentingSyncModal` | `sincronizacion-gastos-renting.md` |
+| CRM (retención y reseñas) | `crm` | `pages/CRM`, `utils/whatsapp` | `crm-resenas-mejoras.md` |
+| Acceso, equipo, dispositivos | `auth`, `middlewares/auth.middleware` | `pages/{Login,Registro,Equipo,Configuracion}`, `context/AuthContext` | `recuperacion-contrasena.md` |
+| Técnicos y liquidaciones | `tecnicos`, `liquidaciones` | `pages/ReporteLiquidaciones`, `components/ModalAsignarTecnicos` | — |
+| IA (chatbot público y usos internos) | `ai`, `services/aiRouter.service`, `middlewares/{turnstile,distributedRateLimiter,tenantGuard,budgetGuard}` | `components/{PublicAIChatbot,AIChatDrawer,NotaPorVoz}` | `ia.md` |
+| Kiosco de autoservicio | `kiosco` | `pages/Kiosco` (`/kiosco/:slug`) | — |
+| Precios públicos y API externa | `precios` (`/api/public/precios`), `integraciones`, `middlewares/apiKey.middleware` | — | — |
+| Estilo visual | — | `components/ModalConfirmacion`, `index.css` | `ui-design-system.md` |
 
-### Backend (`backend/`)
-- `npm run dev` — nodemon + `tsc` + run `dist/index.js`, restarts on `.ts`/`.json` changes.
-- `npm run build` — `tsc` compile to `dist/`.
-- `npm start` — runs pending migrations (`node dist/scripts/migrate.js`) and then starts `dist/index.js` (production).
-- `npm run db:migrate` — Runs all pending SQL migrations from `docs/migrations/` using `DATABASE_URL`.
-- `npm run db:migrate:dev` — Runs migrations in development via `ts-node`.
-- `node node_modules/typescript/bin/tsc --noEmit` — Type-check backend without emitting files.
+Otros: marca blanca en `frontend/middleware.js` (reescribe dominios propios a `/landing/<slug>/index.html`); textos en `frontend/src/locales/{es,en}/translation.json`; archivos a R2 en `services/s3Service.ts`; correo en `services/emailService.ts`.
 
-### Frontend (`frontend/`)
-- `npm run dev` — Vite dev server.
-- `npm run build` — `tsc -b` then `vite build`.
-- `npm run lint` — ESLint over the whole project.
-- `npm run preview` — preview the production build.
-- `node node_modules/typescript/bin/tsc --noEmit` — Type-check frontend without emitting files.
+## Cómo gastar pocos tokens aquí
 
----
+- **Archivos enormes, no leer completos:** `pages/Reportes.tsx` (~3.300 líneas), `ingresos.controller.ts` (~3.000), `pages/CRM.tsx` (~1.900), `pages/Checkout.tsx`, `pages/Gastos.tsx`, `gastos.controller.ts`, `pages/Dashboard.tsx` (1.200–1.400). Buscar la función o el texto con Grep y leer solo ese rango.
+- **Tareas repetidas** (endpoint, endpoint con IA, migración, textos, campo de texto con voz): seguir `docs/specs/recetas.md` en vez de explorar.
+- **Esquema:** `docs/database_schema.sql.txt` está desactualizado (solo 5 tablas base). Las columnas reales se ven en `docs/migrations/` y en el código; `taller_empresas`, `taller_empresas_correos`, `taller_tecnicos` y `taller_ingresos_tiempos` no tienen DDL en el repo.
+- **Comandos** (dentro de `backend/` o `frontend/`): `npm run dev`; frontend además `npm run lint`; backend `npm run db:migrate:dev` y `npm test`.
+- **Verificar:** `node node_modules/typescript/bin/tsc --noEmit` dentro de `backend/` y de `frontend/`. No correr `npm run build` en cada cambio. En un worktree no hay `node_modules`: correr `npm ci` en la carpeta a verificar.
 
-## Core Architecture & Multi-Tenancy Rules
+## Forma de trabajo (Regla de Oro)
 
-1. **Tenant Isolation**: Every workshop is a tenant (`taller_empresas`). Nearly all business tables are prefixed with `taller_` and include `empresa_id` or `empresa_slug`. There is no Postgres RLS on app keys; **every controller query must filter `.eq('empresa_id', req.empresa_id)`** or `.eq('empresa_slug', slug)`.
-2. **Frontend Tenant Routing**: Routes are scoped by `/:slug/*` (e.g. `/:slug/nuevo-ingreso`). `ProtectedLayout` validates session match against `empresaSlug` in `AuthContext`.
-3. **Database Timezone**: All date-based operations and daily limits (especially budgets/KPIs) must be calculated against **`America/Bogota`** timezone, as Supabase default server time is UTC.
-
----
-
-## Backend Subsystems & Conventions
-
-4. **Express App Setup (`backend/src/index.ts`)**:
-   - `app.set('trust proxy', 1)` is enabled to ensure `req.ip` resolves to the client's real IP behind Railway/Vercel proxies for rate limiters.
-5. **Database Naming Convention**:
-   - Every table MUST use the `taller_` prefix (e.g., `taller_ingresos`, `taller_ai_uso_diario`, `taller_ai_uso_global`, `taller_leads_ia`, `taller_ai_conversaciones_log`).
-6. **Authentication & Device Session**:
-   - Handled via JWT in `middlewares/auth.middleware.ts` (`requireAuth`). Supports OTP and email+password. Device fingerprints are validated against `taller_dispositivos_autorizados`.
-7. **Ingresos State Machine**:
-   - Follows `recepcion → diagnostico → cotizacion → esperando_aprobacion → en_reparacion → entregado` / `cancelado`. State updates must record duration in `taller_ingresos_tiempos` and log to `taller_ingresos_bitacora`. Labor commissions recalculate on `entregado`.
-8. **Public AI Assistant & Quotation Module**:
-   - Exposed on `POST /api/ai/public/chat` and `POST /api/ai/public/lead` (unauthenticated, public-facing).
-   - **4-Layer Defense Pipeline**:
-     1. `turnstileGuard`: Validates Cloudflare Turnstile token (fail-closed in prod, bypass only with `NODE_ENV=development` & `DISABLE_TURNSTILE_DEV=true`).
-     2. `distributedRateLimiter`: Distributed sliding-window rate limit (15 req/10min per IP, 60 req/10min per tenant) backed by `taller_ai_conversaciones_log`.
-     3. `tenantGuard`: Anti-enumeration guard; returns uniform 404 for invalid/inactive tenants and logs attempts via `logearIntento()`.
-     4. `budgetGuard`: Hard USD budget cap circuit breaker (daily global limit + per-tenant limit from `config_ai`). Fails **closed** (returns 503 + WhatsApp fallback) on DB errors or budget exhaustion.
-   - **Multi-Provider AI Router (`services/aiRouter.service.ts`)**:
-     - Cascade order: Google Gemini 2.5 Flash (`gemini-2.5-flash`) → OpenAI GPT-4o-mini (`gpt-4o-mini`) → Static Fallback.
-     - Post-call atomic cost accumulation via Postgres RPC `acumular_costo_diario`.
-     - Deduplicated email alert notifications at 70% and 100% budget thresholds via Resend.
-   - **Lead Capture & Legal Compliance**:
-     - `POST /api/ai/public/lead` requires explicit consent checkbox (`acepta_terminos: true`) complying with Colombian Habeas Data (Ley 1581 de 2012).
-9. **File Editing Quirk**:
-   - Some build artifacts (`.js`, `.d.ts`) exist alongside `.ts` in `backend/src/`. Always edit `.ts` files only.
-
----
-
-## Frontend Subsystems & Conventions
-
-10. **API Client (`src/services/api.ts`)**:
-    - Central Axios instance injecting JWT bearer token from `localStorage['taller_auth']` and handling 401/403 session expiration.
-11. **Session Management**:
-    - Use `useAuth()` from `src/context/AuthContext.tsx` rather than direct `localStorage` access.
-12. **Public Chatbot Widget (`src/components/PublicAIChatbot.tsx`)**:
-    - Standalone embeddable widget with invisible Turnstile integration, interactive question chips, Golden Rule highlight, Habeas Data lead modal, and WhatsApp direct fallback.
-13. **White-Label / Edge Routing (`frontend/middleware.js`)**:
-    - Vercel Edge Middleware rewrites custom host headers (e.g. `eurofrenos.lat`) to `/landing/<slug>/index.html`.
-
----
-
-## Security Critical Reminders
-
-14. **Fail-Closed on Budgets**: Never change `budgetGuard` to fail-open; unexpected LLM expenses must be prevented at all costs.
-15. **Environment Variable Hygiene**:
-    - Never hardcode secrets in services. Cloudflare R2 credentials, Turnstile keys, Gemini/OpenAI keys, and Resend keys must strictly come from `process.env`.
-    - Do not commit real API keys to `.env.example` files.
-
----
-
-## Speed, Precision & Pragmatic Workflow (Regla de Oro)
-
-16. **Agilidad y Cero Burocracia**:
-    - Prioriza código funcional y cambios directos. Implementa lo que el usuario pide sin demoras ni ceremonias.
-    - **No crees ni actualices specs ni tickets JIRA para cambios iterativos, mejoras de UI, fixes o peticiones directas del usuario**. Ve directo a editar el código y probarlo.
-    - Reserva la creación de specs (`docs/specs/`) exclusivamente para subsistemas arquitecturales nuevos de gran tamaño o cuando el usuario lo solicite expresamente.
-    - Si se requiere documentar, usa formatos ultra-precisos y condensados (máximo 20-30 líneas con paths exactos, contratos y tablas; cero prosa o relleno).
-17. **Ciclo de Verificación Rápido**:
-    - Para verificar cambios sin esperas, usa type-check rápido:
-      - Backend: `cd backend && node node_modules/typescript/bin/tsc --noEmit`
-      - Frontend: `cd frontend && node node_modules/typescript/bin/tsc --noEmit`
-    - No ejecutes `npm run build` o empaquetado de producción en cada cambio iterativo, solo al finalizar o si se requiere probar el bundle final.
-18. **Respuestas Concisas y al Grano**:
-    - Comunica lo implementado de forma breve, precisa y ejecutiva con enlaces directos a los archivos tocados. Evita explicaciones redundantes o textos inflados.
-19. **Flujo Git Automático**:
-    - Al terminar cada cambio: type-check, rama, commit, push, PR y merge a `main` según [`docs/specs/README.md`](docs/specs/README.md#flujo-git-al-terminar-cada-cambio-sin-pedir-confirmación).
+- **Directo al código.** Sin specs ni tickets JIRA para cambios iterativos, mejoras de UI, fixes o peticiones puntuales. Ficha nueva solo para un subsistema nuevo o si el usuario la pide (`docs/specs/TEMPLATE.md`, máximo 30 líneas).
+- **Si un cambio vuelve falsa una ficha o este mapa, corregir esa línea en el mismo commit.**
+- **Respuestas breves**, con enlaces a los archivos tocados.
+- **Flujo git automático al terminar:** type-check, rama, commit, push, PR y merge a `main` según [`docs/specs/README.md`](docs/specs/README.md#flujo-git-al-terminar-cada-cambio-sin-pedir-confirmación). El merge despliega solo (Railway aplica las migraciones pendientes al arrancar).
