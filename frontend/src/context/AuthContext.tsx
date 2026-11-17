@@ -25,7 +25,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sessionExpired, setSessionExpired] = useState(false);
   const [auth, setAuth] = useState<AuthState>(() => {
     const saved = localStorage.getItem('taller_auth');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed: AuthState = JSON.parse(saved);
+      // Identificar antes del primer render para que el primer pageview ya lleve el taller
+      if (parsed.token && parsed.empresaId) identifyTaller(parsed.empresaId, parsed.empresaSlug, parsed.empresaNombre);
+      return parsed;
+    }
     return { token: null, empresaId: null, empresaNombre: 'TallerPro', empresaSlug: null, email: null };
   });
 
@@ -57,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (token: string, empresaId: string, slug: string, nombre: string, email: string) => {
+    identifyTaller(empresaId, slug, nombre);
     setAuth({ token, empresaId, empresaNombre: nombre, empresaSlug: slug, email });
   };
 
