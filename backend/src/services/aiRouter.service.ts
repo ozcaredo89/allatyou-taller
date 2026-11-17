@@ -49,8 +49,10 @@ export async function routerIA(params: {
   ultimoMensaje: string;
   empresaSlug: string;
   ipHash: string;
+  /** Uso interno autenticado: acumula costo pero no escribe en el log que alimenta el rate limiter público. */
+  omitirLog?: boolean;
 }): Promise<ResultadoIA> {
-  const { systemPrompt, historial, ultimoMensaje, empresaSlug, ipHash } = params;
+  const { systemPrompt, historial, ultimoMensaje, empresaSlug, ipHash, omitirLog } = params;
 
   let resultado: ResultadoIA | null = null;
   let ultimoError: Error | null = null;
@@ -85,6 +87,7 @@ export async function routerIA(params: {
       tokensIn: resultado.tokens_in,
       tokensOut: resultado.tokens_out,
       costoUsd: resultado.costo_usd,
+      omitirLog,
     }).catch(err => {
       // Error no bloqueante: el usuario ya recibió su respuesta
       console.error('[AIRouter] Error al registrar uso post-llamada:', err);
@@ -107,8 +110,9 @@ async function acumularYAlertar(params: {
   tokensIn: number;
   tokensOut: number;
   costoUsd: number;
+  omitirLog?: boolean;
 }): Promise<void> {
-  const { proveedor, empresaSlug, ipHash, tokensIn, tokensOut, costoUsd } = params;
+  const { proveedor, empresaSlug, ipHash, tokensIn, tokensOut, costoUsd, omitirLog } = params;
 
   try {
     // 1. Acumular costo vía RPC atómica (zona horaria America/Bogota)
@@ -161,7 +165,8 @@ async function acumularYAlertar(params: {
       });
     }
 
-    // 4. Registrar en el log de auditoría
+    // 4. Registrar en el log de auditoría (el log también cuenta para el rate limiter público)
+    if (omitirLog) return;
     await supabase.from('taller_ai_conversaciones_log').insert({
       empresa_slug: empresaSlug,
       proveedor,

@@ -127,6 +127,22 @@
     "error_search_vehicle": "Error buscando vehículo.",
     "error_search_client": "Error buscando cliente."
   },
+  "voz": {
+    "dictar": "Dictar nota por voz",
+    "detener": "Terminar dictado",
+    "escuchando": "Te escucho… toca el botón rojo al terminar.",
+    "mejorando": "Organizando tu nota…",
+    "lista": "Nota organizada. Puedes editarla.",
+    "usando_original": "Usando lo que dijiste, tal cual.",
+    "usar_original": "Usar lo que dije",
+    "usar_mejorada": "Usar la versión organizada",
+    "sin_contenido": "No alcancé a entender una nota para la orden. Intenta de nuevo, sin afán.",
+    "sin_mejora": "Dejé tu dictado tal cual; ahora no pude organizarlo.",
+    "nada": "No escuché nada. Toca el micrófono y habla cerca del celular.",
+    "sin_permiso": "Activa el permiso del micrófono en el navegador para dictar.",
+    "sin_microfono": "No encontré un micrófono en este dispositivo.",
+    "error": "Se cortó el dictado. Revisa tu conexión e intenta de nuevo."
+  },
   "diagnostico": {
     "title": "Diagnóstico",
     "btn_guardado": "Guardado",

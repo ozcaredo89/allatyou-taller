@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
+import NotaPorVoz from '../components/NotaPorVoz';
 
 type EstadoItem = 'buen_estado' | 'revisar' | 'danado';
 
@@ -560,11 +561,16 @@ const Diagnostico: React.FC = () => {
 
                   {!isEditMode && (
                     <div className="space-y-4">
-                      <textarea
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-24"
+                      <NotaPorVoz
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-28"
                         placeholder={t('diagnostico.notas_adicionales')}
                         value={item.notas}
-                        onChange={(e) => updateItem(sys.key, 'notas', e.target.value)}
+                        onChange={(texto) => updateItem(sys.key, 'notas', texto)}
+                        contexto={{
+                          tipo: 'Diagnóstico técnico',
+                          sistema: sys.label,
+                          vehiculo: [ingreso.taller_vehiculos?.marca, ingreso.taller_vehiculos?.linea].filter(Boolean).join(' '),
+                        }}
                       />
                       {/* Subida de Fotos */}
                       <div>

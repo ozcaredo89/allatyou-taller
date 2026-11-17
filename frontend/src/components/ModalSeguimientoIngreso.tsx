@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Clock, CalendarClock, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
+import NotaPorVoz from './NotaPorVoz';
 
 interface ModalSeguimientoIngresoProps {
   ingreso: {
@@ -128,12 +129,16 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
             <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
               Nota rápida (opcional)
             </label>
-            <textarea
-              rows={2}
+            <NotaPorVoz
+              rows={3}
               value={nota}
-              onChange={(e) => setNota(e.target.value)}
+              onChange={setNota}
               placeholder="Ej: Repuesto llega mañana 10 AM, o esperando confirmación del cliente..."
               className="w-full border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+              contexto={{
+                tipo: `Nota de seguimiento del vehículo (${estadoAvance})`,
+                vehiculo: [ingreso.taller_vehiculos?.marca, ingreso.taller_vehiculos?.linea].filter(Boolean).join(' '),
+              }}
             />
           </div>
 

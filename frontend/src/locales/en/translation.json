@@ -127,6 +127,22 @@
     "error_search_vehicle": "Error searching for vehicle.",
     "error_search_client": "Error searching for client."
   },
+  "voz": {
+    "dictar": "Dictate note by voice",
+    "detener": "Finish dictation",
+    "escuchando": "Listening… tap the red button when you're done.",
+    "mejorando": "Tidying up your note…",
+    "lista": "Note tidied up. You can edit it.",
+    "usando_original": "Using exactly what you said.",
+    "usar_original": "Use what I said",
+    "usar_mejorada": "Use the tidied version",
+    "sin_contenido": "I couldn't make out a note for the work order. Try again, no rush.",
+    "sin_mejora": "I kept your dictation as is; I couldn't tidy it up right now.",
+    "nada": "I didn't hear anything. Tap the microphone and speak close to the phone.",
+    "sin_permiso": "Allow microphone access in the browser to dictate.",
+    "sin_microfono": "No microphone found on this device.",
+    "error": "Dictation was cut off. Check your connection and try again."
+  },
   "diagnostico": {
     "title": "Diagnostic",
     "btn_guardado": "Saved",
