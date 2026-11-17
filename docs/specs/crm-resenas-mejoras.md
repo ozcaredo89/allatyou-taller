@@ -1,117 +1,28 @@
-# Spec — Mejoras en Solicitud de Reseñas de Google y Descarte con Nota en CRM
+# Ficha — CRM: reseñas de Google y retención
 
-**Estado:** Vigente · **Fecha:** 2026-11-06  
-**Ticket JIRA:** `TALLER-CRM-RESENAS-MEJORAS`  
-**Módulos afectados:**
-- Backend: `backend/src/controllers/crm.controller.ts`
-- Frontend: `frontend/src/pages/CRM.tsx`
-- Base de datos: `docs/migrations/20261106_add_resena_descarte_motivo.sql`
+**Leer si:** la tarea toca la solicitud de reseñas, el descarte de tarjetas o los mensajes de WhatsApp del CRM · **Actualizada:** 2026-11-16 · **Ticket:** `TALLER-CRM-RESENAS-MEJORAS`
 
----
+## Archivos
+- Backend: `backend/src/controllers/crm.controller.ts` → `getResenasPendientes`, `getResenasStats`, `marcarResenaIntentado`, `confirmarResena`, `deshacerResena`, `descartarResena`, `bulkDescartarResenas`, `getRetencionProspectos`, `getCrmConfig`, `updateCrmConfig`, `toggleNoContactar`
+- Frontend: `frontend/src/pages/CRM.tsx` → `construirMensajeResena`, `detectarResumenServicio`; enlaces con `utils/whatsapp.ts` → `generarLinkWhatsApp`
+- Datos: `taller_ingresos`: `resena_estado`, `resena_descarte_motivo` (`docs/migrations/20261106_*.sql`); retención en la vista `taller_mv_proximos_mantenimientos` (`crm_retention_v2.sql`)
 
-## 1. Contexto Operativo y Flujo de Usuario
-El módulo CRM de Retención permite al taller solicitar reseñas de Google a los clientes cuyas órdenes fueron entregadas en los últimos 60 días. Se identificaron dos mejoras críticas:
-1. **Mensaje de WhatsApp más humano, contextual y sin datos técnicos redundantes**: En lugar de incluir la placa y modelo del vehículo (que sonaba robótico), ahora se refiere cordialmente a "su vehículo", menciona el trabajo o diagnóstico realizado (extraído de `items_factura` / `diagnostico_mecanico` / `motivo_visita`), e incluye una pregunta acorde al servicio prestado (ej. respuesta de frenos, rendimiento de motor, estabilidad de dirección o confort del aire acondicionado).
-2. **Registro de notas al descartar cards**: Durante la gestión del CRM se presentan casos como clientes sin WhatsApp, números fijos o erróneos, o reclamos pendientes. Se añade la capacidad de seleccionar un motivo rápido (chips) o escribir una nota libre al descartar un card, la cual queda registrada y visible en la sección "Ver descartadas", permitiendo además editarla o restaurar la orden.
+## Contratos (`requireAuth`, bajo `/api/crm`)
+- `GET /resenas`, `GET /resenas/stats`, `GET /retencion`, `GET|PUT /config`.
+- `POST /resenas/:id/{intentar,confirmar,deshacer}`.
+- `POST /resenas/:id/descartar` — `{ motivo? }` → `{ success, estado: 'descartado', motivo }`.
+- `POST /resenas/bulk-descartar` — `{ ids: string[], motivo? }` → `{ success, descartados, ids, motivo }`; 400 si `ids` está vacío.
+- `PATCH /clientes/:clienteId/no-contactar` — baja de mensajes comerciales (Ley 1581).
 
-Flujo:
-1. **Paso 1:** El asesor hace clic en "Pedir reseña por WhatsApp" en un card pendiente; se genera un mensaje personalizado y cordial sin placa ni modelo, enfocado en el trabajo realizado y con pregunta contextual.
-2. **Paso 2:** Si el cliente no tiene WhatsApp o el número es incorrecto, el asesor pulsa "Descartar".
-3. **Paso 3:** Se despliega el modal de confirmación con chips de motivos frecuentes ("No tiene WhatsApp", "Número equivocado o inactivo", etc.) y un campo de nota opcional.
-4. **Paso 4:** El backend persiste `resena_descarte_motivo` y `resena_estado = 'descartado'`. En la sección de descartadas, el motivo se visualiza de forma destacada y puede editarse o restaurarse.
+## Reglas de negocio
+- Son elegibles las órdenes entregadas en los últimos 60 días.
+- El mensaje de reseña **no** lleva placa ni marca/modelo: dice "su vehículo", nombra el trabajo hecho (de `items_factura`, `diagnostico_mecanico` o `motivo_visita`) y cierra con una pregunta acorde al servicio.
+- Descartar guarda un motivo (opción rápida o nota libre), visible y editable en "Ver descartadas".
+- Restaurar (`deshacer`) limpia `resena_descarte_motivo`.
+- "No contactar más" corta reseñas **y** recordatorios de mantenimiento.
 
----
-
-## 2. Reglas de Negocio y Seguridad Multi-Tenant
-1. **Aislamiento Multi-Tenant (Obligatorio):**
-   - Todas las consultas en `crm.controller.ts` filtran explícitamente por `.eq('empresa_id', req.empresa_id)`.
-   - Modificaciones de estado o nota de descarte solo afectan a registros del tenant autenticado.
-2. **Resiliencia y Fallback de Esquema:**
-   - Si la columna `resena_descarte_motivo` aún no existe en Supabase al momento de la solicitud, el backend realiza un reintento automático sin fallar la acción principal del usuario.
-3. **Restauración:**
-   - Al restaurar un card descartado a pendiente (`/crm/resenas/:id/deshacer`), se limpia el motivo de descarte (`resena_descarte_motivo = null`).
-
----
-
-## 3. Modelo de Datos y Migraciones SQL
-- **Archivo de migración:** `docs/migrations/20261106_add_resena_descarte_motivo.sql`
-- **Cambios DDL:**
-  ```sql
-  ALTER TABLE taller_ingresos 
-    ADD COLUMN IF NOT EXISTS resena_descarte_motivo TEXT;
-  ```
-- **Campos afectados y propósito:**
-  - `resena_descarte_motivo` (`TEXT`): Almacena la razón o nota explicativa por la cual el card de reseña fue descartado (ej. "No tiene WhatsApp", "Número equivocado", etc.).
-
----
-
-## 4. Contratos de API (Endpoints)
-
-### `POST /api/crm/resenas/:id/descartar`
-- **Descripción:** Marca la reseña como descartada y registra la nota/motivo de descarte.
-- **Autenticación requerida:** Sí (`requireAuth`)
-- **Request Body:**
-  ```json
-  {
-    "motivo": "No tiene WhatsApp - es teléfono fijo"
-  }
-  ```
-- **Responses:**
-  - **`200 OK`**: `{ "success": true, "estado": "descartado", "motivo": "..." }`
-  - **`400 Bad Request`**: Restricción de base de datos no compatible.
-  - **`401 / 403`**: No autorizado.
-
-### `POST /api/crm/resenas/bulk-descartar`
-- **Descripción:** Marca múltiples reseñas como descartadas en una sola operación atómica multi-tenant (`WHERE id = ANY(validIds) AND empresa_id = req.empresa_id`).
-- **Autenticación requerida:** Sí (`requireAuth`)
-- **Request Body:**
-  ```json
-  {
-    "ids": ["id-1", "id-2", "id-3"],
-    "motivo": "Descarte masivo / No aplica"
-  }
-  ```
-- **Responses:**
-  - **`200 OK`**:
-    ```json
-    {
-      "success": true,
-      "descartados": 3,
-      "ids": ["id-1", "id-2", "id-3"],
-      "motivo": "Descarte masivo / No aplica"
-    }
-    ```
-  - **`400 Bad Request`**: Si `ids` no es un arreglo válido o no contiene elementos.
-  - **`401 / 403`**: No autorizado.
-
-### `GET /api/crm/resenas`
-- **Descripción:** Retorna las órdenes elegibles incluyendo `resena_descarte_motivo` y `diagnostico_mecanico`.
-- **Autenticación requerida:** Sí (`requireAuth`)
-
----
-
-## 5. Frontend & Estados de UI
-- **Página afectada:** `frontend/src/pages/CRM.tsx`
-- **Funciones añadidas:**
-  - `construirMensajeResena(ingreso, nombreTaller, googleUrl)`: Redacción contextual de WhatsApp.
-  - `detectarResumenServicio(ingreso)`: Detección inteligente del arreglo o sistema diagnosticado.
-- **Estados locales nuevos:**
-  - `motivoDescarte`: Cadena que almacena la nota seleccionada o digitada en el modal individual.
-  - `selectedIds`: Conjunto `Set<string>` con los IDs de órdenes seleccionadas para descarte en lote.
-  - `showBulkDescartarModal` & `bulkMotivoDescarte`: Control del modal de confirmación en lote y su motivo común.
-- **Visualización & UX:**
-  - Checkboxes en cada tarjeta activa y casilla "Seleccionar todas las activas" en la barra superior.
-  - Barra flotante de acción masiva inferior cuando hay $\ge 1$ órdenes seleccionadas con botón "Descartar seleccionadas".
-  - Modal de descarte masivo con lista scrollable de placas/clientes seleccionados y selector de motivo/nota común.
-  - Chip con el servicio detectado en el card de cada vehículo (`🔧 [Servicio]`).
-  - Bloque destacado de motivo en cards descartados con opciones para "Editar nota" y "Restaurar".
-
----
-
-## 6. Casos de Prueba & Criterios de Aceptación
-- [x] **CP-01 (Mensaje de WhatsApp sin placa/modelo):** Al hacer clic en "Pedir reseña por WhatsApp", el mensaje generado no incluye la placa ni la marca/modelo, menciona "su vehículo" e incluye la pregunta contextual según el servicio.
-- [x] **CP-02 (Descarte individual con motivo/nota):** Al descartar un card, se pueden seleccionar chips de motivos rápidos ("No tiene WhatsApp", etc.) o escribir una nota personalizada.
-- [x] **CP-03 (Descarte masivo en lote):** Selección múltiple de tarjetas, botón de descarte masivo, confirmación en modal con resumen de placas y persistencia atómica en backend.
-- [x] **CP-04 (Persistencia y visualización):** El motivo se guarda en backend y se visualiza en la sección "Ver descartadas".
-- [x] **CP-05 (Edición y restauración):** Es posible editar la nota o restaurar el card a pendiente limpiando el descarte.
-- [x] **CP-06 (Aislamiento Multi-Tenant):** Ninguna operación afecta órdenes de otros talleres.
+## Trampas / no tocar
+- El descarte masivo es una sola operación acotada al taller (`id = ANY(ids) AND empresa_id`); no convertirlo en un ciclo de llamadas individuales.
+- Si la columna `resena_descarte_motivo` aún no existe, el backend reintenta sin ella para no fallar la acción; conservar ese reintento.
+- `CRM.tsx` tiene ~1.900 líneas: buscar por nombre de función.
+- Las confirmaciones usan `ModalConfirmacion`, no diálogos del navegador (ver `ui-design-system.md`).

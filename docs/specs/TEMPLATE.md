@@ -1,31 +1,19 @@
-# Spec — [Nombre del Módulo o Funcionalidad]
+# Ficha — [Nombre del módulo]
 
-**Estado:** Vigente · **Fecha:** YYYY-MM-DD · **Ticket:** `TALLER-[NUM]`  
-**Archivos:** `backend/src/...`, `frontend/src/...`, `docs/migrations/...`
+**Leer si:** [la tarea toca X, Y o Z] · **Actualizada:** YYYY-MM-DD · **Ticket:** `TALLER-[NUM]` (si hay)
 
----
+## Archivos
+- Backend: `backend/src/controllers/[x].controller.ts` → `[funcionA]`, `[funcionB]`
+- Frontend: `frontend/src/pages/[Page].tsx` → `[funcionC]`
+- Datos: `docs/migrations/[archivo].sql` → `taller_[tabla]`: `[columna]`, `[columna]`
 
-## 1. Objetivo y Reglas
-* **Problema y solución:** [1-2 líneas directas sobre qué resuelve]
-* **Multi-tenant obligatorio:** Toda consulta backend filtra `.eq('empresa_id', req.empresa_id)` (fail-closed).
+## Contratos (una línea cada uno)
+- `[METODO] /api/[ruta]` (`requireAuth`) — `{ campo, opcional? }` → `{ respuesta }`. Errores propios: 409 si […].
 
----
+## Reglas de negocio
+- [Regla que el código debe seguir cumpliendo y que no es obvia al leerlo.]
 
-## 2. Base de Datos (si aplica)
-```sql
-ALTER TABLE [taller_tabla] ADD COLUMN IF NOT EXISTS [columna] [TIPO];
-```
+## Trampas / no tocar
+- [Lo que rompe algo si se cambia sin saber: orden de pasos, valores compartidos, fallbacks, límites.]
 
----
-
-## 3. Contratos de API
-* **`[METODO] /api/[ruta]`** (`requireAuth`)
-  * **Body:** `{ "campo": "valor" }`
-  * **Response (200):** `{ "success": true, "data": ... }`
-  * **Errores:** 400 (inválido), 401/403 (no autorizado).
-
----
-
-## 4. Frontend & Criterios
-* **Componentes:** `frontend/src/pages/[Page].tsx`
-* **Criterio de éxito:** [1-2 líneas con la validación clave]
+<!-- Máximo 30 líneas. Sin JSON de ejemplo, sin flujos narrados, sin checklists de prueba. Funciones por nombre, no por línea. -->
