@@ -181,12 +181,6 @@ export function detectarResumenServicio(ingreso: ResenaIngreso): string {
   return '';
 }
 
-/**
- * Construye el mensaje de WhatsApp para solicitar reseña de Google:
- * 1. Sin placa ni modelo del carro; menciona únicamente "su vehículo".
- * 2. Basado en el diagnóstico y lo que se arregló.
- * 3. Formulado con una pregunta contextual acorde al trabajo.
- */
 export function construirMensajeResena(
   ingreso: ResenaIngreso,
   nombreTaller: string,
@@ -194,42 +188,13 @@ export function construirMensajeResena(
 ): string {
   const cliente = ingreso.taller_vehiculos?.taller_clientes;
   const nombreCliente = cliente?.nombre_completo?.trim() || 'estimado cliente';
-
   const detalle = detectarResumenServicio(ingreso);
+  const servicio = detalle && detalle.length <= 60 ? `el servicio (${detalle})` : 'el servicio';
+  const solicitudResena = googleUrl
+    ? `\n\nSi tiene un minuto, nos ayudaría mucho que compartiera su opinión en Google: ${googleUrl}`
+    : '';
 
-  // 1. Personalizar la pregunta contextual según el servicio
-  let preguntaContextual = '¿Ha sentido que todo marcha en óptimas condiciones y a su entera satisfacción?';
-  const textoParaAnalisis = (detalle || '').toLowerCase();
-
-  if (textoParaAnalisis.includes('freno')) {
-    preguntaContextual = '¿Cómo ha sentido la respuesta, suavidad y seguridad en el frenado?';
-  } else if (textoParaAnalisis.includes('aceite') || textoParaAnalisis.includes('lubric') || textoParaAnalisis.includes('motor')) {
-    preguntaContextual = '¿Cómo ha sentido la fuerza, suavidad y rendimiento del motor?';
-  } else if (textoParaAnalisis.includes('suspensi') || textoParaAnalisis.includes('amortiguad') || textoParaAnalisis.includes('direcci') || textoParaAnalisis.includes('alineaci')) {
-    preguntaContextual = '¿Cómo ha sentido la estabilidad, suavidad y confort al volante?';
-  } else if (textoParaAnalisis.includes('aire') || textoParaAnalisis.includes('a/c') || textoParaAnalisis.includes('clima')) {
-    preguntaContextual = '¿Cómo ha sentido la temperatura y el confort del aire acondicionado?';
-  } else if (detalle) {
-    preguntaContextual = '¿Ha sentido el vehículo funcionando a la perfección tras este arreglo?';
-  }
-
-  // 2. Conector gramatical natural para la oración
-  let conectorTrabajo = 'tras el servicio y mantenimiento realizado en nuestro taller';
-  if (detalle) {
-    const dLower = detalle.toLowerCase();
-    if (dLower.startsWith('el ') || dLower.startsWith('la ') || dLower.startsWith('los ') || dLower.startsWith('las ')) {
-      conectorTrabajo = `tras ${dLower}`;
-    } else if (dLower.startsWith('cambio') || dLower.startsWith('ajuste') || dLower.startsWith('mantenimiento') || dLower.startsWith('servicio') || dLower.startsWith('trabajo')) {
-      conectorTrabajo = `tras el ${dLower}`;
-    } else if (dLower.startsWith('reparación') || dLower.startsWith('revisión') || dLower.startsWith('alineación') || dLower.startsWith('sincronización') || dLower.startsWith('limpieza')) {
-      conectorTrabajo = `tras la ${dLower}`;
-    } else {
-      conectorTrabajo = `tras el arreglo de ${dLower}`;
-    }
-  }
-
-  // 3. Redacción final
-  return `Hola ${nombreCliente}, le saluda el equipo de ${nombreTaller}. Esperamos que se encuentre muy bien 🙌\n\nQueríamos preguntarle: ¿cómo ha sentido su vehículo ${conectorTrabajo}? ${preguntaContextual}${googleUrl ? `\n\nSi está a gusto con el servicio y tiene un minuto, nos ayudaría muchísimo que nos compartiera su opinión en Google: ${googleUrl}` : ''}\n\nY si nota cualquier detalle o algo no quedó exactamente como esperaba, cuéntenos por aquí mismo y con gusto lo revisamos de inmediato. 🔧 ¡Muchas gracias por confiar en nosotros!`;
+  return `Hola ${nombreCliente}, esperamos que se encuentre muy bien 🙌\n\nSomos el equipo de ${nombreTaller}. ¿Quedó satisfecho con ${servicio}?${solicitudResena}`;
 }
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
