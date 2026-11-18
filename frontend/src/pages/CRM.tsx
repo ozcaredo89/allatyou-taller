@@ -311,6 +311,7 @@ const CRM: React.FC = () => {
     const googleUrl = config?.google_review_url;
 
     const mensaje = construirMensajeResena(ingreso, nombreTaller, googleUrl);
+    const fechaIntento = new Date().toISOString();
 
     window.open(generarLinkWhatsApp(cliente.telefono, mensaje), '_blank');
 
@@ -320,7 +321,7 @@ const CRM: React.FC = () => {
       await api.post(`/crm/resenas/${ingreso.id}/intentar`);
       setResenas(prev =>
         prev.map(r => r.id === ingreso.id
-          ? { ...r, resena_estado: 'intentado', resena_solicitada_at: new Date().toISOString() }
+          ? { ...r, resena_estado: 'intentado', resena_solicitada_at: fechaIntento }
           : r
         )
       );
@@ -1171,7 +1172,12 @@ const TabResenas: React.FC<TabResenasProps> = ({
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-indigo-500 w-10 h-10" /></div>;
 
   const pendientes = resenas.filter(r => r.resena_estado === 'pendiente' || !r.resena_estado);
-  const intentados = resenas.filter(r => r.resena_estado === 'intentado');
+  const intentados = resenas
+    .filter(r => r.resena_estado === 'intentado')
+    .sort((a, b) => (
+      (b.resena_solicitada_at ? Date.parse(b.resena_solicitada_at) : 0)
+      - (a.resena_solicitada_at ? Date.parse(a.resena_solicitada_at) : 0)
+    ));
   const confirmados = resenas.filter(r => r.resena_estado === 'confirmado');
   const descartados = resenas.filter(r => r.resena_estado === 'descartado');
 
