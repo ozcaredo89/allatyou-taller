@@ -11,3 +11,20 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 export const supabase = createClient(supabaseUrl || '', supabaseKey || '');
+
+let serviceClient: typeof supabase | undefined;
+
+export function getInventoryClientIfConfigured() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key || !supabaseUrl) return undefined;
+  serviceClient ??= createClient(supabaseUrl, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return serviceClient;
+}
+
+export function getInventoryClient() {
+  const client = getInventoryClientIfConfigured();
+  if (!client) throw new Error('El inventario requiere SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el backend.');
+  return client;
+}

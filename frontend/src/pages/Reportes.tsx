@@ -23,6 +23,7 @@ interface FinanzasKpis {
   facturadoHoy: number;
   promedioDiarioHistorico: number;
   totalPeriodo: number;
+  totalMostrador?: number;
   totalGastos: number;
   totalGastosDirectos?: number;
   totalGastosFijos?: number;
@@ -47,6 +48,15 @@ interface FacturaItem {
   cantidad: number;
   precio_unitario: number;
   total: number;
+}
+
+interface VentaMostrador {
+  id: string;
+  fecha: string;
+  producto: string;
+  cantidad: number;
+  ingreso: number;
+  costo: number;
 }
 
 interface OrdenIngresoItem {
@@ -179,6 +189,7 @@ const Reportes: React.FC = () => {
 
   // ── Drill-down Modal Ingresos (Período o Día) ──
   const [isIngresosModalOpen, setIsIngresosModalOpen] = useState(false);
+  const [ventasMostrador, setVentasMostrador] = useState<VentaMostrador[]>([]);
   const [ingresosOrdenes, setIngresosOrdenes] = useState<OrdenIngresoItem[]>([]);
   const [isIngresosLoading, setIsIngresosLoading] = useState(false);
   const [ingresosError, setIngresosError] = useState<string | null>(null);
@@ -308,6 +319,7 @@ const Reportes: React.FC = () => {
     ingresosAbortControllerRef.current = controller;
 
     setIngresosOrdenes([]);
+    setVentasMostrador([]);
     setIngresosError(null);
     setIsIngresosLoading(true);
 
@@ -317,6 +329,7 @@ const Reportes: React.FC = () => {
         signal: controller.signal,
       });
       setIngresosOrdenes(res.data.ordenes || []);
+      setVentasMostrador(res.data.ventasMostrador || []);
     } catch (err: unknown) {
       const error = err as { code?: string; name?: string };
       if (error?.code === 'ERR_CANCELED' || error?.name === 'AbortError' || error?.name === 'CanceledError') return;
@@ -866,6 +879,14 @@ const Reportes: React.FC = () => {
       ].map(escapeCell).join(sep);
     });
 
+    for (const venta of ventasMostradorFiltradas) {
+      rows.push([
+        formatearFecha(venta.fecha), '', '', '', ...(includePhoneInExport ? [''] : []),
+        'Mostrador', 0, venta.ingreso, venta.ingreso, 1,
+        `${venta.cantidad} × ${venta.producto}`,
+      ].map(escapeCell).join(sep));
+    }
+
     const summaryRow = [
       t('reportes.totales_periodo', 'TOTALES DEL PERÍODO'),
       '',
@@ -930,6 +951,13 @@ const Reportes: React.FC = () => {
         ];
       });
 
+      for (const venta of ventasMostradorFiltradas) {
+        ordenRows.push([
+          formatearFecha(venta.fecha), '', '', '', ...(includePhoneInExport ? [''] : []),
+          'Mostrador', 0, venta.ingreso, venta.ingreso, `${venta.cantidad} × ${venta.producto}`,
+        ]);
+      }
+
       const emptyPrefix = Array.from({ length: includePhoneInExport ? 5 : 4 }).map(() => '');
       const summaryRow = [
         `${t('reportes.totales_periodo', 'TOTALES DEL PERÍODO')} (${filteredIngresos.length})`,
@@ -969,6 +997,15 @@ const Reportes: React.FC = () => {
       const wsItems = XLSX.utils.aoa_to_sheet([itemsHeaders, ...itemsRows]);
       XLSX.utils.book_append_sheet(wb, wsOrdenes, sheetOrdenesName);
       XLSX.utils.book_append_sheet(wb, wsItems, sheetItemsName);
+      if (ventasMostradorFiltradas.length > 0) {
+        const mostradorRows = ventasMostradorFiltradas.map(venta => [
+          formatearFecha(venta.fecha), venta.producto, venta.cantidad, venta.ingreso, venta.costo, venta.ingreso - venta.costo,
+        ]);
+        const wsMostrador = XLSX.utils.aoa_to_sheet([
+          ['Fecha', 'Producto', 'Cantidad', 'Ingreso', 'Costo', 'Utilidad'], ...mostradorRows,
+        ]);
+        XLSX.utils.book_append_sheet(wb, wsMostrador, 'Mostrador');
+      }
       XLSX.writeFile(wb, `${getExportFileBaseName('reporte-ingresos')}.xlsx`);
     } catch (err) {
       console.error('Error al exportar a Excel:', err);
@@ -1017,6 +1054,17 @@ const Reportes: React.FC = () => {
         ` : ''}
       `;
     }).join('');
+
+    const mostradorHtml = ventasMostradorFiltradas.map(venta => `
+      <tr>
+        <td>${escapeHtml(formatearFecha(venta.fecha))}</td>
+        <td>Mostrador</td>
+        <td>${venta.cantidad} × ${escapeHtml(venta.producto)}</td>
+        <td class="num">${formatearDinero(0)}</td>
+        <td class="num">${formatearDinero(venta.ingreso)}</td>
+        <td class="num total-col">${formatearDinero(venta.ingreso)}</td>
+      </tr>
+    `).join('');
 
     const html = `
       <!DOCTYPE html>
@@ -1105,6 +1153,7 @@ const Reportes: React.FC = () => {
           </thead>
           <tbody>
             ${rowsHtml}
+            ${mostradorHtml}
           </tbody>
           <tfoot>
             <tr>
@@ -1391,9 +1440,12 @@ const Reportes: React.FC = () => {
     return placa.includes(q) || cliente.includes(q) || vehiculo.includes(q) || motivo.includes(q) || itemsMatch;
   });
 
-  const totalFiltradoIngresos = filteredIngresos.reduce((acc, o) => acc + Number(o.total || 0), 0);
+  const ventasMostradorFiltradas = ventasMostrador.filter(venta =>
+    ingresosFiltroTipo !== 'con_mano_obra' && venta.producto.toLowerCase().includes(ingresosSearch.trim().toLowerCase()));
+  const totalFiltradoMostrador = ventasMostradorFiltradas.reduce((total, venta) => total + venta.ingreso, 0);
+  const totalFiltradoIngresos = filteredIngresos.reduce((acc, o) => acc + Number(o.total || 0), totalFiltradoMostrador);
   const totalFiltradoMO = filteredIngresos.reduce((acc, o) => acc + Number(o.total_mano_obra || 0), 0);
-  const totalFiltradoRep = filteredIngresos.reduce((acc, o) => acc + Number(o.total_repuestos || 0), 0);
+  const totalFiltradoRep = filteredIngresos.reduce((acc, o) => acc + Number(o.total_repuestos || 0), totalFiltradoMostrador);
 
   const sinCatLabel = t('reportes.sin_categoria', 'Sin categoría');
   const categoriasDisponibles = Array.from(
@@ -1766,6 +1818,7 @@ const Reportes: React.FC = () => {
                         </span>
                       </div>
                       <p className="text-base sm:text-2xl font-bold text-slate-900 truncate">{formatearDinero(totalPeriodo)}</p>
+                      {!!kpis.totalMostrador && <p className="text-xs text-slate-500">Mostrador {formatearDinero(kpis.totalMostrador)}</p>}
                     </div>
                   </div>
 
@@ -2269,7 +2322,7 @@ const Reportes: React.FC = () => {
 
               <div className="flex items-center gap-2 shrink-0">
                 {/* Botón Exportar con Dropdown accesible */}
-                {!isIngresosLoading && !ingresosError && filteredIngresos.length > 0 && (
+                {!isIngresosLoading && !ingresosError && (filteredIngresos.length > 0 || ventasMostradorFiltradas.length > 0) && (
                   <div className="relative" ref={exportMenuRef}>
                     <button
                       type="button"
@@ -2470,6 +2523,22 @@ const Reportes: React.FC = () => {
               )}
 
               {/* Vacío general */}
+              {!isIngresosLoading && !ingresosError && ventasMostradorFiltradas.length > 0 && (
+                <section className="mb-4 rounded-xl border border-slate-200 p-4">
+                  <h3 className="mb-2 font-semibold">Ventas de mostrador</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm [&_td]:p-2 [&_th]:p-2">
+                      <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Ingreso</th><th>Utilidad</th></tr></thead>
+                      <tbody>{ventasMostradorFiltradas.map(venta => (
+                        <tr key={venta.id} className="border-t border-slate-100">
+                          <td>{venta.fecha}</td><td>{venta.producto}</td><td>{venta.cantidad}</td>
+                          <td>{formatearDinero(venta.ingreso)}</td><td>{formatearDinero(venta.ingreso - venta.costo)}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
               {!isIngresosLoading && !ingresosError && ingresosOrdenes.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                   <div className="p-4 bg-slate-50 rounded-2xl mb-3">
@@ -2495,7 +2564,7 @@ const Reportes: React.FC = () => {
               )}
 
               {/* Lista con datos */}
-              {!isIngresosLoading && !ingresosError && filteredIngresos.length > 0 && (
+              {!isIngresosLoading && !ingresosError && (filteredIngresos.length > 0 || ventasMostradorFiltradas.length > 0) && (
                 <>
                   {/* Vista Desktop (Tabla enriquecida con scroll horizontal) */}
                   <div className="hidden sm:block overflow-x-auto border border-slate-200/80 rounded-xl bg-white shadow-sm">
