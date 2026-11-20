@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { getInventoryClient } from '../config/supabase';
+import { consultarVentasMostrador } from '../services/ventasMostrador.service';
+import { bogotaToday } from '../utils/dateUtils';
 
 const PAGE_SIZE = 100;
 const TIPOS = ['ENTRADA', 'AJUSTE', 'SALIDA_VENTA', 'SALIDA_ORDEN', 'ANULACION'];
@@ -124,4 +126,18 @@ export async function anularMovimiento(req: Request, res: Response) {
   });
   if (error) return responderError(res, error);
   res.json(data);
+}
+
+
+export async function resumirVentasMostradorHoy(req: Request, res: Response) {
+  const hoy = bogotaToday();
+  try {
+    const ventas = await consultarVentasMostrador(req.empresa_id!, hoy, hoy);
+    const ingreso = ventas.reduce((total, venta) => total + Number(venta.ingreso), 0);
+    const costo = ventas.reduce((total, venta) => total + Number(venta.costo), 0);
+    res.json({ ventas: ventas.length, ingreso, utilidad: Math.round((ingreso - costo) * 100) / 100 });
+  } catch (error) {
+    console.error('[resumirVentasMostradorHoy]', error);
+    res.status(500).json({ error: 'No se pudieron consultar las ventas de mostrador.' });
+  }
 }

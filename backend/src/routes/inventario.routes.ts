@@ -1,9 +1,10 @@
-﻿import { Router } from 'express';
-import { anularMovimiento, desactivarItem, guardarItem, listarItems, listarMovimientos, registrarMovimiento } from '../controllers/inventario.controller';
+import { Router } from 'express';
+import { anularMovimiento, desactivarItem, guardarItem, listarItems, listarMovimientos, registrarMovimiento, resumirVentasMostradorHoy } from '../controllers/inventario.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
 router.use(requireAuth);
+router.get('/ventas/hoy', resumirVentasMostradorHoy);
 router.get('/items', listarItems);
 router.post('/items', guardarItem);
 router.put('/items/:id', guardarItem);
