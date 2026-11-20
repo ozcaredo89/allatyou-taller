@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { X, Clock, CalendarClock, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import NotaPorVoz from './NotaPorVoz';
@@ -48,6 +48,19 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
   const [motivoReprogramacion, setMotivoReprogramacion] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [evidencias, setEvidencias] = useState<File[]>([]);
+  const [progreso, setProgreso] = useState<number>();
+  const eventoId = useRef<string | undefined>(undefined);
+
+  function agregarEvidencias(archivos: FileList) {
+    const seleccion = [...evidencias, ...Array.from(archivos)];
+    if (seleccion.length > 4 || seleccion.some(archivo => archivo.size > 25 * 1024 * 1024)) {
+      setError('Adjunta hasta 4 archivos de máximo 25 MB cada uno.');
+      return;
+    }
+    setEvidencias(seleccion);
+    setError(null);
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,17 +78,32 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
           payload.motivo_reprogramacion = motivoReprogramacion.trim();
         }
       }
-      await api.post(`/ingresos/${ingreso.id}/seguimiento`, payload);
+      const ruta = `/ingresos/${ingreso.id}/seguimiento`;
+      if (evidencias.length) {
+        eventoId.current ??= crypto.randomUUID();
+        const formulario = new FormData();
+        for (const [campo, valor] of Object.entries(payload)) {
+          if (valor !== undefined) formulario.append(campo, String(valor));
+        }
+        formulario.append('evento_id', eventoId.current);
+        for (const archivo of evidencias) formulario.append('evidencias', archivo);
+        await api.post(ruta, formulario, {
+          onUploadProgress: ({ progress }) => setProgreso(progress === undefined ? undefined : Math.round(progress * 100))
+        });
+      } else {
+        await api.post(ruta, payload);
+      }
       onSuccess(submitter?.getAttribute('value') === 'bitacora');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'No se pudo guardar el seguimiento.');
       setSaving(false);
+      setProgreso(undefined);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full max-h-[90dvh] overflow-y-auto">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-indigo-100 text-indigo-600">
@@ -191,6 +219,34 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
             )}
           </div>
 
+          <fieldset disabled={saving} className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">
+              Fotos y videos del avance
+              <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,.mov"
+                className="mt-1 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-indigo-800"
+                onChange={e => {
+                  if (e.target.files) agregarEvidencias(e.target.files);
+                  e.target.value = '';
+                }} />
+            </label>
+            <p className="text-xs text-slate-600">Hasta 4 archivos de 25 MB cada uno. Máximo 2 videos de 20 segundos.</p>
+            {evidencias.length > 0 && (
+              <ul className="space-y-1">
+                {evidencias.map((archivo, indice) => (
+                  <li key={indice} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 text-sm">
+                    <span className="min-w-0 truncate">{archivo.name}</span>
+                    <button type="button" className="shrink-0 text-indigo-800" aria-label={`Quitar ${archivo.name}`}
+                      onClick={() => setEvidencias(prev => prev.filter((_, i) => i !== indice))}>Quitar</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </fieldset>
+          {saving && evidencias.length > 0 && (
+            <p role="status" className="text-sm text-indigo-800">
+              {progreso === 100 ? 'Comprimiendo y guardando evidencias…' : `Subiendo evidencias${progreso === undefined ? '' : ` (${progreso} %)`}…`}
+            </p>
+          )}
           <div className="flex flex-wrap justify-end gap-2 pt-2">
             <button
               type="button"

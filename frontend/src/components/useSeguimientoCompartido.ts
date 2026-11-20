@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import api from '../services/api';
+import type { Evidencia } from './EvidenciasAvance';
 
 interface Publicacion {
   evento_id: string;
@@ -16,6 +17,7 @@ export function useSeguimientoCompartido(ingresoId: string) {
   const ruta = '/ingresos/' + ingresoId + '/seguimiento-cliente';
   const [enlace, setEnlace] = useState<Enlace | null>(null);
   const [publicaciones, setPublicaciones] = useState<Publicacion[]>([]);
+  const [evidencias, setEvidencias] = useState<(Evidencia & { evento_id: string })[]>([]);
   const [cargando, setCargando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState('');
@@ -26,6 +28,7 @@ export function useSeguimientoCompartido(ingresoId: string) {
     api.get(ruta, { signal: controller.signal }).then(({ data }) => {
       setEnlace(data.enlace);
       setPublicaciones(data.publicaciones);
+      setEvidencias(data.evidencias || []);
     }).catch(() => {
       if (!controller.signal.aborted) setError('No se pudo cargar el seguimiento compartido.');
     }).finally(() => {
@@ -47,7 +50,7 @@ export function useSeguimientoCompartido(ingresoId: string) {
   }
 
   return {
-    cargando, ocupado, error, copiado, enlace, publicaciones,
+    cargando, ocupado, error, copiado, enlace, publicaciones, evidencias,
     generar: () => ejecutar(async () => {
       const { data } = await api.post(ruta + '/enlace');
       setEnlace(data);

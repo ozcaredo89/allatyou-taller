@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { CompartirSeguimiento, PublicarAvance } from './SeguimientoCompartido';
 import { useSeguimientoCompartido } from './useSeguimientoCompartido';
+import EvidenciasAvance from './EvidenciasAvance';
 import { trackEvent } from '../utils/analytics';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -313,8 +314,13 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
                 <React.Fragment key={ev.id}>
                   <EventoCard evento={ev} isLast={idx === eventos.length - 1} />
                   {['seguimiento', 'reprogramacion'].includes(ev.tipo_evento) && (
-                    <PublicarAvance seguimiento={seguimiento} id={ev.id}
-                      nota={ev.metadata?.nota || ev.metadata?.estado_avance || ''} />
+                    <>
+                      <div className="mb-2 ml-10">
+                        <EvidenciasAvance ingresoId={ingresoId} evidencias={seguimiento.evidencias.filter(e => e.evento_id === ev.id)} />
+                      </div>
+                      <PublicarAvance seguimiento={seguimiento} id={ev.id}
+                        nota={ev.metadata?.nota || ev.metadata?.estado_avance || ''} />
+                    </>
                   )}
                 </React.Fragment>
               ))}

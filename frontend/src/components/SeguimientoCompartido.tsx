@@ -56,6 +56,7 @@ export function PublicarAvance({ seguimiento, id, nota }: { seguimiento: Seguimi
   const [mensaje, setMensaje] = useState('');
   const [mostrarFecha, setMostrarFecha] = useState(false);
   const ocupado = seguimiento.ocupado || seguimiento.cargando;
+  const adjuntos = seguimiento.evidencias.filter(e => e.evento_id === id).length;
 
   return (
     <div className="mb-4 ml-10 space-y-2">
@@ -74,6 +75,7 @@ export function PublicarAvance({ seguimiento, id, nota }: { seguimiento: Seguimi
             <input type="checkbox" checked={mostrarFecha} onChange={e => setMostrarFecha(e.target.checked)} />
             Compartir la fecha estimada actual
           </label>
+          {adjuntos > 0 && <p className="text-sm text-slate-600">Este avance se publicará con sus {adjuntos} {adjuntos === 1 ? 'archivo adjunto' : 'archivos adjuntos'}.</p>}
           <button className={accion} disabled={ocupado || !mensaje.trim()}>Publicar</button>
           <button type="button" className="ml-2 text-sm" onClick={() => setEditando(false)}>Cancelar</button>
           {seguimiento.error && <p role="alert" className="text-sm text-red-700">{seguimiento.error}</p>}
