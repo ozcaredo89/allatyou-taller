@@ -129,6 +129,19 @@ export async function anularMovimiento(req: Request, res: Response) {
 }
 
 
+export async function listarDescuentosPendientes(req: Request, res: Response) {
+  const pagina = Number(req.query.pagina ?? 1);
+  if (!Number.isSafeInteger(pagina) || pagina < 1 || pagina > 100000) {
+    res.status(400).json({ error: 'Página inválida.' });
+    return;
+  }
+  const { data, error, count } = await getInventoryClient()
+    .rpc('consultar_descuentos_pendientes', { p_empresa: req.empresa_id }, { count: 'exact' })
+    .range((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE - 1);
+  if (error) return responderError(res, error);
+  res.json({ pendientes: data, paginas: Math.ceil((count ?? 0) / PAGE_SIZE) });
+}
+
 export async function resumirVentasMostradorHoy(req: Request, res: Response) {
   const hoy = bogotaToday();
   try {

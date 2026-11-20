@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { seguimientoDb } from '../config/seguimientoDb';
 import { comprimirEvidencias, EvidenciaInvalida, evidenciasTabla } from '../services/seguimientoEvidencias';
 import { getInventoryClientIfConfigured, supabase } from '../config/supabase';
-import { consultarVentasMostrador } from '../services/ventasMostrador.service';
+import { consultarVentasMostrador, resumirVentasMostradorPorDia } from '../services/ventasMostrador.service';
 import { toBogotaDateStr, bogotaToday, getBogotaRange, bogotaDayBounds } from '../utils/dateUtils';
 import { sumarItemsFactura } from '../utils/facturaUtils';
 import { pareceManoObra } from '../utils/tipoItemUtils';
@@ -399,7 +399,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     // 1. Obtener estado actual para SLA y comisiones
     const { data: current, error: fetchError } = await supabase
       .from('taller_ingresos')
-      .select('estado, estado_desde, fecha_entrega_estimada, reprogramaciones_count, items_factura, vehiculo_id, motivo_visita, kilometraje, nivel_gasolina, fecha_ingreso, renting_sync_at, taller_vehiculos(id, marca, linea, modelo_anio, color, placa, cliente_id, taller_clientes(id, documento, nombre_completo, telefono))')
+      .select('estado, updated_at, estado_desde, fecha_entrega_estimada, reprogramaciones_count, items_factura, vehiculo_id, motivo_visita, kilometraje, nivel_gasolina, fecha_ingreso, renting_sync_at, taller_vehiculos(id, marca, linea, modelo_anio, color, placa, cliente_id, taller_clientes(id, documento, nombre_completo, telefono))')
       .eq('empresa_id', req.empresa_id)
       .eq('id', id)
       .single();
@@ -495,6 +495,11 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
 
     delete camposIngreso.id;
     delete camposIngreso.empresa_id;
+    delete camposIngreso.updated_at;
+    if (Object.keys(camposIngreso).length > 0) {
+      const versionAnterior = current.updated_at ? Date.parse(current.updated_at) : 0;
+      camposIngreso.updated_at = new Date(Math.max(Date.now(), versionAnterior + 1)).toISOString();
+    }
     const cambiaLineasOEstado = camposIngreso.estado !== undefined || camposIngreso.items_factura !== undefined;
     const cambiaInventario = cambiaLineasOEstado &&
       (tieneRepuestoDeInventario(current.items_factura) || tieneRepuestoDeInventario(camposIngreso.items_factura));
@@ -513,6 +518,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         p_cambios: camposIngreso,
         p_usuario: req.user_email,
         p_estado_anterior: current.estado,
+        p_version_anterior: current.updated_at,
       });
       if (error?.code === 'PGRST202' || error?.code === '42883') {
         res.status(503).json({ error: 'La migración de inventario está pendiente en este entorno.' });
@@ -530,8 +536,8 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     const actualizacion = tabla.update(camposIngreso).eq('empresa_id', req.empresa_id).eq('id', id);
     if (cambiaLineasOEstado) {
       actualizacion.eq('estado', current.estado);
-      if (current.items_factura == null) actualizacion.is('items_factura', null);
-      else actualizacion.eq('items_factura', JSON.stringify(current.items_factura));
+      if (current.updated_at == null) actualizacion.is('updated_at', null);
+      else actualizacion.eq('updated_at', current.updated_at);
     }
     const query = cambiaInventario || Object.keys(camposIngreso).length === 0
       ? tabla.select(seleccion).eq('empresa_id', req.empresa_id).eq('id', id)
@@ -1046,7 +1052,7 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
       }, 0);
     }
 
-    const ventasMostrador = await consultarVentasMostrador(req.empresa_id!, '0001-01-01', endStr > hoyStr ? endStr : hoyStr);
+    const ventasMostrador = await resumirVentasMostradorPorDia(req.empresa_id!, endStr > hoyStr ? endStr : hoyStr);
     const totalMostrador = ventasMostrador.reduce((total, venta) => {
       const ingreso = Number(venta.ingreso);
       if (venta.fecha === hoyStr) facturadoHoy += ingreso;

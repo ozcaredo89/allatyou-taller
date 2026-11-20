@@ -125,7 +125,7 @@ $$;
 REVOKE ALL ON FUNCTION public.registrar_movimiento_inventario(uuid, uuid, text, jsonb, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.registrar_movimiento_inventario(uuid, uuid, text, jsonb, text) TO service_role;
 
-CREATE FUNCTION public.actualizar_orden_inventario_operativo(p_empresa uuid, p_orden uuid, p_cambios jsonb, p_usuario text, p_estado_anterior text)
+CREATE FUNCTION public.actualizar_orden_inventario_operativo(p_empresa uuid, p_orden uuid, p_cambios jsonb, p_usuario text, p_estado_anterior text, p_version_anterior timestamptz)
 RETURNS text[] LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE
   anterior taller_ingresos;
@@ -140,7 +140,8 @@ DECLARE
 BEGIN
   SELECT * INTO STRICT anterior FROM taller_ingresos
     WHERE empresa_id = p_empresa AND id = p_orden FOR UPDATE;
-  IF anterior.estado::text IS DISTINCT FROM p_estado_anterior THEN
+  IF anterior.estado::text IS DISTINCT FROM p_estado_anterior
+    OR anterior.updated_at IS DISTINCT FROM p_version_anterior THEN
     RAISE EXCEPTION 'La orden cambió de estado. Actualiza la página antes de continuar.' USING ERRCODE = '40001';
   END IF;
   p_cambios := p_cambios - ARRAY['id', 'empresa_id'];
@@ -220,8 +221,8 @@ BEGIN
   RETURN faltantes;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.actualizar_orden_inventario_operativo(uuid, uuid, jsonb, text, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.actualizar_orden_inventario_operativo(uuid, uuid, jsonb, text, text) TO service_role;
+REVOKE ALL ON FUNCTION public.actualizar_orden_inventario_operativo(uuid, uuid, jsonb, text, text, timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.actualizar_orden_inventario_operativo(uuid, uuid, jsonb, text, text, timestamptz) TO service_role;
 
 -- Regularizar gastos generados por compras que ya fueron anuladas.
 DELETE FROM public.taller_gastos g
@@ -249,3 +250,42 @@ LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
 $$;
 REVOKE ALL ON FUNCTION public.consultar_ventas_mostrador(uuid, date, date) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.consultar_ventas_mostrador(uuid, date, date) TO service_role;
+
+DROP FUNCTION IF EXISTS public.actualizar_orden_inventario(uuid, uuid, jsonb, text, text);
+
+CREATE FUNCTION public.resumir_ventas_mostrador_por_dia(p_empresa uuid, p_hasta date)
+RETURNS TABLE (fecha date, ingreso numeric)
+LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
+  SELECT (m.created_at AT TIME ZONE 'America/Bogota')::date,
+    sum(round(-m.cantidad * m.precio_unitario, 2))
+  FROM taller_inventario_movimientos m
+  WHERE m.empresa_id = p_empresa AND m.tipo = 'SALIDA_VENTA'
+    AND m.created_at < (p_hasta + 1)::timestamp AT TIME ZONE 'America/Bogota'
+    AND NOT EXISTS (
+      SELECT 1 FROM taller_inventario_movimientos a
+      WHERE a.empresa_id = m.empresa_id AND a.anula_movimiento_id = m.id
+    )
+  GROUP BY 1 ORDER BY 1;
+$$;
+REVOKE ALL ON FUNCTION public.resumir_ventas_mostrador_por_dia(uuid, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.resumir_ventas_mostrador_por_dia(uuid, date) TO service_role;
+
+CREATE FUNCTION public.consultar_descuentos_pendientes(p_empresa uuid)
+RETURNS TABLE (ingreso_id uuid, linea_id text, producto text, cantidad numeric, stock_actual numeric)
+LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
+  SELECT i.id, linea->>'id', p.nombre, (linea->>'cantidad')::numeric, p.stock_actual
+  FROM taller_ingresos i
+  CROSS JOIN LATERAL jsonb_array_elements(
+    CASE WHEN jsonb_typeof(i.items_factura) = 'array' THEN i.items_factura ELSE '[]' END
+  ) linea
+  JOIN taller_inventario_items p ON p.empresa_id = i.empresa_id AND p.id::text = linea->>'inventario_item_id'
+  WHERE i.empresa_id = p_empresa AND i.estado = 'entregado'
+    AND linea->>'tipo' = 'repuesto' AND jsonb_typeof(linea->'cantidad') = 'number'
+    AND NOT EXISTS (
+      SELECT 1 FROM taller_inventario_salidas_vigentes s
+      WHERE s.empresa_id = p_empresa AND s.ingreso_id = i.id AND s.ingreso_item_id = linea->>'id'
+    )
+  ORDER BY i.updated_at DESC NULLS LAST, i.id, linea->>'id';
+$$;
+REVOKE ALL ON FUNCTION public.consultar_descuentos_pendientes(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consultar_descuentos_pendientes(uuid) TO service_role;

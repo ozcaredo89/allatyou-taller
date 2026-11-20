@@ -34,3 +34,20 @@ export async function consultarVentasMostrador(empresa: string, desde: string, h
     if (data.length < pageSize) return ventas;
   }
 }
+
+
+export async function resumirVentasMostradorPorDia(empresa: string, hasta: string) {
+  const client = getInventoryClientIfConfigured();
+  if (!client) return [];
+  const dias: { fecha: string; ingreso: number }[] = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await client.rpc('resumir_ventas_mostrador_por_dia', {
+      p_empresa: empresa, p_hasta: hasta,
+    }).range(offset, offset + pageSize - 1);
+    if (error?.code === 'PGRST202' || error?.code === '42883') return [];
+    if (error) throw error;
+    dias.push(...data);
+    if (data.length < pageSize) return dias;
+  }
+}

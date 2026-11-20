@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { isAxiosError } from 'axios';
+import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
 
 export interface ProductoInventario {
@@ -59,6 +60,61 @@ function Campo({ label, children }: { label: string; children: ReactNode }) {
 
 function mensaje(error: unknown) {
   return isAxiosError(error) ? error.response?.data?.error || 'No se pudo acceder al inventario.' : 'No se pudo acceder al inventario.';
+}
+
+interface DescuentoPendiente {
+  ingreso_id: string;
+  linea_id: string;
+  producto: string;
+  cantidad: number;
+  stock_actual: number;
+}
+
+function DescuentosPendientes() {
+  const { slug } = useParams();
+  const [pagina, setPagina] = useState(1);
+  const [data, setData] = useState<{ pendientes: DescuentoPendiente[]; paginas: number } | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const abort = new AbortController();
+    api.get('/inventario/pendientes', { params: { pagina }, signal: abort.signal })
+      .then(({ data }) => setData(data))
+      .catch(error => { if (!abort.signal.aborted) setError(mensaje(error)); });
+    return () => abort.abort();
+  }, [pagina]);
+
+  function cambiarPagina(nueva: number) {
+    setError('');
+    setData(null);
+    setPagina(nueva);
+  }
+
+  if (error) return <p role="alert" className="text-red-700">{error}</p>;
+  if (!data) return <p role="status">Cargando descuentos pendientes…</p>;
+  return (
+    <>
+      {data.pendientes.length === 0 ? <p className="text-slate-600">No hay descuentos pendientes en esta página.</p> : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="w-full text-left text-sm [&_td]:p-3 [&_th]:p-3">
+            <thead className="bg-slate-50"><tr><th>Producto</th><th>Pendiente</th><th>Stock físico</th><th>Orden</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{data.pendientes.map(pendiente => (
+              <tr key={`${pendiente.ingreso_id}-${pendiente.linea_id}`}>
+                <td>{pendiente.producto}</td><td>{numero.format(pendiente.cantidad)}</td>
+                <td>{numero.format(pendiente.stock_actual)}</td>
+                <td><Link className="font-medium text-indigo-700 underline" to={`/${slug}/checkout/${pendiente.ingreso_id}?edit=true`}>Abrir orden</Link></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+      {(data.paginas > 1 || pagina > 1) && <div className="flex items-center gap-3">
+        <button className={boton} disabled={pagina <= 1} onClick={() => cambiarPagina(pagina - 1)}>Anterior</button>
+        <span>Página {pagina}</span>
+        <button className={boton} disabled={pagina >= data.paginas} onClick={() => cambiarPagina(pagina + 1)}>Siguiente</button>
+      </div>}
+    </>
+  );
 }
 
 export default function Inventario() {
@@ -167,13 +223,13 @@ export default function Inventario() {
         <button className={principal} onClick={() => abrir({ tipo: 'producto' })}>Nuevo producto</button>
       </header>
       <nav aria-label="Vistas del inventario" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        {['Catálogo', 'Movimientos', 'Stock crítico'].map(vista => (
+        {['Catálogo', 'Movimientos', 'Stock crítico', 'Descuentos pendientes'].map(vista => (
           <button key={vista} type="button" aria-pressed={tab === vista} className={tab === vista ? principal : boton}
             onClick={() => { setTab(vista); if (vista === 'Movimientos' && tab !== vista) setCargandoMovimientos(true); }}>{vista}</button>
         ))}
       </nav>
       {error && <p role="alert" className="text-red-700">{error} <button className="underline" onClick={() => setVersion(v => v + 1)}>Reintentar</button></p>}
-      {tab === 'Movimientos' ? (
+      {tab === 'Descuentos pendientes' ? <DescuentosPendientes /> : tab === 'Movimientos' ? (
         <>
           <div className="grid gap-3 sm:grid-cols-4">
             <Campo label="Tipo"><select className={campo} value={filtros.tipo} onChange={e => cambiarFiltro('tipo', e.target.value)}>
