@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import SeguimientoCliente from './pages/SeguimientoCliente';
-import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt, Menu, X, MessageSquarePlus } from 'lucide-react';
+import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt, Package, Menu, X, MessageSquarePlus } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useState, useRef, useEffect } from 'react';
@@ -21,6 +21,7 @@ import Kiosco from './pages/Kiosco';
 import ReporteLiquidaciones from './pages/ReporteLiquidaciones';
 import CRM from './pages/CRM';
 import Configuracion from './pages/Configuracion';
+import Inventario from './pages/Inventario';
 import Gastos from './pages/Gastos';
 import { AIChatDrawer } from './components/AIChatDrawer';
 
@@ -242,6 +243,12 @@ const Navbar = () => {
       active: location.pathname.includes('/gastos'),
       activeClass: 'bg-red-600 text-white shadow-md',
     },
+    {
+      to: `/${slug}/inventario`,
+      label: 'Inventario',
+      icon: Package,
+      active: location.pathname.includes('/inventario'),
+    },
   ];
 
   const activeItem = navItems.find(item => item.active);
@@ -443,6 +450,7 @@ function App() {
             <Route path="crm" element={<CRM />} />
             <Route path="configuracion" element={<Configuracion />} />
             <Route path="gastos" element={<Gastos />} />
+            <Route path="inventario" element={<Inventario />} />
           </Route>
         </Routes>
       </BrowserRouter>
