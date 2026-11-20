@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
+import SeguimientoCliente from './pages/SeguimientoCliente';
 import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt, Menu, X, MessageSquarePlus } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -425,6 +426,7 @@ function App() {
           {/* Global entry point */}
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/seguimiento/visita" element={<SeguimientoCliente />} />
           <Route path="/registro" element={<Registro />} />
           <Route path="/kiosco/:slug" element={<Kiosco />} />
 

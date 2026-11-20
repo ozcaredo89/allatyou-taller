@@ -1849,7 +1849,8 @@ export const getBitacora = async (req: Request, res: Response): Promise<void> =>
       .select('*', { count: 'exact' })
       .eq('empresa_id', req.empresa_id)
       .eq('ingreso_id', id)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: req.query.orden !== 'recientes' })
+      .order('id', { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;

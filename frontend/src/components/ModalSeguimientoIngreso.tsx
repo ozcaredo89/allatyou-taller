@@ -16,7 +16,7 @@ interface ModalSeguimientoIngresoProps {
     };
   };
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (abrirBitacora: boolean) => void;
 }
 
 const OPCIONES_AVANCE = [
@@ -51,6 +51,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const submitter = (e.nativeEvent as SubmitEvent).submitter;
     try {
       setSaving(true);
       setError(null);
@@ -65,7 +66,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
         }
       }
       await api.post(`/ingresos/${ingreso.id}/seguimiento`, payload);
-      onSuccess();
+      onSuccess(submitter?.getAttribute('value') === 'bitacora');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'No se pudo guardar el seguimiento.');
       setSaving(false);
@@ -190,7 +191,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
@@ -206,6 +207,10 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
               Guardar seguimiento
+            </button>
+            <button type="submit" value="bitacora" disabled={saving}
+              className="rounded-xl bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-800 disabled:opacity-50">
+              Guardar y abrir bitácora
             </button>
           </div>
         </form>
