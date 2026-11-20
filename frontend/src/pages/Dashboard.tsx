@@ -1171,7 +1171,8 @@ const Dashboard: React.FC = () => {
         <ModalSeguimientoIngreso
           ingreso={ingresoParaSeguimiento}
           onClose={() => setIngresoParaSeguimiento(null)}
-          onSuccess={() => {
+          onSuccess={(abrirBitacora) => {
+            if (abrirBitacora) setIngresoParaTimeline(ingresoParaSeguimiento);
             setIngresoParaSeguimiento(null);
             fetchIngresos();
           }}

@@ -7,6 +7,8 @@ import {
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import { CompartirSeguimiento, PublicarAvance } from './SeguimientoCompartido';
+import { useSeguimientoCompartido } from './useSeguimientoCompartido';
 import { trackEvent } from '../utils/analytics';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -190,6 +192,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
+  const seguimiento = useSeguimientoCompartido(ingresoId);
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const location = useLocation();
@@ -199,7 +202,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
     const fetchBitacora = async () => {
       try {
         setLoading(true);
-        const res = await api.get(`/ingresos/${ingresoId}/bitacora?limit=100`);
+        const res = await api.get(`/ingresos/${ingresoId}/bitacora?limit=100&orden=recientes`);
         setEventos(res.data.eventos || []);
       } catch (err: any) {
         setError('No se pudo cargar la bitácora.');
@@ -279,6 +282,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
 
         {/* ── Cuerpo con línea de tiempo ── */}
         <div className="flex-1 overflow-y-auto p-5 space-y-0">
+          <CompartirSeguimiento seguimiento={seguimiento} />
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">
             Bitácora de la Visita
           </p>
@@ -306,11 +310,13 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
           {!loading && eventos.length > 0 && (
             <div>
               {eventos.map((ev, idx) => (
-                <EventoCard
-                  key={ev.id}
-                  evento={ev}
-                  isLast={idx === eventos.length - 1}
-                />
+                <React.Fragment key={ev.id}>
+                  <EventoCard evento={ev} isLast={idx === eventos.length - 1} />
+                  {['seguimiento', 'reprogramacion'].includes(ev.tipo_evento) && (
+                    <PublicarAvance seguimiento={seguimiento} id={ev.id}
+                      nota={ev.metadata?.nota || ev.metadata?.estado_avance || ''} />
+                  )}
+                </React.Fragment>
               ))}
             </div>
           )}

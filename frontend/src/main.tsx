@@ -5,7 +5,7 @@ import App from './App.tsx'
 import './i18n'
 import { initAnalytics } from './utils/analytics'
 
-initAnalytics()
+if (!/^\/seguimiento\/visita\/?$/.test(window.location.pathname)) initAnalytics()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
