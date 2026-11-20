@@ -1,4 +1,7 @@
 import { Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
+import { seguimientoDb } from '../config/seguimientoDb';
+import { comprimirEvidencias, EvidenciaInvalida, evidenciasTabla } from '../services/seguimientoEvidencias';
 import { supabase } from '../config/supabase';
 import { toBogotaDateStr, bogotaToday, getBogotaRange, bogotaDayBounds } from '../utils/dateUtils';
 import { sumarItemsFactura } from '../utils/facturaUtils';
@@ -2059,6 +2062,13 @@ export const registrarSeguimiento = async (req: Request, res: Response): Promise
       return;
     }
 
+    const archivos = Array.isArray(req.files) ? req.files : [];
+    const eventoId = req.body?.evento_id;
+    if (archivos.length && (typeof eventoId !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(eventoId))) {
+      res.status(400).json({ error: 'No se pudo identificar este avance.' });
+      return;
+    }
+
     const { data: current, error: fetchError } = await supabase
       .from('taller_ingresos')
       .select('id, estado, fecha_entrega_estimada, reprogramaciones_count')
@@ -2094,16 +2104,6 @@ export const registrarSeguimiento = async (req: Request, res: Response): Promise
       }
     }
 
-    const { data: updated, error: updateError } = await supabase
-      .from('taller_ingresos')
-      .update(updatePayload)
-      .eq('empresa_id', empresa_id)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (updateError) throw updateError;
-
     const fechaNuevaTxt = updatePayload.fecha_entrega_estimada
       ? new Date(updatePayload.fecha_entrega_estimada).toLocaleString('es-CO', {
           timeZone: 'America/Bogota',
@@ -2123,28 +2123,92 @@ export const registrarSeguimiento = async (req: Request, res: Response): Promise
       .filter(Boolean)
       .join(' | ');
 
-    await registrarEventoBitacora(
-      empresa_id,
-      id as string,
-      reprogramo && current.fecha_entrega_estimada ? 'reprogramacion' : 'seguimiento',
-      reprogramo && current.fecha_entrega_estimada
+    const tipoEvento = reprogramo && current.fecha_entrega_estimada ? 'reprogramacion' : 'seguimiento';
+    const titulo = tipoEvento === 'reprogramacion'
         ? `Seguimiento y Reprogramación: ${estado_avance}`
-        : `Seguimiento de Avance: ${estado_avance}`,
-      descripcion,
-      {
+        : `Seguimiento de Avance: ${estado_avance}`;
+    const metadata = {
         estado_avance,
         nota: nota ? String(nota).trim() : null,
         estado_orden: current.estado,
         fecha_anterior: current.fecha_entrega_estimada || null,
         fecha_nueva: updatePayload.fecha_entrega_estimada || null,
         motivo_reprogramacion: motivo_reprogramacion || null
+    };
+
+    if (archivos.length) {
+      const db = seguimientoDb();
+      const repetido = await db.query(
+        'SELECT 1 FROM public.taller_ingresos_bitacora WHERE id = $1 AND empresa_id = $2 AND ingreso_id = $3',
+        [eventoId, empresa_id, id]);
+      if (repetido.rowCount) {
+        res.json({ ok: true });
+        return;
       }
-    );
+      const evidencias = await comprimirEvidencias(archivos);
+      const tx = await db.connect();
+      try {
+        await tx.query('BEGIN');
+        const evento = await tx.query(`INSERT INTO public.taller_ingresos_bitacora
+          (id, empresa_id, ingreso_id, tipo_evento, titulo, descripcion, metadata)
+          VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
+          [eventoId, empresa_id, id, tipoEvento, titulo, descripcion, metadata]);
+
+        if (!evento.rowCount) {
+          const existe = await tx.query(
+            'SELECT 1 FROM public.taller_ingresos_bitacora WHERE id = $1 AND empresa_id = $2 AND ingreso_id = $3',
+            [eventoId, empresa_id, id]);
+          await tx.query('ROLLBACK');
+          if (existe.rowCount) res.json({ ok: true });
+          else res.status(409).json({ error: 'Vuelve a abrir el formulario para registrar este avance.' });
+          return;
+        }
+
+        const actualizacion = await tx.query(`UPDATE public.taller_ingresos SET
+          ultima_actualizacion_estado = $1, motivo_demora_actual = $2,
+          fecha_entrega_estimada = COALESCE($3, fecha_entrega_estimada),
+          reprogramaciones_count = COALESCE($4, reprogramaciones_count)
+          WHERE empresa_id = $5 AND id = $6
+            AND ($3::timestamptz IS NULL OR fecha_entrega_estimada IS NOT DISTINCT FROM $7::timestamptz)`,
+          [new Date().toISOString(), updatePayload.motivo_demora_actual, updatePayload.fecha_entrega_estimada ?? null,
+            updatePayload.reprogramaciones_count ?? null, empresa_id, id, current.fecha_entrega_estimada]);
+        if (!actualizacion.rowCount) {
+          await tx.query('ROLLBACK');
+          res.status(409).json({ error: 'La orden cambió. Vuelve a abrir el formulario y revisa la fecha de entrega.' });
+          return;
+        }
+
+        for (const [posicion, evidencia] of evidencias.entries()) {
+          await tx.query(`INSERT INTO ${evidenciasTabla}
+            (id, evento_id, empresa_id, ingreso_id, posicion, tipo, contenido) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            [randomUUID(), eventoId, empresa_id, id, posicion, evidencia.tipo, evidencia.contenido]);
+        }
+        await tx.query('COMMIT');
+        res.json({ ok: true });
+      } catch (error) {
+        await tx.query('ROLLBACK');
+        throw error;
+      } finally {
+        tx.release();
+      }
+      return;
+    }
+
+    const { data: updated, error: updateError } = await supabase
+      .from('taller_ingresos').update(updatePayload).eq('empresa_id', empresa_id).eq('id', id).select().single();
+    if (updateError) throw updateError;
+    await registrarEventoBitacora(empresa_id, id as string, tipoEvento, titulo, descripcion, metadata);
 
     res.json({ ok: true, ingreso: updated });
   } catch (error: any) {
+    if (error instanceof EvidenciaInvalida) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error('[registrarSeguimiento] Error:', error.message);
-    res.status(500).json({ error: error.message || 'Error registrando seguimiento' });
+    res.status(500).json({ error: 'No se pudo guardar el seguimiento.' });
+  } finally {
+    res.locals.liberarCargaEvidencias?.();
   }
 };
 

@@ -1,31 +1,33 @@
 ﻿import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Response, Router } from 'express';
-import { Pool } from 'pg';
+import { Request, Response, Router } from 'express';
 import { JWT_SECRET } from '../config/jwt';
+import { seguimientoDb as database } from '../config/seguimientoDb';
 import { supabase } from '../config/supabase';
 import { requireAuth } from '../middlewares/auth.middleware';
+import { evidenciasTabla } from '../services/seguimientoEvidencias';
 
-const db = process.env.DATABASE_URL ? new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // Misma política TLS que el ejecutor de migraciones.
-  ssl: { rejectUnauthorized: false },
-  max: 3,
-  connectionTimeoutMillis: 5000
-}) : undefined;
 const enlaces = 'public.taller_seguimiento_enlaces';
 const publicaciones = 'public.taller_seguimiento_publicaciones';
 const camposPublicacion = 'evento_id,mensaje,fecha_entrega_estimada,publicado_at';
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
-function database() {
-  if (!db) throw new Error('DATABASE_URL no está configurada.');
-  return db;
-}
-
-db?.on('error', error => console.error('[seguimiento-cliente]', error.message));
-
 function firma(nonce: string) {
   return createHmac('sha256', JWT_SECRET).update('seguimiento-cliente:' + nonce).digest();
+}
+
+function nonceAutorizado(req: Request) {
+  const [nonce, signature, extra] = (req.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1] ?? '').split('.');
+  if (!uuid.test(nonce) || !/^[a-f0-9]{64}$/.test(signature ?? '') || extra !== undefined ||
+      !timingSafeEqual(firma(nonce), Buffer.from(signature, 'hex'))) return null;
+  return nonce;
+}
+
+function enviarEvidencia(res: Response, evidencia?: { tipo: string; contenido: Buffer }) {
+  if (!evidencia) {
+    res.sendStatus(404);
+    return;
+  }
+  res.set('X-Content-Type-Options', 'nosniff').type(evidencia.tipo).send(evidencia.contenido);
 }
 
 function responderError(res: Response, error: unknown) {
@@ -59,17 +61,34 @@ seguimientoInterno.use('/:id/seguimiento-cliente', requireAuth, async (req, res,
 
 seguimientoInterno.get('/:id/seguimiento-cliente', async (req, res) => {
   try {
-    const [link, avances] = await Promise.all([
+    const [link, avances, evidencias] = await Promise.all([
       database().query(`SELECT nonce, vence_at FROM ${enlaces}
         WHERE empresa_id = $1 AND ingreso_id = $2 AND vence_at > now()`, [req.empresa_id, req.params.id]),
       database().query(`SELECT ${camposPublicacion} FROM ${publicaciones}
-        WHERE empresa_id = $1 AND ingreso_id = $2 ORDER BY publicado_at DESC LIMIT 1000`, [req.empresa_id, req.params.id])
+        WHERE empresa_id = $1 AND ingreso_id = $2 ORDER BY publicado_at DESC LIMIT 1000`, [req.empresa_id, req.params.id]),
+      database().query(`SELECT id, evento_id, tipo FROM ${evidenciasTabla}
+        WHERE empresa_id = $1 AND ingreso_id = $2 ORDER BY posicion`, [req.empresa_id, req.params.id])
     ]);
     const enlace = link.rows[0];
     res.json({
       enlace: enlace ? { token: enlace.nonce + '.' + firma(enlace.nonce).toString('hex'), vence_at: enlace.vence_at } : null,
-      publicaciones: avances.rows
+      publicaciones: avances.rows,
+      evidencias: evidencias.rows
     });
+  } catch (error) {
+    responderError(res, error);
+  }
+});
+
+seguimientoInterno.get('/:id/seguimiento-cliente/evidencias/:archivo', async (req, res) => {
+  if (!uuid.test(req.params.archivo)) {
+    res.sendStatus(404);
+    return;
+  }
+  try {
+    const { rows: [evidencia] } = await database().query(`SELECT tipo, contenido FROM ${evidenciasTabla}
+      WHERE empresa_id = $1 AND ingreso_id = $2 AND id = $3`, [req.empresa_id, req.params.id, req.params.archivo]);
+    enviarEvidencia(res, evidencia);
   } catch (error) {
     responderError(res, error);
   }
@@ -152,19 +171,38 @@ seguimientoInterno.delete('/:id/seguimiento-cliente/avances/:eventoId', async (r
 });
 
 export const seguimientoPublico = Router();
-seguimientoPublico.get('/', async (req, res) => {
+seguimientoPublico.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
   res.set('X-Robots-Tag', 'noindex, nofollow');
-  const [nonce, signature, extra] = (req.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1] ?? '').split('.');
-  if (!uuid.test(nonce) || !/^[a-f0-9]{64}$/.test(signature ?? '') || extra !== undefined ||
-      !timingSafeEqual(firma(nonce), Buffer.from(signature, 'hex'))) {
+  const nonce = nonceAutorizado(req);
+  if (!nonce) {
     res.sendStatus(404);
     return;
   }
+  res.locals.nonce = nonce;
+  next();
+});
 
+seguimientoPublico.get('/evidencias/:archivo', async (req, res) => {
+  if (!uuid.test(req.params.archivo)) {
+    res.sendStatus(404);
+    return;
+  }
+  try {
+    const { rows: [evidencia] } = await database().query(`SELECT e.tipo, e.contenido FROM ${evidenciasTabla} e
+      JOIN ${publicaciones} p ON p.evento_id = e.evento_id AND p.empresa_id = e.empresa_id AND p.ingreso_id = e.ingreso_id
+      JOIN ${enlaces} l ON l.ingreso_id = e.ingreso_id AND l.empresa_id = e.empresa_id
+      WHERE l.nonce = $1 AND l.vence_at > now() AND e.id = $2`, [res.locals.nonce, req.params.archivo]);
+    enviarEvidencia(res, evidencia);
+  } catch (error) {
+    responderError(res, error);
+  }
+});
+
+seguimientoPublico.get('/', async (req, res) => {
   try {
     const { rows: [link] } = await database().query(`SELECT empresa_id, ingreso_id FROM ${enlaces}
-      WHERE nonce = $1 AND vence_at > now()`, [nonce]);
+      WHERE nonce = $1 AND vence_at > now()`, [res.locals.nonce]);
     if (!link) {
       res.sendStatus(404);
       return;
@@ -172,8 +210,12 @@ seguimientoPublico.get('/', async (req, res) => {
     const [visita, avances] = await Promise.all([
       supabase.from('taller_ingresos').select('estado,taller_vehiculos(placa,marca,linea)')
         .eq('empresa_id', link.empresa_id).eq('id', link.ingreso_id).maybeSingle(),
-      database().query(`SELECT mensaje, fecha_entrega_estimada, publicado_at FROM ${publicaciones}
-        WHERE empresa_id = $1 AND ingreso_id = $2 ORDER BY publicado_at DESC, evento_id DESC LIMIT 1000`,
+      database().query(`SELECT p.mensaje, p.fecha_entrega_estimada, p.publicado_at,
+        COALESCE((SELECT json_agg(json_build_object('id', e.id, 'tipo', e.tipo) ORDER BY e.posicion)
+          FROM ${evidenciasTabla} e WHERE e.evento_id = p.evento_id AND e.empresa_id = p.empresa_id
+            AND e.ingreso_id = p.ingreso_id), '[]'::json) AS evidencias
+        FROM ${publicaciones} p WHERE p.empresa_id = $1 AND p.ingreso_id = $2
+        ORDER BY p.publicado_at DESC, p.evento_id DESC LIMIT 1000`,
       [link.empresa_id, link.ingreso_id])
     ]);
     if (visita.error) throw visita.error;

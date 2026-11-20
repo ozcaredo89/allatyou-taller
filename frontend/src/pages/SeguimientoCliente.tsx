@@ -1,10 +1,11 @@
 ﻿import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import EvidenciasAvance, { type Evidencia } from '../components/EvidenciasAvance';
 
 interface Seguimiento {
   estado: string;
   vehiculo: { placa: string; marca?: string; linea?: string } | null;
-  avances: { mensaje: string; publicado_at: string; fecha_entrega_estimada: string | null }[];
+  avances: { mensaje: string; publicado_at: string; fecha_entrega_estimada: string | null; evidencias?: Evidencia[] }[];
 }
 
 const estados: Record<string, string> = {
@@ -79,6 +80,7 @@ export default function SeguimientoCliente() {
                       {fecha.format(new Date(avance.publicado_at))}
                     </time>
                     <p className="mt-2 whitespace-pre-wrap break-words">{avance.mensaje}</p>
+                    <EvidenciasAvance evidencias={avance.evidencias || []} token={hash.slice(1)} />
                   </li>
                 ))}
               </ol>
