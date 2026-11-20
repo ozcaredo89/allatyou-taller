@@ -139,6 +139,17 @@ const ESTADOS_CONFIG: EstadoConfig[] = [
 const normalizeString = (s: string) => s ? s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
 
 const Dashboard: React.FC = () => {
+  const [mostradorHoy, setMostradorHoy] = useState<{ ventas: number; ingreso: number; utilidad: number } | null>(null);
+  const [avisoInventario, setAvisoInventario] = useState('');
+  useEffect(() => {
+    const abort = new AbortController();
+    api.get('/inventario/ventas/hoy', { signal: abort.signal })
+      .then(({ data }) => setMostradorHoy(data))
+      .catch(error => {
+        if (!abort.signal.aborted) console.error('Error consultando ventas de mostrador:', error);
+      });
+    return () => abort.abort();
+  }, []);
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
   const [promediosSLA, setPromediosSLA] = useState<Record<string, number>>({});
   const [intervaloSeguimiento, setIntervaloSeguimiento] = useState<number>(6);
@@ -328,6 +339,10 @@ const Dashboard: React.FC = () => {
     try {
       setEntregando(true);
       const res = await api.put(`/ingresos/${entregarTarget.id}`, { estado: 'entregado' });
+      const faltantes: string[] = res.data?.inventario_faltantes ?? [];
+      setAvisoInventario(faltantes.length
+        ? `Vehículo entregado. Quedó pendiente el descuento de stock de ${faltantes.join(', ')}.`
+        : '');
       fetchIngresos();
       
       const targetBackup = entregarTarget;
@@ -572,6 +587,15 @@ const Dashboard: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {avisoInventario && <p role="status" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{avisoInventario}</p>}
+      {mostradorHoy && mostradorHoy.ventas > 0 && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          <span className="font-semibold">Mostrador hoy</span>
+          {' · Ingresos '}{mostradorHoy.ingreso.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+          {' · Utilidad '}{mostradorHoy.utilidad.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
         </div>
       )}
 

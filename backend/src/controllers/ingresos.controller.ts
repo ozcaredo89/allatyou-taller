@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { seguimientoDb } from '../config/seguimientoDb';
 import { comprimirEvidencias, EvidenciaInvalida, evidenciasTabla } from '../services/seguimientoEvidencias';
-import { getInventoryClient, supabase } from '../config/supabase';
+import { getInventoryClientIfConfigured, supabase } from '../config/supabase';
+import { consultarVentasMostrador } from '../services/ventasMostrador.service';
 import { toBogotaDateStr, bogotaToday, getBogotaRange, bogotaDayBounds } from '../utils/dateUtils';
 import { sumarItemsFactura } from '../utils/facturaUtils';
 import { pareceManoObra } from '../utils/tipoItemUtils';
@@ -363,11 +364,30 @@ export const getIngresoById = async (req: Request, res: Response): Promise<void>
     if (error) throw error;
     const clienteDoc = (data as any)?.taller_vehiculos?.taller_clientes?.documento;
     const aplicaRenting = evaluarAplicaRenting(req.empresa_id, clienteDoc);
-    res.json({ ...data, aplica_renting: aplicaRenting });
+    const inventario = data.estado === 'entregado' && tieneRepuestoDeInventario(data.items_factura)
+      ? getInventoryClientIfConfigured() : undefined;
+    let faltantes: string[] = [];
+    if (inventario) {
+      const { data: salidas, error: errorSalidas } = await inventario.from('taller_inventario_salidas_vigentes')
+        .select('ingreso_item_id').eq('empresa_id', req.empresa_id).eq('ingreso_id', id);
+      if (!errorSalidas) {
+        const descontadas = new Set(salidas.map(salida => salida.ingreso_item_id));
+        faltantes = [...new Set<string>(data.items_factura
+          .filter((item: any) => item?.tipo === 'repuesto' && item.inventario_item_id && !descontadas.has(item.id))
+          .map((item: any) => item.descripcion || 'Repuesto'))];
+      } else if (!['PGRST205', '42P01'].includes(errorSalidas.code)) {
+        throw errorSalidas;
+      }
+    }
+    res.json({ ...data, aplica_renting: aplicaRenting, inventario_faltantes: faltantes });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
+
+function tieneRepuestoDeInventario(items: unknown): boolean {
+  return Array.isArray(items) && items.some(item => item?.tipo === 'repuesto' && item.inventario_item_id);
+}
 
 export const updateIngreso = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -473,23 +493,55 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
       if (cliente_datos.telefono !== undefined) safeClienteData.telefono = String(cliente_datos.telefono).trim();
     }
 
-    const { error: updateError } = await getInventoryClient().rpc('actualizar_orden_inventario', {
-      p_empresa: req.empresa_id,
-      p_orden: id,
-      p_cambios: camposIngreso,
-      p_usuario: req.user_email,
-      p_estado_anterior: current.estado,
-    });
-    if (updateError?.code === '22023' || updateError?.code === '40001') {
-      res.status(409).json({ error: updateError.message });
+    delete camposIngreso.id;
+    delete camposIngreso.empresa_id;
+    const cambiaLineasOEstado = camposIngreso.estado !== undefined || camposIngreso.items_factura !== undefined;
+    const cambiaInventario = cambiaLineasOEstado &&
+      (tieneRepuestoDeInventario(current.items_factura) || tieneRepuestoDeInventario(camposIngreso.items_factura));
+    const seleccion = '*, taller_vehiculos(*, taller_clientes(*)), taller_ingresos_tecnicos(taller_tecnicos(id, nombre))';
+    let faltantesInventario: string[] = [];
+
+    if (cambiaInventario) {
+      const client = getInventoryClientIfConfigured();
+      if (!client) {
+        res.status(503).json({ error: 'El inventario no está configurado para actualizar los repuestos de esta orden.' });
+        return;
+      }
+      const { data: faltantes, error } = await client.rpc('actualizar_orden_inventario_operativo', {
+        p_empresa: req.empresa_id,
+        p_orden: id,
+        p_cambios: camposIngreso,
+        p_usuario: req.user_email,
+        p_estado_anterior: current.estado,
+      });
+      if (error?.code === 'PGRST202' || error?.code === '42883') {
+        res.status(503).json({ error: 'La migración de inventario está pendiente en este entorno.' });
+        return;
+      }
+      if (error?.code === '22023' || error?.code === '40001') {
+        res.status(409).json({ error: error.message });
+        return;
+      }
+      if (error) throw error;
+      faltantesInventario = [...new Set<string>(faltantes ?? [])];
+    }
+
+    const tabla = supabase.from('taller_ingresos');
+    const actualizacion = tabla.update(camposIngreso).eq('empresa_id', req.empresa_id).eq('id', id);
+    if (cambiaLineasOEstado) {
+      actualizacion.eq('estado', current.estado);
+      if (current.items_factura == null) actualizacion.is('items_factura', null);
+      else actualizacion.eq('items_factura', JSON.stringify(current.items_factura));
+    }
+    const query = cambiaInventario || Object.keys(camposIngreso).length === 0
+      ? tabla.select(seleccion).eq('empresa_id', req.empresa_id).eq('id', id)
+      : actualizacion.select(seleccion);
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      res.status(409).json({ error: 'La orden cambió. Actualiza la página antes de continuar.' });
       return;
     }
-    if (updateError) throw updateError;
-
-    const { data, error } = await supabase.from('taller_ingresos')
-      .select('*, taller_vehiculos(*, taller_clientes(*)), taller_ingresos_tecnicos(taller_tecnicos(id, nombre))')
-      .eq('empresa_id', req.empresa_id).eq('id', id).single();
-    if (error) throw error;
 
     if (body.estado && current.estado !== body.estado) {
       // Calcular duración en minutos del estado anterior
@@ -758,6 +810,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     res.json({
       ...data,
       aplica_renting: aplicaRenting,
+      inventario_faltantes: faltantesInventario,
       renting_info: rentingInfo
     });
   } catch (error: any) {
@@ -993,6 +1046,16 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
       }, 0);
     }
 
+    const ventasMostrador = await consultarVentasMostrador(req.empresa_id!, '0001-01-01', endStr > hoyStr ? endStr : hoyStr);
+    const totalMostrador = ventasMostrador.reduce((total, venta) => {
+      const ingreso = Number(venta.ingreso);
+      if (venta.fecha === hoyStr) facturadoHoy += ingreso;
+      if (venta.fecha < startStr || venta.fecha > endStr) return total;
+      chartDataMap[venta.fecha] = (chartDataMap[venta.fecha] || 0) + ingreso;
+      return total + ingreso;
+    }, 0);
+    totalPeriodo += totalMostrador;
+
     // ── 2. Calcular promedio diario histórico con bitácora y paginación ordenada ──
     const bitacoraHistoricaMap: Record<string, string> = {};
     let bitOffset = 0;
@@ -1064,6 +1127,12 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
       } else {
         offset += PAGE_SIZE;
       }
+    }
+
+    for (const venta of ventasMostrador) {
+      if (Number(venta.ingreso) <= 0) continue;
+      totalHistorico += Number(venta.ingreso);
+      diasUnicos.add(venta.fecha);
     }
 
     const promedioDiarioHistorico =
@@ -1154,6 +1223,7 @@ export const getReportesFinanzas = async (req: Request, res: Response): Promise<
         facturadoHoy,
         promedioDiarioHistorico,
         totalPeriodo,
+        totalMostrador,
         totalGastos,
         totalGastosDirectos: prorrateo.totalGastosDirectos,
         totalGastosFijos: prorrateo.totalGastosFijosProrrateados,
@@ -1304,6 +1374,11 @@ export const getReportesFinanzasDetalle = async (req: Request, res: Response): P
       });
     });
 
+    const ventasMostrador = await consultarVentasMostrador(req.empresa_id!, startStr, endStr);
+    const totalMostrador = ventasMostrador.reduce((suma, venta) => suma + Number(venta.ingreso), 0);
+    totalPeriodo += totalMostrador;
+    totalRepuestos += totalMostrador;
+
     // Ordenar de más reciente a más antigua, y por monto mayor
     ordenes.sort((a, b) => b.fecha_entrega.localeCompare(a.fecha_entrega) || b.total - a.total);
 
@@ -1313,6 +1388,8 @@ export const getReportesFinanzasDetalle = async (req: Request, res: Response): P
       totalPeriodo,
       totalManoObra,
       totalRepuestos,
+      totalMostrador,
+      ventasMostrador,
       totalOrdenes: ordenes.length,
       ordenes,
     });
@@ -1362,6 +1439,7 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
     // ── Costos vinculados a ítems (chunked) ──
     const ingresoIds = ingresos.map((i: any) => i.id);
     const costoPorItem: Record<string, number> = {};
+    const inventario = getInventoryClientIfConfigured();
     const costoInventario: Record<string, number> = {};
     const CHUNK = 100;
     for (let i = 0; i < ingresoIds.length; i += CHUNK) {
@@ -1377,12 +1455,13 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
         const key = `${g.ingreso_id}::${g.item_id}`;
         costoPorItem[key] = (costoPorItem[key] || 0) + Number(g.monto || 0);
       });
-      for (let offset = 0; ; offset += 500) {
-        const { data: salidas, error: errorSalidas } = await getInventoryClient()
+      for (let offset = 0; inventario; offset += 500) {
+        const { data: salidas, error: errorSalidas } = await inventario
           .from('taller_inventario_salidas_vigentes')
           .select('ingreso_id, ingreso_item_id, taller_inventario_movimientos(cantidad, costo_unitario)')
           .eq('empresa_id', req.empresa_id).in('ingreso_id', chunk)
           .order('movimiento_id').range(offset, offset + 499);
+        if (errorSalidas?.code === 'PGRST205' || errorSalidas?.code === '42P01') break;
         if (errorSalidas) throw errorSalidas;
         for (const salida of salidas) {
           const movimiento = salida.taller_inventario_movimientos as unknown as { cantidad: number; costo_unitario: number };

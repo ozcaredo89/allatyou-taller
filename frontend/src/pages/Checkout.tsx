@@ -48,6 +48,12 @@ function formatearPrecio(precio: number) {
   return precio.toLocaleString('es-CO', { maximumFractionDigits: 2 });
 }
 
+function calcularTotalLinea(cantidad: number, precio: number) {
+  const milesimas = Math.round(cantidad * 1000);
+  const centavos = Math.round(precio * 100);
+  return Math.round(milesimas * centavos / 1000) / 100;
+}
+
 function normalizarParaFiltro(texto: string): string {
   return texto
     .trim()
@@ -323,7 +329,7 @@ const Checkout: React.FC = () => {
       descripcion: nuevoDesc.trim(),
       cantidad: nuevoCant,
       precio_unitario: precioNumerico,
-      total: nuevoCant * precioNumerico,
+      total: calcularTotalLinea(nuevoCant, precioNumerico),
       categoria_crm: nuevoCategoria,
       inventario_item_id: tipoFinal === 'repuesto' ? sugerenciaAplicada?.inventario?.id : undefined,
     };
@@ -425,7 +431,7 @@ const Checkout: React.FC = () => {
           descripcion: editDesc.trim(),
           cantidad: editCant,
           precio_unitario: precioNumerico,
-          total: editCant * precioNumerico,
+          total: calcularTotalLinea(editCant, precioNumerico),
           categoria_crm: editCategoria,
           inventario_item_id: tipoFinal === 'repuesto' ? item.inventario_item_id : undefined,
         };
@@ -618,6 +624,10 @@ const Checkout: React.FC = () => {
           estado: 'entregado',
         });
 
+        if (res.data?.inventario_faltantes?.length) {
+          window.alert(`Vehículo entregado. Quedó pendiente el descuento de stock de ${res.data.inventario_faltantes.join(', ')}.`);
+        }
+
         // Si la orden califica para Renting y no está sincronizada, abrir modal de confirmación
         if (res.data?.renting_info?.aplica_renting && !res.data?.renting_info?.ya_sincronizado) {
           setRentingModalData({
@@ -777,6 +787,11 @@ const Checkout: React.FC = () => {
         </div>
       )}
 
+      {isEditMode && ingreso.inventario_faltantes?.length > 0 && (
+        <p role="status" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Descuento de stock pendiente para {ingreso.inventario_faltantes.join(', ')}. Después de registrar la entrada en bodega, vuelve a guardar la orden para completar el descuento.
+        </p>
+      )}
       {faltantesBodega.length > 0 && (
           <p role="status" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Stock físico insuficiente para {faltantesBodega.map(producto => producto.nombre).join(', ')}. Puedes guardar la orden abierta.
@@ -1053,7 +1068,7 @@ const Checkout: React.FC = () => {
                 </div>
                 <div className="flex items-end pb-0.5">
                   <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-2 rounded-lg whitespace-nowrap">
-                    = ${(nuevoCant * (leerPrecio(nuevoPrecio))).toLocaleString('es-CO')}
+                    = ${calcularTotalLinea(nuevoCant, leerPrecio(nuevoPrecio)).toLocaleString('es-CO')}
                   </span>
                 </div>
               </div>
@@ -1140,7 +1155,7 @@ const Checkout: React.FC = () => {
                           />
                         </td>
                         <td className="py-2.5 text-right font-bold text-indigo-700 px-2">
-                          ${(editCant * (leerPrecio(editPrecio))).toLocaleString('es-CO')}
+                          ${calcularTotalLinea(editCant, leerPrecio(editPrecio)).toLocaleString('es-CO')}
                         </td>
                         <td className="py-2.5 text-right print:hidden whitespace-nowrap">
                           <button onClick={saveEdit} className="text-emerald-600 hover:text-emerald-700 transition p-1 mr-1 bg-emerald-50 rounded"><Check size={14} /></button>

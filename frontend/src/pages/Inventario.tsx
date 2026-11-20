@@ -130,6 +130,11 @@ export default function Inventario() {
       } else if (modal.tipo === 'ANULACION') {
         await api.post(`/inventario/movimientos/${modal.movimiento.id}/anular`, { notas: valor('notas') });
       } else {
+        if (modal.tipo === 'ENTRADA' && form.has('registrar_gasto') &&
+            Math.round(importe('cantidad') * importe('costo_unitario') * 100) <= 0) {
+          setErrorModal('Para registrar el gasto, el importe de la compra debe ser mayor que cero.');
+          return;
+        }
         await api.post('/inventario/movimientos', {
           operacion_id: operacion.current, tipo: modal.tipo, item_id: modal.producto.id, cantidad: importe('cantidad'),
           costo_unitario: valor('costo_unitario') === '' ? undefined : importe('costo_unitario'),
@@ -148,9 +153,10 @@ export default function Inventario() {
     }
   }
 
+  const stockCritico = (item: ProductoInventario) => item.activo && item.stock_minimo > 0 && item.stock_actual <= item.stock_minimo;
   const visibles = items.filter(item => {
     const coincide = `${item.codigo} ${item.nombre} ${item.categoria ?? ''}`.toLowerCase().includes(busqueda.trim().toLowerCase());
-    return coincide && (tab !== 'Stock crítico' || (item.activo && item.stock_actual <= item.stock_minimo));
+    return coincide && (tab !== 'Stock crítico' || stockCritico(item));
   });
   const producto = modal && 'producto' in modal ? modal.producto : undefined;
 
@@ -190,7 +196,7 @@ export default function Inventario() {
                       <td>{fecha.format(new Date(m.created_at))}</td><td>{m.taller_inventario_items.nombre}<div className="text-xs text-slate-500">{m.taller_inventario_items.codigo}</div></td>
                       <td>{tipos[m.tipo]}{m.anulado && <div className="text-xs text-slate-500">Anulado</div>}</td>
                       <td>{numero.format(m.cantidad)}</td><td>{moneda.format(m.costo_unitario)}</td><td>{m.precio_unitario === null ? '—' : moneda.format(m.precio_unitario)}</td>
-                      <td><div>{m.usuario_email}</div><div className="text-xs text-slate-500">{[m.proveedor, m.factura_ref, m.notas, m.gasto_id && 'Gasto vinculado'].filter(Boolean).join(' · ')}</div></td>
+                      <td><div>{m.usuario_email}</div><div className="text-xs text-slate-500">{[m.proveedor, m.factura_ref, m.notas, m.gasto_id && (m.anulado || m.tipo === 'ANULACION' ? 'Gasto anulado' : 'Gasto vinculado')].filter(Boolean).join(' · ')}</div></td>
                       <td>{!m.anulado && !['ANULACION', 'SALIDA_ORDEN'].includes(m.tipo) && <button className={boton} onClick={() => abrir({ tipo: 'ANULACION', movimiento: m })}>Anular</button>}</td>
                     </tr>
                   ))}</tbody>
@@ -215,7 +221,7 @@ export default function Inventario() {
                 <tbody className="divide-y divide-slate-100">{visibles.map(item => (
                   <tr key={item.id}>
                     <td><div className="font-semibold">{item.nombre}</div><div className="text-xs text-slate-500">{[item.codigo, item.categoria, !item.activo && 'Inactivo'].filter(Boolean).join(' · ')}</div></td>
-                    <td className={item.activo && item.stock_actual <= item.stock_minimo ? 'font-semibold text-amber-800' : ''}>{numero.format(item.stock_actual)} {item.unidad}</td>
+                    <td className={stockCritico(item) ? 'font-semibold text-amber-800' : ''}>{numero.format(item.stock_actual)} {item.unidad}</td>
                     <td>{numero.format(item.stock_comprometido)}</td><td>{numero.format(item.stock_minimo)}</td>
                     <td>{moneda.format(item.costo_promedio)}</td><td>{moneda.format(item.precio_venta)}</td>
                     <td><div className="flex flex-wrap gap-2">
@@ -249,7 +255,7 @@ export default function Inventario() {
           </> : <>
             {modal.tipo === 'ANULACION' ? (
               <p>Se registrará un movimiento inverso para {modal.movimiento.taller_inventario_items.nombre}.
-                {modal.movimiento.gasto_id && ' El gasto vinculado se conserva en Gastos.'}</p>
+                {modal.movimiento.gasto_id && ' También se anulará el gasto generado por esta compra.'}</p>
             ) : <>
               <p>{modal.producto.nombre} · Stock físico {numero.format(modal.producto.stock_actual)} {modal.producto.unidad}</p>
               <Campo label={modal.tipo === 'AJUSTE' ? 'Cantidad (positiva para sumar, negativa para restar)' : 'Cantidad'}>
