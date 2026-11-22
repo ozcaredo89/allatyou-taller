@@ -1,3 +1,4 @@
+import { trackEvent } from '../utils/analytics';
 import React, { useState, useEffect } from 'react';
 import { UserSearch, CarFront, FileEdit, Check, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import api from '../services/api';
@@ -292,6 +293,7 @@ const NuevoIngreso: React.FC = () => {
         checklist_inventario: checklist
       };
       await api.post('/ingresos', payloadIngreso);
+      trackEvent('ingreso.creado', { seccion: 'nuevo-ingreso' });
       
       navigate(`/${slug}`);
     } catch (err: any) {

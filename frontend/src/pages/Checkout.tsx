@@ -1,3 +1,4 @@
+import { trackEvent } from '../utils/analytics';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users, FileEdit, Gauge, Fuel, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -425,6 +426,9 @@ const Checkout: React.FC = () => {
         });
         setIngreso((prev: any) => ({ ...prev, ...data }));
       }
+      trackEvent(isEditMode ? 'orden.enmienda_guardada' : 'cotizacion.guardada', {
+        seccion: 'checkout/:id',
+      });
       await cargarGastos();
       const v = ingreso?.taller_vehiculos;
       cargarCatalogoItems(v?.marca, v?.linea);
@@ -529,6 +533,7 @@ const Checkout: React.FC = () => {
         ...(nuevoEstado ? { estado: nuevoEstado } : {}),
       });
 
+      trackEvent('cotizacion.preparada_para_envio', { seccion: 'checkout/:id' });
       setIngreso((prev: any) => ({ ...prev, ...data }));
     } catch {
       if (newWindow) newWindow.close();
@@ -575,6 +580,7 @@ const Checkout: React.FC = () => {
           notas_factura: notasFactura,
           estado: 'entregado',
         });
+        trackEvent('vehiculo.entregado', { seccion: 'checkout/:id' });
 
         // Si la orden califica para Renting y no está sincronizada, abrir modal de confirmación
         if (res.data?.renting_info?.aplica_renting && !res.data?.renting_info?.ya_sincronizado) {

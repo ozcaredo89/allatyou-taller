@@ -10,7 +10,7 @@ import api from '../services/api';
 import { CompartirSeguimiento, PublicarAvance } from './SeguimientoCompartido';
 import { useSeguimientoCompartido } from './useSeguimientoCompartido';
 import EvidenciasAvance from './EvidenciasAvance';
-import { trackEvent } from '../utils/analytics';
+import { trackEvent, seccionDesdePath } from '../utils/analytics';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Evento {
@@ -337,7 +337,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
           </span>
           <button
             onClick={() => {
-              trackEvent('timeline.click_historial_anterior', { estado: vehiculoInfo.estado, from_path: location.pathname });
+              trackEvent('timeline.click_historial_anterior', { estado: vehiculoInfo.estado, seccion: seccionDesdePath(location.pathname) });
               onClose();
               navigate(`/${slug}/historial?search=${vehiculoInfo.placa}`);
             }}

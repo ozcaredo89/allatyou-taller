@@ -4,6 +4,7 @@ import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3,
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useState, useRef, useEffect } from 'react';
+import { trackActiveTime } from './utils/activeTime';
 import { trackEvent, trackPageview, seccionDesdePath, isAnalyticsEnabled } from './utils/analytics';
 import { FeedbackModal } from './components/FeedbackModal';
 
@@ -209,7 +210,7 @@ const Navbar = () => {
       label: t('navbar.historial'),
       icon: History,
       active: location.pathname.includes('/historial'),
-      onClick: () => trackEvent('navbar.click_historial', { from_path: location.pathname }),
+      onClick: () => trackEvent('navbar.click_historial', { seccion: seccionDesdePath(location.pathname) }),
     },
     {
       to: `/${slug}/reportes`,
@@ -377,10 +378,16 @@ const ProtectedLayout = () => {
   const location = useLocation();
   const sesionValida = !!token && (!empresaSlug || slug === empresaSlug);
 
-  // Pageview por sección (normalizada, sin slug ni ids)
+  const seccion = seccionDesdePath(location.pathname);
   useEffect(() => {
-    if (sesionValida) trackPageview(seccionDesdePath(location.pathname));
-  }, [location.pathname, sesionValida]);
+    if (!sesionValida || !isAnalyticsEnabled()) return;
+    trackPageview(seccion);
+  }, [location.pathname, seccion, sesionValida]);
+
+  useEffect(() => {
+    if (!sesionValida || !isAnalyticsEnabled()) return;
+    return trackActiveTime(seccion);
+  }, [seccion, sesionValida]);
 
   if (!token) {
     return <Navigate to={`/login`} replace />;

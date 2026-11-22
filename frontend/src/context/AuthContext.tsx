@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (saved) {
       const parsed: AuthState = JSON.parse(saved);
       // Identificar antes del primer render para que el primer pageview ya lleve el taller
-      if (parsed.token && parsed.empresaId) identifyTaller(parsed.empresaId, parsed.empresaSlug, parsed.empresaNombre);
+      if (parsed.token && parsed.empresaId) identifyTaller(parsed.empresaId);
       return parsed;
     }
     return { token: null, empresaId: null, empresaNombre: 'TallerPro', empresaSlug: null, email: null };
@@ -45,11 +45,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Analytics: la sesión se asocia al taller (nunca al email)
   useEffect(() => {
     if (auth.token && auth.empresaId) {
-      identifyTaller(auth.empresaId, auth.empresaSlug, auth.empresaNombre);
+      identifyTaller(auth.empresaId);
     } else {
       resetAnalytics();
     }
-  }, [auth.token, auth.empresaId, auth.empresaSlug, auth.empresaNombre]);
+  }, [auth.token, auth.empresaId]);
 
   useEffect(() => {
     const handleSessionExpired = () => {
@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (token: string, empresaId: string, slug: string, nombre: string, email: string) => {
-    identifyTaller(empresaId, slug, nombre);
+    identifyTaller(empresaId);
     setAuth({ token, empresaId, empresaNombre: nombre, empresaSlug: slug, email });
   };
 

@@ -15,7 +15,7 @@
 import posthog from 'posthog-js';
 
 let initialized = false;
-let identified = false;
+let tallerIdentificado: string | null = null;
 
 export function initAnalytics(): void {
   const key = import.meta.env.VITE_PUBLIC_POSTHOG_KEY as string | undefined;
@@ -27,6 +27,21 @@ export function initAnalytics(): void {
       capture_pageview: false,
       capture_pageleave: false,
       disable_session_recording: true,
+      capture_dead_clicks: false,
+      capture_exceptions: false,
+      capture_performance: false,
+      save_referrer: false,
+      save_campaign_params: false,
+      before_send: (event) => {
+        if (!event) return null;
+        for (const properties of [event.properties, event.$set, event.$set_once]) {
+          if (!properties) continue;
+          for (const key of Object.keys(properties)) {
+            if (/url|pathname|referrer|hostname/i.test(key)) delete properties[key];
+          }
+        }
+        return event;
+      },
       persistence: 'memory',
     });
     initialized = true;
@@ -49,22 +64,23 @@ export function trackEvent(eventName: string, properties?: Record<string, unknow
 }
 
 /** Asocia la sesión al taller (tenant). No envía email ni datos de personas. */
-export function identifyTaller(empresaId: string, slug: string | null, nombre: string): void {
-  if (!initialized) return;
+export function identifyTaller(empresaId: string): void {
+  if (!initialized || tallerIdentificado === empresaId) return;
   try {
-    posthog.identify(empresaId, { empresa_slug: slug, empresa_nombre: nombre });
-    posthog.register({ empresa_slug: slug });
-    identified = true;
+    if (tallerIdentificado) resetAnalytics();
+    posthog.identify(empresaId);
+    posthog.register({ taller_id: empresaId });
+    tallerIdentificado = empresaId;
   } catch {
     // noop
   }
 }
 
 export function resetAnalytics(): void {
-  if (!initialized || !identified) return;
+  if (!initialized || !tallerIdentificado) return;
   try {
     posthog.reset();
-    identified = false;
+    tallerIdentificado = null;
   } catch {
     // noop
   }
