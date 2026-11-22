@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Car, CalendarDays, CalendarClock, BellRing, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity, FileEdit, Clock } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { trackEvent } from '../utils/analytics';
+import { trackEvent, seccionDesdePath } from '../utils/analytics';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
@@ -328,6 +328,7 @@ const Dashboard: React.FC = () => {
     try {
       setEntregando(true);
       const res = await api.put(`/ingresos/${entregarTarget.id}`, { estado: 'entregado' });
+      trackEvent('vehiculo.entregado', { seccion: 'dashboard' });
       fetchIngresos();
       
       const targetBackup = entregarTarget;
@@ -645,7 +646,7 @@ const Dashboard: React.FC = () => {
           </div>
           <button
             onClick={() => {
-              trackEvent('dashboard.click_historial_salidas', { from_path: location.pathname });
+              trackEvent('dashboard.click_historial_salidas', { seccion: seccionDesdePath(location.pathname) });
               navigate(`/${slug}/historial`);
             }}
             className="flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-xl font-medium text-sm transition shadow-sm w-full sm:w-auto"
@@ -1107,7 +1108,7 @@ const Dashboard: React.FC = () => {
                   {/* Bitácora — abre TimelineDrawer */}
                   <button
                     onClick={() => {
-                      trackEvent('dashboard.click_card_bitacora', { estado: ingreso.estado, from_path: location.pathname });
+                      trackEvent('dashboard.click_card_bitacora', { estado: ingreso.estado, seccion: seccionDesdePath(location.pathname) });
                       setIngresoParaTimeline(ingreso);
                     }}
                     className="flex items-center justify-center gap-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium py-2 px-3 rounded-lg transition text-sm flex-none"

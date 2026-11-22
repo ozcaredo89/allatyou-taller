@@ -12,10 +12,10 @@
  *   panel de PostHog sin necesidad de desplegar.
  */
 
-import posthog from 'posthog-js';
+import posthog, { type CaptureOptions } from 'posthog-js';
 
 let initialized = false;
-let identified = false;
+let tallerIdentificado: { id: string; nombre: string } | null = null;
 
 export function initAnalytics(): void {
   const key = import.meta.env.VITE_PUBLIC_POSTHOG_KEY as string | undefined;
@@ -27,6 +27,21 @@ export function initAnalytics(): void {
       capture_pageview: false,
       capture_pageleave: false,
       disable_session_recording: true,
+      capture_dead_clicks: false,
+      capture_exceptions: false,
+      capture_performance: false,
+      save_referrer: false,
+      save_campaign_params: false,
+      before_send: (event) => {
+        if (!event) return null;
+        for (const properties of [event.properties, event.$set, event.$set_once]) {
+          if (!properties) continue;
+          for (const key of Object.keys(properties)) {
+            if (/url|pathname|referrer|hostname/i.test(key)) delete properties[key];
+          }
+        }
+        return event;
+      },
       persistence: 'memory',
     });
     initialized = true;
@@ -39,32 +54,39 @@ export function isAnalyticsEnabled(): boolean {
   return initialized;
 }
 
-export function trackEvent(eventName: string, properties?: Record<string, unknown>): void {
+export function trackEvent(
+  eventName: string,
+  properties?: Record<string, unknown>,
+  options?: CaptureOptions,
+): void {
   if (!initialized) return;
   try {
-    posthog.capture(eventName, properties);
+    posthog.capture(eventName, properties, options);
   } catch {
     // Analytics nunca debe romper la UI
   }
 }
 
 /** Asocia la sesión al taller (tenant). No envía email ni datos de personas. */
-export function identifyTaller(empresaId: string, slug: string | null, nombre: string): void {
+export function identifyTaller(empresaId: string, nombre: string): void {
   if (!initialized) return;
+  if (tallerIdentificado?.id === empresaId && tallerIdentificado.nombre === nombre) return;
   try {
-    posthog.identify(empresaId, { empresa_slug: slug, empresa_nombre: nombre });
-    posthog.register({ empresa_slug: slug });
-    identified = true;
+    if (tallerIdentificado && tallerIdentificado.id !== empresaId) resetAnalytics();
+    posthog.identify(empresaId);
+    posthog.group('taller', empresaId, { nombre });
+    posthog.register({ taller_id: empresaId });
+    tallerIdentificado = { id: empresaId, nombre };
   } catch {
     // noop
   }
 }
 
 export function resetAnalytics(): void {
-  if (!initialized || !identified) return;
+  if (!initialized || !tallerIdentificado) return;
   try {
     posthog.reset();
-    identified = false;
+    tallerIdentificado = null;
   } catch {
     // noop
   }

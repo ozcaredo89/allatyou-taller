@@ -49,7 +49,7 @@ Otros: marca blanca en `frontend/middleware.js` (reescribe dominios propios a `/
 
 ## Forma de trabajo (Regla de Oro)
 
-- **Directo al código.** Sin specs ni tickets JIRA para cambios iterativos, mejoras de UI, fixes o peticiones puntuales. Ficha nueva solo para un subsistema nuevo o si el usuario la pide (`docs/specs/TEMPLATE.md`, máximo 30 líneas).
+- **Directo al código.** Registra los tickets en GitHub Issues. Los cambios iterativos, mejoras de UI, fixes y peticiones puntuales pueden ir directo al código si no requieren un issue. Ficha nueva solo para un subsistema nuevo o si el usuario la pide (`docs/specs/TEMPLATE.md`, máximo 30 líneas).
 - **Si un cambio vuelve falsa una ficha o este mapa, corregir esa línea en el mismo commit.**
 - **Respuestas breves**, con enlaces a los archivos tocados.
 - **Flujo git automático al terminar:** type-check, rama, commit, push, PR y merge a `main` según [`docs/specs/README.md`](docs/specs/README.md#flujo-git-al-terminar-cada-cambio-sin-pedir-confirmación). El merge despliega solo (Railway aplica las migraciones pendientes al arrancar).
