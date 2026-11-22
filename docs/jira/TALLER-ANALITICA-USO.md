@@ -1,7 +1,7 @@
 # TALLER-ANALITICA-USO — Medir adopción y tiempo activo por módulo
 
 - **Tipo** Story · **Módulos** Frontend y PostHog · **Estado** Implementado localmente
-- **Implementación** `e193de5` en `feature/analitica-uso`
+- **Implementación** `e193de5` en `feature/TALLER-ANALITICA-USO`
 - **Archivos** `frontend/src/utils/analytics.ts`, `frontend/src/utils/activeTime.ts`, `frontend/src/App.tsx`
 
 ## Objetivo
