@@ -12,10 +12,10 @@
  *   panel de PostHog sin necesidad de desplegar.
  */
 
-import posthog from 'posthog-js';
+import posthog, { type CaptureOptions } from 'posthog-js';
 
 let initialized = false;
-let tallerIdentificado: string | null = null;
+let tallerIdentificado: { id: string; nombre: string } | null = null;
 
 export function initAnalytics(): void {
   const key = import.meta.env.VITE_PUBLIC_POSTHOG_KEY as string | undefined;
@@ -54,23 +54,29 @@ export function isAnalyticsEnabled(): boolean {
   return initialized;
 }
 
-export function trackEvent(eventName: string, properties?: Record<string, unknown>): void {
+export function trackEvent(
+  eventName: string,
+  properties?: Record<string, unknown>,
+  options?: CaptureOptions,
+): void {
   if (!initialized) return;
   try {
-    posthog.capture(eventName, properties);
+    posthog.capture(eventName, properties, options);
   } catch {
     // Analytics nunca debe romper la UI
   }
 }
 
 /** Asocia la sesión al taller (tenant). No envía email ni datos de personas. */
-export function identifyTaller(empresaId: string): void {
-  if (!initialized || tallerIdentificado === empresaId) return;
+export function identifyTaller(empresaId: string, nombre: string): void {
+  if (!initialized) return;
+  if (tallerIdentificado?.id === empresaId && tallerIdentificado.nombre === nombre) return;
   try {
-    if (tallerIdentificado) resetAnalytics();
+    if (tallerIdentificado && tallerIdentificado.id !== empresaId) resetAnalytics();
     posthog.identify(empresaId);
+    posthog.group('taller', empresaId, { nombre });
     posthog.register({ taller_id: empresaId });
-    tallerIdentificado = empresaId;
+    tallerIdentificado = { id: empresaId, nombre };
   } catch {
     // noop
   }

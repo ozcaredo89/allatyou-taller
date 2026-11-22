@@ -15,12 +15,16 @@ export function trackActiveTime(seccion: string): () => void {
     lastSample = now;
   }
 
-  function report() {
+  function report(final = false) {
     sample(performance.now());
     const segundos_activos = Math.floor(pendingMs / 1000);
     if (segundos_activos === 0) return;
     pendingMs -= segundos_activos * 1000;
-    trackEvent('modulo.tiempo_activo', { seccion, segundos_activos });
+    trackEvent(
+      'modulo.tiempo_activo',
+      { seccion, segundos_activos },
+      final ? { transport: 'sendBeacon' } : undefined,
+    );
   }
 
   function onActivity() {
@@ -31,8 +35,14 @@ export function trackActiveTime(seccion: string): () => void {
   }
 
   function onVisibilityChange() {
-    report();
-    visible = document.visibilityState === 'visible';
+    const hidden = document.visibilityState === 'hidden';
+    report(hidden);
+    visible = !hidden;
+    activeUntil = 0;
+  }
+
+  function onPageHide() {
+    report(true);
     activeUntil = 0;
   }
 
@@ -40,10 +50,12 @@ export function trackActiveTime(seccion: string): () => void {
     window.addEventListener(event, onActivity, { passive: true, capture: true });
   }
   document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('pagehide', onPageHide);
   const timer = window.setInterval(report, REPORT_MS);
 
   return () => {
     window.clearInterval(timer);
+    window.removeEventListener('pagehide', onPageHide);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     for (const event of ACTIVITY_EVENTS) window.removeEventListener(event, onActivity, true);
     report();
