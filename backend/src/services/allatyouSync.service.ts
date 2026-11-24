@@ -38,16 +38,15 @@ export interface LeasingResumen {
 
 function getRentingConfig() {
   const apiUrl = process.env.ALLATYOU_RENTING_API_URL;
-  const user = process.env.ALLATYOU_RENTING_USER;
-  const pass = process.env.ALLATYOU_RENTING_PASS;
+  const serviceToken = process.env.ALLATYOU_RENTING_SERVICE_TOKEN?.trim();
 
-  if (!apiUrl || !user || !pass) {
+  if (!apiUrl || !serviceToken) {
     throw new Error('Variables de entorno de Renting API no configuradas en el servidor.');
   }
 
   return {
     baseUrl: apiUrl.replace(/\/+$/, ''),
-    authHeader: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64')
+    serviceToken
   };
 }
 
@@ -55,10 +54,10 @@ function getRentingConfig() {
  * Consulta en Renting si la placa tiene un contrato de leasing activo y su fondo de mantenimiento disponible.
  */
 export async function consultarLeasingRenting(placa: string): Promise<LeasingResumen> {
-  const { baseUrl, authHeader } = getRentingConfig();
+  const { baseUrl, serviceToken } = getRentingConfig();
 
   const response = await fetch(`${baseUrl}/leasing/summary?plate=${encodeURIComponent(placa.toUpperCase().trim())}`, {
-    headers: { 'Authorization': authHeader },
+    headers: { 'X-Service-Token': serviceToken },
     signal: AbortSignal.timeout(10_000)
   });
 
@@ -99,7 +98,7 @@ export function evaluarAplicaRenting(empresaId?: string, clienteDoc?: string): b
 export async function procesarSincronizacionRenting(params: SincronizarGastoParams): Promise<RentingSyncResult> {
   const { ingresoId, empresaId, placa, date, description, items, leasing } = params;
 
-  const { baseUrl, authHeader } = getRentingConfig();
+  const { baseUrl, serviceToken } = getRentingConfig();
 
   // 1. Reclamo Atómico (Optimistic Lock)
   const nowIso = new Date().toISOString();
@@ -150,7 +149,7 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
+        'X-Service-Token': serviceToken
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000)

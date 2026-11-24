@@ -6,7 +6,7 @@
 - Backend: `services/allatyouSync.service.ts` → `evaluarAplicaRenting`; `controllers/ingresos.controller.ts` → `syncIngresoToRenting`, `getRentingLeasingInfo`
 - Frontend: `components/RentingSyncModal.tsx`; lo abren `pages/{Checkout,Dashboard,HistorialDetalle}.tsx`
 - Datos: `docs/migrations/20261014_renting_sync_fields.sql` → `taller_ingresos`: `renting_sync_at`, `renting_expense_ids`, `renting_sync_error`
-- Entorno: `ALLATYOU_RENTING_EMPRESA_ID`, `ALLATYOU_RENTING_CLIENTE_DOC`, `ALLATYOU_RENTING_API_URL`, `ALLATYOU_RENTING_USER`, `ALLATYOU_RENTING_PASS`
+- Entorno: `ALLATYOU_RENTING_EMPRESA_ID`, `ALLATYOU_RENTING_CLIENTE_DOC`, `ALLATYOU_RENTING_API_URL`, `ALLATYOU_RENTING_SERVICE_TOKEN` (header `X-Service-Token`; igual a `TALLER_SERVICE_TOKEN` en Renting)
 
 ## Contratos (`requireAuth`, bajo `/api/ingresos`)
 - `POST /:id/renting-sync` — `{ date: 'YYYY-MM-DD', description, items: [{ item, amount > 0, category: 'Mantenimiento' }], … forma de pago }`. 403 si la orden no aplica, 409 si ya se sincronizó o está en proceso.
