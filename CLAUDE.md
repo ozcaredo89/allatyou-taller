@@ -4,7 +4,7 @@
 
 - `backend/` — Express + TypeScript, Supabase (Postgres). Deploy: Railway.
 - `frontend/` — React 19 + Vite + Tailwind v4 (SPA). Deploy: Vercel.
-- `docs/migrations/*.sql` — migraciones; `docs/specs/` — fichas por módulo (leer solo la que toque).
+- `backend/migrations/*.sql` — migraciones; `docs/specs/` — fichas por módulo (leer solo la que toque).
 
 ## Reglas que aplican siempre
 
@@ -44,7 +44,7 @@ Otros: marca blanca en `frontend/middleware.js` (reescribe dominios propios a `/
 
 - **Archivos enormes, no leer completos:** `pages/Reportes.tsx` (~3.300 líneas), `ingresos.controller.ts` (~3.000), `pages/CRM.tsx` (~1.900), `pages/Checkout.tsx`, `pages/Gastos.tsx`, `gastos.controller.ts`, `pages/Dashboard.tsx` (1.200–1.400). Buscar la función o el texto con Grep y leer solo ese rango.
 - **Tareas repetidas** (endpoint, endpoint con IA, migración, textos, campo de texto con voz): seguir `docs/specs/recetas.md` en vez de explorar.
-- **Esquema:** `docs/database_schema.sql.txt` está desactualizado (solo 5 tablas base). Las columnas reales se ven en `docs/migrations/` y en el código; `taller_empresas`, `taller_empresas_correos`, `taller_tecnicos` y `taller_ingresos_tiempos` no tienen DDL en el repo.
+- **Esquema:** `docs/database_schema.sql.txt` está desactualizado (solo 5 tablas base). Las columnas reales se ven en `backend/migrations/` y en el código; `taller_empresas`, `taller_empresas_correos`, `taller_tecnicos` y `taller_ingresos_tiempos` no tienen DDL en el repo.
 - **Comandos** (dentro de `backend/` o `frontend/`): `npm run dev`; frontend además `npm run lint`; backend `npm run db:migrate:dev` y `npm test`.
 - **Verificar:** `node node_modules/typescript/bin/tsc --noEmit` dentro de `backend/` y de `frontend/`. No correr `npm run build` en cada cambio. En un worktree no hay `node_modules`: correr `npm ci` en la carpeta a verificar.
 

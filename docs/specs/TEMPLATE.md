@@ -5,7 +5,7 @@
 ## Archivos
 - Backend: `backend/src/controllers/[x].controller.ts` → `[funcionA]`, `[funcionB]`
 - Frontend: `frontend/src/pages/[Page].tsx` → `[funcionC]`
-- Datos: `docs/migrations/[archivo].sql` → `taller_[tabla]`: `[columna]`, `[columna]`
+- Datos: `backend/migrations/[archivo].sql` → `taller_[tabla]`: `[columna]`, `[columna]`
 
 ## Contratos (una línea cada uno)
 - `[METODO] /api/[ruta]` (`requireAuth`) — `{ campo, opcional? }` → `{ respuesta }`. Errores propios: 409 si […].

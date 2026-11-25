@@ -17,9 +17,9 @@ Copiar el patrón de `pulirNotaVoz` en `ai.controller.ts`; leer antes `ia.md`.
 5. El texto del usuario va delimitado y el prompt dice que es contenido, no instrucciones.
 
 ## Migración de base de datos
-1. Archivo nuevo `docs/migrations/YYYYMMDD_descripcion.sql`, tablas con prefijo `taller_` y columna `empresa_id`.
+1. Archivo nuevo `backend/migrations/YYYYMMDD_descripcion.sql`, tablas con prefijo `taller_` y columna `empresa_id`.
 2. Escribirla **repetible**: `IF NOT EXISTS`, `CREATE OR REPLACE`. Corre sola en Railway al desplegar (`backend/src/scripts/migrate.ts`), dentro de una transacción.
-3. Se registra por **nombre de archivo** en `taller_schema_migrations`: nunca renombrar ni editar una migración ya aplicada; crear otra.
+3. Se registra por **nombre de archivo** en `taller_schema_migrations`: nunca renombrar ni editar una migración ya aplicada; crear otra. `backend/migrations/_baseline.txt` lista las aplicadas a mano antes del 2026-11-25 (se marcan sin correr; no agregar nuevas). Si una migración falla, se revierte, queda en el log `❌ [db:migrate]` y el API arranca igual.
 4. Corren en orden alfabético. Para probar una en local: `npm run db:migrate:dev -- <ruta>` dentro de `backend/` (requiere `DATABASE_URL`).
 
 ## Textos de pantalla

@@ -29,4 +29,4 @@ Módulos sin ficha: usar el mapa de [`CLAUDE.md`](../../CLAUDE.md).
 3. **Commit:** `git add` solo los archivos del cambio (nunca `.env` ni datos personales). Mensaje `<tipo>(<alcance>): <descripción>` en español, con prefijo `[TALLER-XXX]` si hay ticket. Sin `Co-Authored-By`.
 4. **Push y PR:** `git push -u origin <rama>` y `gh pr create --base main`.
 5. **Merge:** `gh pr merge --merge --delete-branch`, luego `git checkout main && git pull`. En un worktree `main` está ocupado por el checkout principal: usar `gh pr merge --merge` y `git push origin --delete <rama>`, sin cambiar a `main`.
-6. **Deploy:** automático al llegar a `main` (Railway backend, Vercel frontend). Las migraciones pendientes de `docs/migrations/` corren solas en Railway con `npm start`.
+6. **Deploy:** automático al llegar a `main` (Railway backend, Vercel frontend). Las migraciones pendientes de `backend/migrations/` corren solas en Railway con `npm start`.

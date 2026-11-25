@@ -5,7 +5,7 @@
 ## Archivos
 - Backend: `backend/src/controllers/auth.controller.ts`, `routes/auth.routes.ts`, `middlewares/auth.middleware.ts` → `requireAuth`, `utils/device.ts`, `services/emailService.ts`, `config/jwt.ts`
 - Frontend: `frontend/src/pages/Login.tsx` (modos `otp`, `password`, `reset-password` con `resetStep` 1 y 2), `pages/{Registro,Equipo,Configuracion}.tsx`, `context/AuthContext.tsx`
-- Datos: `taller_empresas_correos` (usuarios por taller; `password_hash`, `is_verified`, `otp_code`, `reset_password_token`, `reset_password_expires_at`), `taller_dispositivos_autorizados`; migración `docs/migrations/20261104_add_password_reset_fields.sql`
+- Datos: `taller_empresas_correos` (usuarios por taller; `password_hash`, `is_verified`, `otp_code`, `reset_password_token`, `reset_password_expires_at`), `taller_dispositivos_autorizados`; migración `backend/migrations/20261104_add_password_reset_fields.sql`
 
 ## Contratos (bajo `/api/auth`)
 - Públicos: `POST /request-otp`, `POST /verify-otp`, `POST /login-password`, `POST /registro`.

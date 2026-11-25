@@ -16,7 +16,7 @@ h2. 🎯 Objetivo
 h2. 🛠️ Cambios Realizados
 * [x] **Backend:** Endpoint `[METODO] /api/...` con filtro `empresa_id`.
 * [x] **Frontend:** Vista/componente `...` con acción/estado.
-* [x] **Base de Datos:** DDL (si aplica) `docs/migrations/...`.
+* [x] **Base de Datos:** DDL (si aplica) `backend/migrations/...`.
 
 ---
 

@@ -5,7 +5,7 @@
 ## Archivos
 - Backend: `backend/src/controllers/inventario.controller.ts`, `ingresos.controller.ts` → `updateIngreso`, `getReportesFinanzas`.
 - Frontend: `frontend/src/pages/Inventario.tsx`, `Checkout.tsx`, `Dashboard.tsx`, `Reportes.tsx`.
-- Datos: `docs/migrations/create_inventario.sql` y `update_inventario_operativo.sql` → ítems, movimientos y salidas vigentes.
+- Datos: `backend/migrations/create_inventario.sql` y `update_inventario_operativo.sql` → ítems, movimientos y salidas vigentes.
 
 ## Contratos
 - `GET/POST /api/inventario/items`, `PUT/DELETE /api/inventario/items/:id` — catálogo por empresa; DELETE desactiva.

@@ -42,7 +42,7 @@ h2. 🛠️ Alcance Técnico
   * Visualización destacada del motivo de descarte en cards descartados con botones para "Editar nota" y "Restaurar".
 
 *Base de Datos:*
-* [x] `docs/migrations/20261106_add_resena_descarte_motivo.sql`:
+* [x] `backend/migrations/20261106_add_resena_descarte_motivo.sql`:
   * Columna `resena_descarte_motivo TEXT` en `taller_ingresos`.
 
 ---

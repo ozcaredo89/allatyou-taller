@@ -1,6 +1,6 @@
 -- ============================================================
 -- MIGRACIÓN: Bitácora de Eventos por Ingreso (Visita)
--- Archivo: docs/migrations/create_bitacora.sql
+-- Archivo: backend/migrations/create_bitacora.sql
 -- Ejecutar completo en Supabase SQL Editor
 -- ============================================================
 

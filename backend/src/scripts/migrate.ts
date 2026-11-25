@@ -22,10 +22,10 @@ const databaseUrl = process.env.DATABASE_URL;
 
 function resolveMigrationsDir(): string | null {
   const possiblePaths = [
-    path.resolve(process.cwd(), 'docs/migrations'),
-    path.resolve(process.cwd(), '../docs/migrations'),
-    path.resolve(__dirname, '../../../docs/migrations'),
-    path.resolve(__dirname, '../../docs/migrations')
+    // backend/migrations: Railway construye solo backend/, así que deben vivir aquí
+    path.resolve(__dirname, '../../migrations'), // dist/scripts o src/scripts → backend/migrations
+    path.resolve(process.cwd(), 'migrations'),
+    path.resolve(process.cwd(), 'backend/migrations')
   ];
 
   for (const p of possiblePaths) {
@@ -92,12 +92,25 @@ export async function runMigrations(targetFileArg?: string): Promise<void> {
       console.log(`✨ [db:migrate] ${fileName} aplicada correctamente.`);
     } else {
       if (!migrationsDir) {
-        console.warn('⚠️  [db:migrate] No se encontró el directorio docs/migrations/. Saltando.');
+        console.warn('⚠️  [db:migrate] No se encontró el directorio backend/migrations/. Saltando.');
         return;
       }
 
       const { rows } = await client.query('SELECT name FROM taller_schema_migrations');
       const executedNames = new Set(rows.map((r: { name: string }) => r.name));
+
+      // Baseline: migraciones aplicadas a mano antes de que el migrador corriera en Railway.
+      // Se registran como ejecutadas sin correrlas (no son idempotentes).
+      const baselinePath = path.join(migrationsDir, '_baseline.txt');
+      if (fs.existsSync(baselinePath)) {
+        const baseline = fs.readFileSync(baselinePath, 'utf-8')
+          .split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+        for (const name of baseline.filter(n => !executedNames.has(n))) {
+          await client.query('INSERT INTO taller_schema_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [name]);
+          executedNames.add(name);
+          console.log(`   📌 [db:migrate] ${name} marcada como aplicada (baseline).`);
+        }
+      }
 
       const files = fs
         .readdirSync(migrationsDir)
