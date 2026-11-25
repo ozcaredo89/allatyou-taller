@@ -12,7 +12,8 @@ import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import ModalSeguimientoIngreso from '../components/ModalSeguimientoIngreso';
 import TimelineDrawer from '../components/TimelineDrawer';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
-import { esCambioAceite, pedirKilometrajeEntrega } from '../services/rentingOdometer';
+import { esCambioAceite, parseKilometraje } from '../services/rentingOdometer';
+import { CampoKilometrajeEntrega, ERROR_KILOMETRAJE } from '../components/KilometrajeEntrega';
 import { useDashboardCentinela } from '../hooks/useDashboardCentinela';
 
 interface Cliente {
@@ -206,6 +207,10 @@ const Dashboard: React.FC = () => {
   // Entregar Vehículo state
   const [entregarTarget, setEntregarTarget] = useState<Ingreso | null>(null);
   const [entregando, setEntregando] = useState(false);
+  const [kmEntrega, setKmEntrega] = useState('');
+  const [kmEntregaError, setKmEntregaError] = useState('');
+  const [entregaError, setEntregaError] = useState('');
+  useEffect(() => { setKmEntrega(''); setKmEntregaError(''); setEntregaError(''); }, [entregarTarget?.id]);
 
   // Timeline Drawer state
   const [ingresoParaTimeline, setIngresoParaTimeline] = useState<Ingreso | null>(null);
@@ -340,10 +345,11 @@ const Dashboard: React.FC = () => {
   const confirmarEntrega = async () => {
     if (!entregarTarget) return;
     const requiereOdometro = Boolean(entregarTarget.aplica_renting && entregarTarget.items_factura?.some(esCambioAceite));
-    const kilometrajeEntrega = requiereOdometro ? pedirKilometrajeEntrega() : undefined;
-    if (kilometrajeEntrega === null) return;
+    const kilometrajeEntrega = requiereOdometro ? parseKilometraje(kmEntrega) : undefined;
+    if (kilometrajeEntrega === null) { setKmEntregaError(ERROR_KILOMETRAJE); return; }
     try {
       setEntregando(true);
+      setEntregaError('');
       const res = await api.put(`/ingresos/${entregarTarget.id}`, {
         estado: 'entregado',
         kilometraje_entrega: kilometrajeEntrega
@@ -371,7 +377,7 @@ const Dashboard: React.FC = () => {
         setShowRentingModal(true);
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Error al entregar el vehículo');
+      setEntregaError(err.response?.data?.error || 'No se pudo entregar el vehículo. Revisa la conexión e inténtalo de nuevo.');
     } finally {
       setEntregando(false);
     }
@@ -425,6 +431,7 @@ const Dashboard: React.FC = () => {
         const tieneManoObra = items.some((i: any) => i.tipo === 'mano_obra');
         const tieneTecnicos = Array.isArray(entregarTarget.taller_ingresos_tecnicos) && entregarTarget.taller_ingresos_tecnicos.length > 0;
         const faltaTecnicoMO = tieneManoObra && !tieneTecnicos;
+        const requiereOdometro = Boolean(entregarTarget.aplica_renting && items.some(esCambioAceite));
 
         return (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -458,6 +465,24 @@ const Dashboard: React.FC = () => {
                       <Wrench size={13} /> Asignar técnico antes de entregar
                     </button>
                   </div>
+                </div>
+              )}
+
+              {requiereOdometro && (
+                <div className="mb-5">
+                  <CampoKilometrajeEntrega
+                    value={kmEntrega}
+                    onChange={(v) => { setKmEntrega(v); setKmEntregaError(''); }}
+                    error={kmEntregaError}
+                    autoFocus
+                    onEnter={confirmarEntrega}
+                  />
+                </div>
+              )}
+
+              {entregaError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-5 text-sm text-red-700 flex items-start gap-2">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" /> {entregaError}
                 </div>
               )}
 

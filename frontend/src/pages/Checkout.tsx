@@ -13,7 +13,8 @@ import { ModalVincularGasto } from '../components/ModalVincularGasto';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
-import { CATEGORIA_CAMBIO_ACEITE, esCambioAceite, pedirKilometrajeEntrega } from '../services/rentingOdometer';
+import { CATEGORIA_CAMBIO_ACEITE, esCambioAceite } from '../services/rentingOdometer';
+import { ModalKilometrajeEntrega } from '../components/KilometrajeEntrega';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
 
 interface ItemFactura {
@@ -128,6 +129,8 @@ const Checkout: React.FC = () => {
   // Técnicos y validación de liquidación
   const [showModalTecnicos, setShowModalTecnicos] = useState(false);
   const [showConfirmEntregarSinTecnico, setShowConfirmEntregarSinTecnico] = useState(false);
+  // Kilometraje al entregar con cambio de aceite (flota Renting): guarda el "force" de la entrega pendiente
+  const [kmEntregaPendiente, setKmEntregaPendiente] = useState<{ force: boolean } | null>(null);
   const [showModalEditarIngreso, setShowModalEditarIngreso] = useState(false);
 
   // Sincronización Renting
@@ -631,9 +634,15 @@ const Checkout: React.FC = () => {
   const tecnicosIds = tecnicosAsignados.map((t: any) => t.taller_tecnicos?.id).filter(Boolean);
 
   // Entrega el vehículo (flujo final desde en_reparacion)
-  const handleEntregar = async (force: boolean = false) => {
+  const handleEntregar = async (force: boolean = false, kilometrajeEntrega?: number) => {
     if (faltaTecnicoMO && !force && !isEditMode) {
       setShowConfirmEntregarSinTecnico(true);
+      return;
+    }
+    const requiereOdometro = !isEditMode && Boolean(ingreso?.aplica_renting && items.some(esCambioAceite));
+    if (requiereOdometro && kilometrajeEntrega === undefined) {
+      setShowConfirmEntregarSinTecnico(false);
+      setKmEntregaPendiente({ force });
       return;
     }
     try {
@@ -642,9 +651,6 @@ const Checkout: React.FC = () => {
       if (isEditMode) {
         navigate(`/${slug}/historial/${id}`);
       } else {
-        const requiereOdometro = Boolean(ingreso?.aplica_renting && items.some(esCambioAceite));
-        const kilometrajeEntrega = requiereOdometro ? pedirKilometrajeEntrega() : undefined;
-        if (kilometrajeEntrega === null) return;
         const res = await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
@@ -677,6 +683,7 @@ const Checkout: React.FC = () => {
     } finally {
       setEntregando(false);
       setShowConfirmEntregarSinTecnico(false);
+      setKmEntregaPendiente(null);
     }
   };
 
@@ -1445,6 +1452,16 @@ const Checkout: React.FC = () => {
             setShowModalTecnicos(false);
             await cargarIngreso();
           }}
+        />
+      )}
+
+      {/* Modal Kilometraje de Entrega (cambio de aceite, flota Renting) */}
+      {kmEntregaPendiente && (
+        <ModalKilometrajeEntrega
+          placa={vehiculo?.placa}
+          loading={entregando}
+          onCancel={() => setKmEntregaPendiente(null)}
+          onConfirm={(km) => handleEntregar(kmEntregaPendiente.force, km)}
         />
       )}
 
