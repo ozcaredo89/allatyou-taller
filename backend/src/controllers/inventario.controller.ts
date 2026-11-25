@@ -1,5 +1,5 @@
-import { Request, Response } from 'express';
-import { getInventoryClient } from '../config/supabase';
+import { NextFunction, Request, Response } from 'express';
+import { seguimientoDb } from '../config/seguimientoDb';
 import { consultarVentasMostrador } from '../services/ventasMostrador.service';
 import { bogotaToday } from '../utils/dateUtils';
 
@@ -8,22 +8,21 @@ const TIPOS = ['ENTRADA', 'AJUSTE', 'SALIDA_VENTA', 'SALIDA_ORDEN', 'ANULACION']
 
 function responderError(res: Response, error: { code?: string; message: string }) {
   const status = error.code === '23505' ? 409
-    : error.code === 'P0002' || error.code === 'PGRST116' ? 404
+    : error.code === 'P0002' ? 404
     : /^(22|23)/.test(error.code || '') ? 400 : 500;
-  res.status(status).json({ error: error.message });
+  res.status(status).json({ error: status >= 500 ? 'No se pudo consultar o actualizar el inventario.' : error.message });
+}
+
+export function manejarErrorInventario(error: Error, _req: Request, res: Response, _next: NextFunction) {
+  console.error('[inventario]', error.message);
+  responderError(res, error);
 }
 
 export async function listarItems(req: Request, res: Response) {
-  const items = [];
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await getInventoryClient().rpc('consultar_inventario', {
-      p_empresa: req.empresa_id,
-    }).range(offset, offset + PAGE_SIZE - 1);
-    if (error) return responderError(res, error);
-    items.push(...data);
-    if (data.length < PAGE_SIZE) break;
-  }
-  res.json(items);
+  const { rows } = await seguimientoDb().query(
+    'SELECT producto FROM public.consultar_inventario($1) AS producto', [req.empresa_id]
+  );
+  res.json(rows.map(row => row.producto));
 }
 
 export async function guardarItem(req: Request, res: Response) {
@@ -38,29 +37,33 @@ export async function guardarItem(req: Request, res: Response) {
     return;
   }
 
-  const item = {
-    codigo: body.codigo.trim(),
-    nombre: body.nombre.trim(),
-    categoria: typeof body.categoria === 'string' ? body.categoria.trim() || null : null,
-    unidad: body.unidad,
-    precio_venta: body.precio_venta,
-    stock_minimo: body.stock_minimo,
-    activo: body.activo ?? true,
-  };
-
-  const table = getInventoryClient().from('taller_inventario_items');
-  const query = req.params.id
-    ? table.update(item).eq('empresa_id', req.empresa_id).eq('id', req.params.id)
-    : table.insert({ ...item, empresa_id: req.empresa_id });
-  const { data, error } = await query.select().single();
-  if (error) return responderError(res, error);
-  res.status(req.params.id ? 200 : 201).json(data);
+  const valores = [
+    req.empresa_id, body.codigo.trim(), body.nombre.trim(),
+    typeof body.categoria === 'string' ? body.categoria.trim() || null : null,
+    body.unidad, body.precio_venta, body.stock_minimo, body.activo ?? true,
+  ];
+  const { rows } = req.params.id
+    ? await seguimientoDb().query(
+      `UPDATE public.taller_inventario_items
+       SET codigo=$2, nombre=$3, categoria=$4, unidad=$5, precio_venta=$6, stock_minimo=$7, activo=$8
+       WHERE empresa_id=$1 AND id=$9 RETURNING to_jsonb(taller_inventario_items) AS producto`,
+      [...valores, req.params.id]
+    )
+    : await seguimientoDb().query(
+      `INSERT INTO public.taller_inventario_items
+       (empresa_id,codigo,nombre,categoria,unidad,precio_venta,stock_minimo,activo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING to_jsonb(taller_inventario_items) AS producto`, valores
+    );
+  if (!rows.length) return responderError(res, { code: 'P0002', message: 'Producto no encontrado.' });
+  res.status(req.params.id ? 200 : 201).json(rows[0].producto);
 }
 
 export async function desactivarItem(req: Request, res: Response) {
-  const { error } = await getInventoryClient().from('taller_inventario_items')
-    .update({ activo: false }).eq('empresa_id', req.empresa_id).eq('id', req.params.id).select('id').single();
-  if (error) return responderError(res, error);
+  const { rowCount } = await seguimientoDb().query(
+    'UPDATE public.taller_inventario_items SET activo=false WHERE empresa_id=$1 AND id=$2',
+    [req.empresa_id, req.params.id]
+  );
+  if (!rowCount) return responderError(res, { code: 'P0002', message: 'Producto no encontrado.' });
   res.sendStatus(204);
 }
 
@@ -70,32 +73,37 @@ export async function listarMovimientos(req: Request, res: Response) {
   const fecha = /^\d{4}-\d{2}-\d{2}$/;
   if (!Number.isSafeInteger(pagina) || pagina < 1 || pagina > 100000 ||
       (tipo !== undefined && (typeof tipo !== 'string' || !TIPOS.includes(tipo))) ||
+      (item_id !== undefined && typeof item_id !== 'string') ||
       [desde, hasta].some(value => value !== undefined && (typeof value !== 'string' || !fecha.test(value)))) {
     res.status(400).json({ error: 'Los filtros de movimientos son inválidos.' });
     return;
   }
-  let query = getInventoryClient().from('taller_inventario_movimientos')
-    .select('*, taller_inventario_items(codigo,nombre)', { count: 'exact' })
-    .eq('empresa_id', req.empresa_id);
-  if (tipo) query = query.eq('tipo', tipo);
-  if (item_id) query = query.eq('item_id', item_id);
-  if (desde) query = query.gte('created_at', `${desde}T00:00:00-05:00`);
-  if (hasta) query = query.lte('created_at', `${hasta}T23:59:59.999999-05:00`);
-  const { data, count, error } = await query.order('created_at', { ascending: false })
-    .order('id', { ascending: false }).range((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE - 1);
-  if (error) return responderError(res, error);
-  const ids = data.map(movimiento => movimiento.id);
-  const anulados = new Set<string>();
-  if (ids.length > 0) {
-    const { data: anulaciones, error: errorAnulaciones } = await getInventoryClient().from('taller_inventario_movimientos')
-      .select('anula_movimiento_id').eq('empresa_id', req.empresa_id).in('anula_movimiento_id', ids);
-    if (errorAnulaciones) return responderError(res, errorAnulaciones);
-    anulaciones.forEach(movimiento => anulados.add(movimiento.anula_movimiento_id));
-  }
-  res.json({
-    movimientos: data.map(movimiento => ({ ...movimiento, anulado: anulados.has(movimiento.id) })),
-    paginas: Math.ceil((count ?? 0) / PAGE_SIZE),
-  });
+  const { rows: [resultado] } = await seguimientoDb().query(
+    `WITH filtrados AS (
+       SELECT m.* FROM public.taller_inventario_movimientos m
+       WHERE m.empresa_id=$1 AND ($2::text IS NULL OR m.tipo=$2) AND ($3::uuid IS NULL OR m.item_id=$3)
+         AND ($4::date IS NULL OR m.created_at >= ($4::date::timestamp AT TIME ZONE 'America/Bogota'))
+         AND ($5::date IS NULL OR m.created_at < (($5::date + 1)::timestamp AT TIME ZONE 'America/Bogota'))
+     ), pagina AS (
+       SELECT m.*, jsonb_build_object('codigo', i.codigo, 'nombre', i.nombre) AS taller_inventario_items,
+         EXISTS (SELECT 1 FROM public.taller_inventario_movimientos a
+           WHERE a.empresa_id=m.empresa_id AND a.anula_movimiento_id=m.id) AS anulado
+       FROM filtrados m JOIN public.taller_inventario_items i ON i.empresa_id=m.empresa_id AND i.id=m.item_id
+       ORDER BY m.created_at DESC, m.id DESC LIMIT $6 OFFSET $7
+     )
+     SELECT coalesce((SELECT jsonb_agg(p ORDER BY p.created_at DESC, p.id DESC) FROM pagina p), '[]') AS movimientos,
+       (SELECT count(*) FROM filtrados) AS total`,
+    [req.empresa_id, tipo, item_id, desde, hasta, PAGE_SIZE, (pagina - 1) * PAGE_SIZE]
+  );
+  res.json({ movimientos: resultado.movimientos, paginas: Math.ceil(Number(resultado.total) / PAGE_SIZE) });
+}
+
+async function moverStock(req: Request, item: string, tipo: string, datos: object) {
+  const { rows: [resultado] } = await seguimientoDb().query(
+    'SELECT to_jsonb(m) AS movimiento FROM public.registrar_movimiento_inventario($1,$2,$3,$4,$5) AS m',
+    [req.empresa_id, item, tipo, JSON.stringify(datos), req.user_email]
+  );
+  return resultado.movimiento;
 }
 
 export async function registrarMovimiento(req: Request, res: Response) {
@@ -104,30 +112,27 @@ export async function registrarMovimiento(req: Request, res: Response) {
     res.status(400).json({ error: 'Selecciona un producto y un tipo de movimiento válido.' });
     return;
   }
-  const { data, error } = await getInventoryClient().rpc('registrar_movimiento_inventario', {
-    p_empresa: req.empresa_id, p_item: item_id, p_tipo: tipo, p_usuario: req.user_email,
-    p_datos: { cantidad, costo_unitario, precio_unitario, registrar_gasto, proveedor, factura_ref, notas, operacion_id },
+  const movimiento = await moverStock(req, item_id, tipo, {
+    cantidad, costo_unitario, precio_unitario, registrar_gasto, proveedor, factura_ref, notas, operacion_id,
   });
-  if (error) return responderError(res, error);
-  res.status(201).json(data);
+  res.status(201).json(movimiento);
 }
 
 export async function anularMovimiento(req: Request, res: Response) {
-  const { data: original, error: buscarError } = await getInventoryClient().from('taller_inventario_movimientos')
-    .select('item_id, tipo').eq('empresa_id', req.empresa_id).eq('id', req.params.id).single();
-  if (buscarError) return responderError(res, buscarError);
+  const { rows: [original] } = await seguimientoDb().query(
+    'SELECT item_id, tipo FROM public.taller_inventario_movimientos WHERE empresa_id=$1 AND id=$2',
+    [req.empresa_id, req.params.id]
+  );
+  if (!original) return responderError(res, { code: 'P0002', message: 'Movimiento no encontrado.' });
   if (original.tipo === 'SALIDA_ORDEN' || original.tipo === 'ANULACION') {
     res.status(400).json({ error: 'Para revertir una salida de orden, modifica, cancela o reabre la orden.' });
     return;
   }
-  const { data, error } = await getInventoryClient().rpc('registrar_movimiento_inventario', {
-    p_empresa: req.empresa_id, p_item: original.item_id, p_tipo: 'ANULACION', p_usuario: req.user_email,
-    p_datos: { anula_movimiento_id: req.params.id, notas: req.body?.notas },
+  const movimiento = await moverStock(req, original.item_id, 'ANULACION', {
+    anula_movimiento_id: req.params.id, notas: req.body?.notas,
   });
-  if (error) return responderError(res, error);
-  res.json(data);
+  res.json(movimiento);
 }
-
 
 export async function listarDescuentosPendientes(req: Request, res: Response) {
   const pagina = Number(req.query.pagina ?? 1);
@@ -135,11 +140,14 @@ export async function listarDescuentosPendientes(req: Request, res: Response) {
     res.status(400).json({ error: 'Página inválida.' });
     return;
   }
-  const { data, error, count } = await getInventoryClient()
-    .rpc('consultar_descuentos_pendientes', { p_empresa: req.empresa_id }, { count: 'exact' })
-    .range((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE - 1);
-  if (error) return responderError(res, error);
-  res.json({ pendientes: data, paginas: Math.ceil((count ?? 0) / PAGE_SIZE) });
+  const { rows: [resultado] } = await seguimientoDb().query(
+    `WITH pendientes AS MATERIALIZED (SELECT * FROM public.consultar_descuentos_pendientes($1)),
+       pagina AS (SELECT * FROM pendientes LIMIT $2 OFFSET $3)
+     SELECT coalesce((SELECT jsonb_agg(p) FROM pagina p), '[]') AS pendientes,
+       (SELECT count(*) FROM pendientes) AS total`,
+    [req.empresa_id, PAGE_SIZE, (pagina - 1) * PAGE_SIZE]
+  );
+  res.json({ pendientes: resultado.pendientes, paginas: Math.ceil(Number(resultado.total) / PAGE_SIZE) });
 }
 
 export async function resumirVentasMostradorHoy(req: Request, res: Response) {

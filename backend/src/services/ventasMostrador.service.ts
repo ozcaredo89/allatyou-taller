@@ -1,4 +1,4 @@
-import { getInventoryClientIfConfigured } from '../config/supabase';
+import { seguimientoDbSiConfigurada } from '../config/seguimientoDb';
 
 export interface VentaMostrador {
   id: string;
@@ -11,43 +11,31 @@ export interface VentaMostrador {
 }
 
 export async function consultarVentasMostrador(empresa: string, desde: string, hasta: string): Promise<VentaMostrador[]> {
-  const client = getInventoryClientIfConfigured();
-  if (!client) return [];
-
-  const ventas: VentaMostrador[] = [];
-  const pageSize = 500;
-  for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client.rpc('consultar_ventas_mostrador', {
-      p_empresa: empresa, p_desde: desde, p_hasta: hasta,
-    }).range(offset, offset + pageSize - 1);
-    if (error?.code === 'PGRST202' || error?.code === '42883') return [];
-    if (error) throw error;
-    for (const venta of data) {
-      ventas.push({
-        ...venta,
-        cantidad: Number(venta.cantidad),
-        precio_unitario: Number(venta.precio_unitario),
-        ingreso: Number(venta.ingreso),
-        costo: Number(venta.costo),
-      });
-    }
-    if (data.length < pageSize) return ventas;
+  const db = seguimientoDbSiConfigurada();
+  if (!db) return [];
+  try {
+    const { rows } = await db.query<{ venta: VentaMostrador }>(
+      'SELECT to_jsonb(v) AS venta FROM public.consultar_ventas_mostrador($1,$2,$3) v',
+      [empresa, desde, hasta]
+    );
+    return rows.map(row => row.venta);
+  } catch (error: any) {
+    if (error.code === '42883') return [];
+    throw error;
   }
 }
 
-
 export async function resumirVentasMostradorPorDia(empresa: string, hasta: string) {
-  const client = getInventoryClientIfConfigured();
-  if (!client) return [];
-  const dias: { fecha: string; ingreso: number }[] = [];
-  const pageSize = 500;
-  for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client.rpc('resumir_ventas_mostrador_por_dia', {
-      p_empresa: empresa, p_hasta: hasta,
-    }).range(offset, offset + pageSize - 1);
-    if (error?.code === 'PGRST202' || error?.code === '42883') return [];
-    if (error) throw error;
-    dias.push(...data);
-    if (data.length < pageSize) return dias;
+  const db = seguimientoDbSiConfigurada();
+  if (!db) return [];
+  try {
+    const { rows } = await db.query<{ fecha: string; ingreso: string }>(
+      'SELECT fecha::text, ingreso FROM public.resumir_ventas_mostrador_por_dia($1,$2)',
+      [empresa, hasta]
+    );
+    return rows;
+  } catch (error: any) {
+    if (error.code === '42883') return [];
+    throw error;
   }
 }

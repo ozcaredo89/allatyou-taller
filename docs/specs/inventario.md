@@ -19,6 +19,6 @@
 - Mostrador registra el precio cobrado como ingreso y la diferencia frente al costo como utilidad bruta. Excluye las ventas anuladas.
 
 ## Trampas / no tocar
-- Filtrar por `empresa_id` en API y RPC. `SUPABASE_SERVICE_ROLE_KEY` se configura solo en el backend.
+- Filtrar por empresa_id en API y RPC. Inventario reutiliza el pool PostgreSQL de Taller mediante DATABASE_URL.
 - Controlar la concurrencia con `estado` y `updated_at`. El JSON de ítems va en el cuerpo del PATCH.
-- Configurar la clave en Railway antes del merge. `DATABASE_URL` habilita las migraciones automáticas.
+- DATABASE_URL habilita también las migraciones automáticas en Railway.
