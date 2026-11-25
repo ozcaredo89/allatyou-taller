@@ -41,6 +41,17 @@ export const CampoKilometrajeEntrega: React.FC<CampoProps> = ({ value, onChange,
   );
 };
 
+/** Aviso cuando se usa el kilometraje registrado en la recepción. */
+export const KilometrajeRecepcionInfo: React.FC<{ km: number }> = ({ km }) => (
+  <div className="bg-sky-50 border border-sky-200 rounded-xl p-3.5 flex items-start gap-2">
+    <Gauge size={16} className="text-sky-600 shrink-0 mt-0.5" />
+    <p className="text-sm text-sky-950">
+      Kilometraje: <strong>{km.toLocaleString('es-CO')} km</strong>
+      <span className="block text-xs text-sky-800">Registrado en la recepción. Se reporta a Renting por el cambio de aceite.</span>
+    </p>
+  </div>
+);
+
 export const ERROR_KILOMETRAJE = 'Ingresa el kilometraje en km, mayor a cero.';
 
 interface ModalProps {

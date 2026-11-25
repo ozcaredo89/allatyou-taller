@@ -13,7 +13,7 @@ import { ModalVincularGasto } from '../components/ModalVincularGasto';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
-import { CATEGORIA_CAMBIO_ACEITE, esCambioAceite } from '../services/rentingOdometer';
+import { CATEGORIA_CAMBIO_ACEITE, esCambioAceite, kilometrajeRecepcion } from '../services/rentingOdometer';
 import { ModalKilometrajeEntrega } from '../components/KilometrajeEntrega';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
 
@@ -634,12 +634,14 @@ const Checkout: React.FC = () => {
   const tecnicosIds = tecnicosAsignados.map((t: any) => t.taller_tecnicos?.id).filter(Boolean);
 
   // Entrega el vehículo (flujo final desde en_reparacion)
-  const handleEntregar = async (force: boolean = false, kilometrajeEntrega?: number) => {
+  const handleEntregar = async (force: boolean = false, kilometrajeIngresado?: number) => {
     if (faltaTecnicoMO && !force && !isEditMode) {
       setShowConfirmEntregarSinTecnico(true);
       return;
     }
     const requiereOdometro = !isEditMode && Boolean(ingreso?.aplica_renting && items.some(esCambioAceite));
+    // Usa el kilometraje de la recepción; solo se pide si no se registró al ingresar
+    const kilometrajeEntrega = requiereOdometro ? kilometrajeIngresado ?? kilometrajeRecepcion(ingreso) ?? undefined : undefined;
     if (requiereOdometro && kilometrajeEntrega === undefined) {
       setShowConfirmEntregarSinTecnico(false);
       setKmEntregaPendiente({ force });
@@ -745,7 +747,7 @@ const Checkout: React.FC = () => {
                     placa: vehiculo?.placa || '',
                     date: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date()),
                     description: `[Taller Orden #${id}] ${ingreso.motivo_visita || ''}`.trim(),
-                    kilometrajeEntrega: ingreso.kilometraje_entrega ?? undefined,
+                    kilometrajeEntrega: ingreso.kilometraje_entrega ?? kilometrajeRecepcion(ingreso) ?? undefined,
                     requiereOdometro: items.some(esCambioAceite),
                     items: validItems
                   });

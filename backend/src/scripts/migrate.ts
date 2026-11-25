@@ -88,6 +88,7 @@ export async function runMigrations(targetFileArg?: string): Promise<void> {
       );
       await client.query('COMMIT');
 
+      await client.query("NOTIFY pgrst, 'reload schema'");
       console.log(`✨ [db:migrate] ${fileName} aplicada correctamente.`);
     } else {
       if (!migrationsDir) {
@@ -106,6 +107,7 @@ export async function runMigrations(targetFileArg?: string): Promise<void> {
       const pending = files.filter(f => !executedNames.has(f));
 
       if (pending.length === 0) {
+        await client.query("NOTIFY pgrst, 'reload schema'");
         console.log('✅ [db:migrate] Base de datos al día. Sin migraciones pendientes.');
         return;
       }
@@ -126,7 +128,9 @@ export async function runMigrations(targetFileArg?: string): Promise<void> {
         console.log(`   ✅ ${file} aplicada.`);
       }
 
-      console.log('🚀 [db:migrate] Todas las migraciones fueron ejecutadas con éxito.');
+      // PostgREST (API de Supabase) cachea el esquema: sin recargarlo no ve columnas nuevas
+      await client.query("NOTIFY pgrst, 'reload schema'");
+      console.log('🚀 [db:migrate] Todas las migraciones fueron ejecutadas con éxito (schema cache recargado).');
     }
   } catch (err: any) {
     try {
