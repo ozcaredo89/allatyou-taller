@@ -12,6 +12,7 @@ import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import ModalSeguimientoIngreso from '../components/ModalSeguimientoIngreso';
 import TimelineDrawer from '../components/TimelineDrawer';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
+import { esCambioAceite, pedirKilometrajeEntrega } from '../services/rentingOdometer';
 import { useDashboardCentinela } from '../hooks/useDashboardCentinela';
 
 interface Cliente {
@@ -220,6 +221,8 @@ const Dashboard: React.FC = () => {
     date?: string;
     description?: string;
     items: RentingSyncItem[];
+    kilometrajeEntrega?: number;
+    requiereOdometro?: boolean;
   }>({ ingresoId: '', placa: '', items: [] });
 
   useEffect(() => {
@@ -336,9 +339,15 @@ const Dashboard: React.FC = () => {
 
   const confirmarEntrega = async () => {
     if (!entregarTarget) return;
+    const requiereOdometro = Boolean(entregarTarget.aplica_renting && entregarTarget.items_factura?.some(esCambioAceite));
+    const kilometrajeEntrega = requiereOdometro ? pedirKilometrajeEntrega() : undefined;
+    if (kilometrajeEntrega === null) return;
     try {
       setEntregando(true);
-      const res = await api.put(`/ingresos/${entregarTarget.id}`, { estado: 'entregado' });
+      const res = await api.put(`/ingresos/${entregarTarget.id}`, {
+        estado: 'entregado',
+        kilometraje_entrega: kilometrajeEntrega
+      });
       const faltantes: string[] = res.data?.inventario_faltantes ?? [];
       setAvisoInventario(faltantes.length
         ? `Vehículo entregado. Quedó pendiente el descuento de stock de ${faltantes.join(', ')}.`
@@ -355,12 +364,14 @@ const Dashboard: React.FC = () => {
           placa: res.data.renting_info.prefill?.placa || targetBackup.taller_vehiculos?.placa || '',
           date: res.data.renting_info.prefill?.date,
           description: res.data.renting_info.prefill?.description,
+          kilometrajeEntrega,
+          requiereOdometro,
           items: res.data.renting_info.prefill?.items || []
         });
         setShowRentingModal(true);
       }
     } catch (err: any) {
-      alert('Error al entregar el vehículo');
+      alert(err.response?.data?.error || 'Error al entregar el vehículo');
     } finally {
       setEntregando(false);
     }
@@ -1216,6 +1227,8 @@ const Dashboard: React.FC = () => {
           initialDate={rentingModalData.date}
           initialDescription={rentingModalData.description}
           initialItems={rentingModalData.items}
+          kilometrajeEntrega={rentingModalData.kilometrajeEntrega}
+          requiereOdometro={rentingModalData.requiereOdometro}
           onSuccess={() => {
             fetchIngresos();
           }}

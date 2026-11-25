@@ -20,6 +20,9 @@ import {
   evaluarAplicaRenting,
   procesarSincronizacionRenting,
   consultarLeasingRenting,
+  CATEGORIA_CAMBIO_ACEITE,
+  esCambioAceite,
+  esKilometrajeValido,
   LeasingSyncOptions
 } from '../services/allatyouSync.service';
 
@@ -413,6 +416,16 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const documentoRenting = (current.taller_vehiculos as any)?.taller_clientes?.documento;
+    const itemsOrden = body.items_factura ?? current.items_factura;
+    const requiereOdometro = body.estado === 'entregado' && current.estado !== 'entregado'
+      && evaluarAplicaRenting(req.empresa_id, documentoRenting)
+      && Array.isArray(itemsOrden) && itemsOrden.some(esCambioAceite);
+    if ((requiereOdometro || body.kilometraje_entrega !== undefined) && !esKilometrajeValido(body.kilometraje_entrega)) {
+      res.status(400).json({ error: 'Ingresa el kilometraje del tablero en km, mayor a cero.' });
+      return;
+    }
+
     // 2. Si viene un cambio de estado, registrar la transición SLA
     if (body.estado && current && current.estado !== body.estado) {
       // Resetear estado_desde y ultima_actualizacion_estado para el nuevo estado
@@ -794,7 +807,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
         .filter((i: any) => typeof i?.total === 'number' && i.total > 0 && i.descripcion)
         .map((i: any) => ({
           item: String(i.descripcion).trim(),
-          category: 'Mantenimiento',
+          category: esCambioAceite(i) ? CATEGORIA_CAMBIO_ACEITE : 'Mantenimiento',
           amount: i.total
         }));
 
@@ -1993,10 +2006,10 @@ export const getBitacora = async (req: Request, res: Response): Promise<void> =>
 async function validarOrdenRenting(
   empresaId: string,
   ingresoId: string
-): Promise<{ placa: string } | { status: number; error: string }> {
+): Promise<{ placa: string; kilometrajeEntrega: number | null; requiereOdometro: boolean } | { status: number; error: string }> {
   const { data: ingreso, error: fetchErr } = await supabase
     .from('taller_ingresos')
-    .select('id, estado, renting_sync_at, taller_vehiculos(placa, taller_clientes(documento))')
+    .select('id, estado, kilometraje_entrega, items_factura, taller_vehiculos(placa, taller_clientes(documento))')
     .eq('empresa_id', empresaId)
     .eq('id', ingresoId)
     .single();
@@ -2016,12 +2029,16 @@ async function validarOrdenRenting(
   }
 
   // La placa es tomada directamente de la DB (inmutable)
-  const placa = (ingreso.taller_vehiculos as any)?.placa;
+  const placa = (ingreso.taller_vehiculos as any)?.placa?.trim();
   if (!placa) {
     return { status: 400, error: 'La orden no tiene un vehículo con placa asociado' };
   }
 
-  return { placa };
+  return {
+    placa,
+    kilometrajeEntrega: ingreso.kilometraje_entrega,
+    requiereOdometro: Array.isArray(ingreso.items_factura) && ingreso.items_factura.some(esCambioAceite)
+  };
 }
 
 /**
@@ -2112,6 +2129,12 @@ export const syncIngresoToRenting = async (req: Request, res: Response): Promise
       return;
     }
     const placaDb = orden.placa;
+    const requiereOdometro = orden.requiereOdometro || items.some(esCambioAceite);
+    const odometerKm = requiereOdometro ? req.body.odometer_km ?? orden.kilometrajeEntrega : undefined;
+    if (requiereOdometro && !esKilometrajeValido(odometerKm)) {
+      res.status(400).json({ error: 'Ingresa el kilometraje del tablero en km, mayor a cero.' });
+      return;
+    }
 
     // 4. Ejecutar reclamo atómico y llamada a Renting
     const result = await procesarSincronizacionRenting({
@@ -2121,11 +2144,12 @@ export const syncIngresoToRenting = async (req: Request, res: Response): Promise
       date,
       description,
       items,
+      odometerKm,
       leasing
     });
 
     if (!result.ok) {
-      res.status(409).json({ error: result.message });
+      res.status(result.status ?? 409).json({ error: result.message });
       return;
     }
 

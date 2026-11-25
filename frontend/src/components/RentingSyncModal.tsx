@@ -14,6 +14,7 @@ import {
   Wallet
 } from 'lucide-react';
 import api from '../services/api';
+import { esCambioAceite } from '../services/rentingOdometer';
 
 export interface RentingSyncItem {
   item: string;
@@ -35,6 +36,8 @@ interface RentingSyncModalProps {
   initialDate?: string;
   initialDescription?: string;
   initialItems: RentingSyncItem[];
+  kilometrajeEntrega?: number;
+  requiereOdometro?: boolean;
   onSuccess?: () => void;
 }
 
@@ -46,6 +49,8 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
   initialDate,
   initialDescription,
   initialItems,
+  kilometrajeEntrega,
+  requiereOdometro,
   onSuccess
 }) => {
   const defaultDate = initialDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
@@ -57,6 +62,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
   );
 
   const [loading, setLoading] = useState(false);
+  const [lectura, setLectura] = useState(kilometrajeEntrega?.toString() ?? '');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
@@ -115,6 +121,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
   const cubiertoFondo = Math.min(totalAmount, fondoDisponible);
   const excedente = Math.max(0, totalAmount - fondoDisponible);
   const usarLeasing = tieneLeasing && applyToLeasing;
+  const mostrarOdometro = requiereOdometro || items.some(esCambioAceite);
 
   if (!isOpen) return null;
 
@@ -149,6 +156,11 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
       }
     }
 
+    const kilometraje = Number(lectura);
+    if (mostrarOdometro && (!Number.isFinite(kilometraje) || kilometraje <= 0)) {
+      setError('Ingresa el kilometraje del tablero en km, mayor a cero.');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -160,6 +172,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
           leasing_advance_start_date: advanceStartDate
         }),
         date,
+        ...(mostrarOdometro && { odometer_km: kilometraje }),
         description: description.trim(),
         items: items.map(it => ({
           item: it.item.trim(),
@@ -271,6 +284,21 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
               />
             </div>
           </div>
+
+          {mostrarOdometro && (
+            <label className="block text-xs font-medium text-slate-300">
+              Kilometraje del tablero (km)
+              <input
+                type="number"
+                step="any"
+                value={lectura}
+                onChange={(e) => setLectura(e.target.value)}
+                required
+                disabled={loading || success}
+                className="mt-1.5 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3.5 py-2.5 text-sm text-white"
+              />
+            </label>
+          )}
 
           {/* Descripción */}
           <div>
