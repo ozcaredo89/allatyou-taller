@@ -5,7 +5,7 @@
 ## Archivos
 - Backend: `backend/src/controllers/ingresos.controller.ts` → `registrarSeguimiento`, `getConfigSeguimiento`, `updateConfigSeguimiento`, `getReportesFinanzas`, `getReportesFinanzasDetalle`, `getReportesRepuestos`, `getReportesOperaciones`, `getReportePostmortem`, `getReporteHorasTecnicos`, `getReporteIngresosDiarios`
 - Frontend: `pages/Reportes.tsx` (pestañas `financiero`, `operativo`, `repuestos`, `postmortem`, `horas_tecnicos` en `activeTab`), `components/{ReportePostmortem,ReporteHorasTecnicos,ReporteIngresosDiarios,ReporteRepuestos,RentabilidadRepuestos}.tsx`, `components/ModalSeguimientoIngreso.tsx`, semáforo en `pages/Dashboard.tsx`
-- Datos: `docs/migrations/seguimiento_entregas_y_postmortem.sql` → `taller_empresas.intervalo_seguimiento_horas`; `taller_ingresos`: `fecha_entrega_estimada`, `ultima_actualizacion_estado`, `reprogramaciones_count`, `motivo_demora_actual`; `taller_ingresos_bitacora.tipo_evento` admite `seguimiento` y `reprogramacion`
+- Datos: `backend/migrations/seguimiento_entregas_y_postmortem.sql` → `taller_empresas.intervalo_seguimiento_horas`; `taller_ingresos`: `fecha_entrega_estimada`, `ultima_actualizacion_estado`, `reprogramaciones_count`, `motivo_demora_actual`; `taller_ingresos_bitacora.tipo_evento` admite `seguimiento` y `reprogramacion`
 
 ## Contratos (todos con `requireAuth`, bajo `/api/ingresos`)
 - `POST /:id/seguimiento` — `{ estado_avance, nota?, nueva_fecha_entrega_estimada?, motivo_reprogramacion? }` → actualiza el reporte de avance y la bitácora.

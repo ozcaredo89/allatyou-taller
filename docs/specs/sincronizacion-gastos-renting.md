@@ -5,7 +5,7 @@
 ## Archivos
 - Backend: `services/allatyouSync.service.ts` → `evaluarAplicaRenting`; `controllers/ingresos.controller.ts` → `syncIngresoToRenting`, `getRentingLeasingInfo`
 - Frontend: `components/RentingSyncModal.tsx`; lo abren `pages/{Checkout,Dashboard,HistorialDetalle}.tsx`
-- Datos: `docs/migrations/20261014_renting_sync_fields.sql` → `taller_ingresos`: `renting_sync_at`, `renting_expense_ids`, `renting_sync_error`
+- Datos: `backend/migrations/20261014_renting_sync_fields.sql` → `taller_ingresos`: `renting_sync_at`, `renting_expense_ids`, `renting_sync_error`
 - Entorno: `ALLATYOU_RENTING_EMPRESA_ID`, `ALLATYOU_RENTING_CLIENTE_DOC`, `ALLATYOU_RENTING_API_URL`, `ALLATYOU_RENTING_SERVICE_TOKEN` (header `X-Service-Token`; igual a `TALLER_SERVICE_TOKEN` en Renting)
 
 ## Contratos (`requireAuth`, bajo `/api/ingresos`)

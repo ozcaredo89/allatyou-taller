@@ -1,0 +1,27 @@
+# Migraciones aplicadas a mano en Supabase antes de que el migrador corriera en Railway (2026-11-25).
+# El migrador las marca como ejecutadas sin correrlas. No agregar archivos nuevos aquí.
+20261014_renting_sync_fields.sql
+20261104_add_password_reset_fields.sql
+20261106_add_resena_descarte_motivo.sql
+20261106_allow_resena_descartada.sql
+20261119_seguimiento_cliente.sql
+20261120_seguimiento_evidencias.sql
+add_comisiones_tecnicos.sql
+add_idx_bitacora_empresa_fecha.sql
+add_liquidacion_tecnicos_rpc.sql
+add_lote_id_gastos.sql
+create_ai_escaneos_diarios.sql
+create_ai_public_module.sql
+create_api_keys.sql
+create_bitacora.sql
+create_dispositivos_autorizados.sql
+create_gastos.sql
+create_inventario.sql
+create_matriz_precios_persistencia.sql
+crm_retencion_mv.sql
+crm_retention_v2.sql
+fix_rls_dispositivos_autorizados.sql
+link_gastos_ordenes.sql
+rpc_actualizar_vinculos_gastos.sql
+seguimiento_entregas_y_postmortem.sql
+update_inventario_operativo.sql

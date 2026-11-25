@@ -2,7 +2,7 @@
 
 **Estado:** Listo para QA / Para Cerrar  
 **Spec Técnico Asociado:** [`docs/specs/recuperacion-contrasena.md`](../specs/recuperacion-contrasena.md)  
-**Migración SQL:** [`docs/migrations/20261104_add_password_reset_fields.sql`](../migrations/20261104_add_password_reset_fields.sql)
+**Migración SQL:** [`backend/migrations/20261104_add_password_reset_fields.sql`](../../backend/migrations/20261104_add_password_reset_fields.sql)
 
 ---
 
@@ -40,7 +40,7 @@ h2. 🛠️ Alcance Técnico
 * [x] `frontend/src/locales/es/translation.json` y `en/translation.json`: Claves de internacionalización añadidas.
 
 *Base de Datos:*
-* [x] `docs/migrations/20261104_add_password_reset_fields.sql`: Columnas `reset_password_token` y `reset_password_expires_at` con índice condicional sobre `taller_empresas_correos`.
+* [x] `backend/migrations/20261104_add_password_reset_fields.sql`: Columnas `reset_password_token` y `reset_password_expires_at` con índice condicional sobre `taller_empresas_correos`.
 
 ---
 

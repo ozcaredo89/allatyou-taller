@@ -1,6 +1,8 @@
+-- Idempotente: puede haberse aplicado a mano antes de que el migrador corriera en Railway.
 ALTER TABLE public.taller_inventario_items
-  ADD COLUMN es_granel boolean NOT NULL DEFAULT false,
-  ADD COLUMN capacidad_envase numeric(12,3),
+  ADD COLUMN IF NOT EXISTS es_granel boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS capacidad_envase numeric(12,3),
+  DROP CONSTRAINT IF EXISTS inventario_capacidad_granel,
   ADD CONSTRAINT inventario_capacidad_granel CHECK (
     (NOT es_granel AND capacidad_envase IS NULL)
     OR (es_granel AND unidad = 'litro' AND capacidad_envase IS NOT NULL
@@ -8,8 +10,9 @@ ALTER TABLE public.taller_inventario_items
   );
 
 ALTER TABLE public.taller_inventario_movimientos
-  ADD COLUMN presentacion text,
-  ADD COLUMN cantidad_presentacion numeric(12,3),
+  ADD COLUMN IF NOT EXISTS presentacion text,
+  ADD COLUMN IF NOT EXISTS cantidad_presentacion numeric(12,3),
+  DROP CONSTRAINT IF EXISTS inventario_presentacion_compra,
   ADD CONSTRAINT inventario_presentacion_compra CHECK (
     (presentacion IS NULL AND cantidad_presentacion IS NULL)
     OR (presentacion IS NOT NULL AND presentacion IN ('tambor', 'galón', 'litro')

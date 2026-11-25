@@ -424,7 +424,7 @@ export const descartarResena = async (req: Request, res: Response): Promise<void
     if (error) {
       if (error.message?.includes('taller_ingresos_resena_estado_check')) {
         res.status(400).json({
-          error: 'Restricción de base de datos: ejecute la migración docs/migrations/20261106_allow_resena_descartada.sql para permitir el estado descartado.',
+          error: 'Restricción de base de datos: ejecute la migración backend/migrations/20261106_allow_resena_descartada.sql para permitir el estado descartado.',
         });
         return;
       }
@@ -480,7 +480,7 @@ export const bulkDescartarResenas = async (req: Request, res: Response): Promise
     if (error) {
       if (error.message?.includes('taller_ingresos_resena_estado_check')) {
         res.status(400).json({
-          error: 'Restricción de base de datos: ejecute la migración docs/migrations/20261106_allow_resena_descartada.sql para permitir el estado descartado.',
+          error: 'Restricción de base de datos: ejecute la migración backend/migrations/20261106_allow_resena_descartada.sql para permitir el estado descartado.',
         });
         return;
       }

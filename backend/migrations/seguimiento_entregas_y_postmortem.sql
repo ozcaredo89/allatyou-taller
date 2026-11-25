@@ -1,6 +1,6 @@
 -- ============================================================
 -- MIGRACIÓN: Seguimiento de Entregas, Check-ins (4/6/10h) y Post-Mortem
--- Archivo: docs/migrations/seguimiento_entregas_y_postmortem.sql
+-- Archivo: backend/migrations/seguimiento_entregas_y_postmortem.sql
 -- ============================================================
 
 -- 1. Configuración de intervalo de seguimiento por taller (4h, 6h o 10h)

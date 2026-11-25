@@ -7,7 +7,7 @@
 - Proveedores: `services/aiRouter.service.ts` → `routerIA`; `services/aiProvider.adapter.ts` → `GeminiProvider`, `OpenAIProvider`, `StaticFallbackProvider`, `PRECIOS`
 - Defensas: `middlewares/{turnstile,distributedRateLimiter,tenantGuard,budgetGuard}.middleware.ts`, `middlewares/utils/logearIntento.ts`
 - Frontend: `components/PublicAIChatbot.tsx` (widget público), `AIChatDrawer.tsx` (asistente interno), `NotaPorVoz.tsx` (dictado)
-- Datos: `docs/migrations/create_ai_public_module.sql` → `taller_ai_uso_diario`, `taller_ai_uso_global`, `taller_ai_conversaciones_log`, `taller_leads_ia`; RPC `acumular_costo_diario`, `marcar_alerta_enviada`; ajustes del taller en `taller_empresas.config_ai`
+- Datos: `backend/migrations/create_ai_public_module.sql` → `taller_ai_uso_diario`, `taller_ai_uso_global`, `taller_ai_conversaciones_log`, `taller_leads_ia`; RPC `acumular_costo_diario`, `marcar_alerta_enviada`; ajustes del taller en `taller_empresas.config_ai`
 
 ## Contratos
 - `POST /api/ai/public/chat` (sin JWT) — pasa en orden por Turnstile → límite de peticiones → `tenantGuard` → `budgetGuard` → `chatPublicoCotizacion`.

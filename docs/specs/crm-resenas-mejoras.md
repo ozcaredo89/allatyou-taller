@@ -5,7 +5,7 @@
 ## Archivos
 - Backend: `backend/src/controllers/crm.controller.ts` → `getResenasPendientes`, `getResenasStats`, `marcarResenaIntentado`, `confirmarResena`, `deshacerResena`, `descartarResena`, `bulkDescartarResenas`, `getRetencionProspectos`, `getCrmConfig`, `updateCrmConfig`, `toggleNoContactar`
 - Frontend: `frontend/src/pages/CRM.tsx` → `construirMensajeResena`, `detectarResumenServicio`; enlaces con `utils/whatsapp.ts` → `generarLinkWhatsApp`
-- Datos: `taller_ingresos`: `resena_estado`, `resena_descarte_motivo` (`docs/migrations/20261106_*.sql`); retención en la vista `taller_mv_proximos_mantenimientos` (`crm_retention_v2.sql`)
+- Datos: `taller_ingresos`: `resena_estado`, `resena_descarte_motivo` (`backend/migrations/20261106_*.sql`); retención en la vista `taller_mv_proximos_mantenimientos` (`crm_retention_v2.sql`)
 
 ## Contratos (`requireAuth`, bajo `/api/crm`)
 - `GET /resenas`, `GET /resenas/stats`, `GET /retencion`, `GET|PUT /config`.
