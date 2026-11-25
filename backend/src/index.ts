@@ -16,6 +16,7 @@ import inventarioRoutes from './routes/inventario.routes';
 import gastosRoutes from './routes/gastos.routes';
 import preciosRoutes from './routes/precios.routes';
 import integracionesRoutes from './routes/integraciones.routes';
+import { ocultarErroresInternos } from './middlewares/ocultarErroresInternos';
 dotenv.config();
 
 const app = express();
@@ -32,7 +33,6 @@ app.use(express.json());
 app.use(ocultarErroresInternos);
 
 import authRoutes from './routes/auth.routes';
-import { ocultarErroresInternos } from './middlewares/ocultarErroresInternos';
 
 // Routes
 app.use('/api/auth', authRoutes);
