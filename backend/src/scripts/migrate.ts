@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Client } from 'pg';
 import dotenv from 'dotenv';
+import { resolveMigrationsDir, listarMigraciones } from '../lib/migraciones';
 
 // Intentar cargar .env desde distintas ubicaciones posibles (local y producción)
 const possibleEnvPaths = [
@@ -19,22 +20,6 @@ for (const p of possibleEnvPaths) {
 }
 
 const databaseUrl = process.env.DATABASE_URL;
-
-function resolveMigrationsDir(): string | null {
-  const possiblePaths = [
-    // backend/migrations: Railway construye solo backend/, así que deben vivir aquí
-    path.resolve(__dirname, '../../migrations'), // dist/scripts o src/scripts → backend/migrations
-    path.resolve(process.cwd(), 'migrations'),
-    path.resolve(process.cwd(), 'backend/migrations')
-  ];
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) {
-      return p;
-    }
-  }
-  return null;
-}
 
 export async function runMigrations(targetFileArg?: string): Promise<void> {
   if (!databaseUrl) {
@@ -112,10 +97,7 @@ export async function runMigrations(targetFileArg?: string): Promise<void> {
         }
       }
 
-      const files = fs
-        .readdirSync(migrationsDir)
-        .filter(f => f.endsWith('.sql'))
-        .sort();
+      const files = listarMigraciones(migrationsDir);
 
       const pending = files.filter(f => !executedNames.has(f));
 
