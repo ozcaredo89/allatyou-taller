@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
+import { factorLitros, pluralVolumen } from '../utils/volumenInventario';
 
 export interface ProductoInventario {
   id: string;
@@ -15,6 +16,8 @@ export interface ProductoInventario {
   stock_minimo: number;
   stock_comprometido: number;
   activo: boolean;
+  es_granel?: boolean;
+  capacidad_envase?: number | null;
 }
 
 const tipos = {
@@ -30,6 +33,8 @@ type Movimiento = {
   id: string;
   tipo: Tipo;
   cantidad: number;
+  presentacion?: 'tambor' | 'galón' | 'litro' | null;
+  cantidad_presentacion?: number | null;
   costo_unitario: number;
   precio_unitario: number | null;
   proveedor: string | null;
@@ -44,7 +49,7 @@ type Movimiento = {
 };
 
 type Modal = { tipo: 'producto'; producto?: ProductoInventario }
-  | { tipo: 'ENTRADA' | 'AJUSTE' | 'SALIDA_VENTA'; producto: ProductoInventario }
+  | { tipo: 'ENTRADA' | 'AJUSTE' | 'SALIDA_VENTA' | 'MEDICION'; producto: ProductoInventario }
   | { tipo: 'ANULACION'; movimiento: Movimiento };
 
 const campo = 'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2';
@@ -53,6 +58,18 @@ const principal = 'rounded-lg bg-indigo-600 px-3 py-2 font-medium text-white hov
 const numero = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 3 });
 const moneda = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
 const fecha = new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Bogota' });
+
+function NivelGranel({ stock, capacidad }: { stock: number; capacidad: number }) {
+  const mililitros = Math.round(stock * 1000);
+  const capacidadMl = Math.round(capacidad * 1000);
+  const tambores = Math.floor(mililitros / capacidadMl);
+  const resto = mililitros % capacidadMl / 1000;
+  return <div className="mt-1 min-w-36 space-y-1 text-xs text-slate-600">
+    <div>{tambores} {tambores === 1 ? 'tambor' : 'tambores'} + {numero.format(resto)} L ≈ {numero.format(stock / factorLitros.cuarto)} cuartos</div>
+    <progress aria-label="Nivel del tambor en uso" className="block h-2 w-full accent-indigo-600" value={resto} max={capacidad} />
+    <div>Tambor en uso · {numero.format(resto)} de {numero.format(capacidad)} L</div>
+  </div>;
+}
 
 function Campo({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block space-y-1 text-sm font-medium"><span>{label}</span>{children}</label>;
@@ -133,6 +150,9 @@ export default function Inventario() {
   const [modal, setModal] = useState<Modal | null>(null);
   const [errorModal, setErrorModal] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [esGranel, setEsGranel] = useState(false);
+  const [presentacion, setPresentacion] = useState<'tambor' | 'galón' | 'litro'>('tambor');
+  const [medido, setMedido] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
   const operacion = useRef('');
 
@@ -164,6 +184,9 @@ export default function Inventario() {
   function abrir(formulario: Modal) {
     operacion.current = crypto.randomUUID();
     setErrorModal('');
+    setEsGranel(formulario.tipo === 'producto' && !!formulario.producto?.es_granel);
+    setPresentacion('tambor');
+    setMedido('');
     setModal(formulario);
   }
 
@@ -178,25 +201,42 @@ export default function Inventario() {
     try {
       if (modal.tipo === 'producto') {
         const data = {
-          codigo: valor('codigo'), nombre: valor('nombre'), categoria: valor('categoria'), unidad: valor('unidad'),
+          codigo: valor('codigo'), nombre: valor('nombre'), categoria: valor('categoria'), unidad: esGranel ? 'litro' : valor('unidad'),
+          es_granel: esGranel, capacidad_envase: esGranel ? importe('capacidad_envase') : null,
           precio_venta: importe('precio_venta'), stock_minimo: importe('stock_minimo'), activo: form.has('activo'),
         };
         if (modal.producto) await api.put(`/inventario/items/${modal.producto.id}`, data);
         else await api.post('/inventario/items', data);
       } else if (modal.tipo === 'ANULACION') {
         await api.post(`/inventario/movimientos/${modal.movimiento.id}/anular`, { notas: valor('notas') });
+      } else if (modal.tipo === 'MEDICION') {
+        await api.post('/inventario/movimientos', {
+          operacion_id: operacion.current, tipo: 'AJUSTE', item_id: modal.producto.id,
+          stock_medido: Number(medido), stock_esperado: modal.producto.stock_actual, notas: valor('notas'),
+        });
       } else {
         if (modal.tipo === 'ENTRADA' && form.has('registrar_gasto') &&
             Math.round(importe('cantidad') * importe('costo_unitario') * 100) <= 0) {
           setErrorModal('Para registrar el gasto, el importe de la compra debe ser mayor que cero.');
           return;
         }
+        const cantidadCapturada = importe('cantidad');
+        const factor = compraGranel
+          ? presentacion === 'tambor' ? modal.producto.capacidad_envase ?? 0 : factorLitros[presentacion]
+          : 1;
+        const cantidad = compraGranel ? Math.round(cantidadCapturada * factor * 1000) / 1000 : cantidadCapturada;
+        const costoCapturado = valor('costo_unitario') === '' ? undefined : importe('costo_unitario');
+        if (compraGranel && cantidad <= 0) {
+          setErrorModal('La compra debe equivaler al menos a 0,001 litros.');
+          return;
+        }
         await api.post('/inventario/movimientos', {
-          operacion_id: operacion.current, tipo: modal.tipo, item_id: modal.producto.id, cantidad: importe('cantidad'),
-          costo_unitario: valor('costo_unitario') === '' ? undefined : importe('costo_unitario'),
+          operacion_id: operacion.current, tipo: modal.tipo, item_id: modal.producto.id, cantidad,
+          costo_unitario: compraGranel && costoCapturado !== undefined ? costoCapturado * cantidadCapturada / cantidad : costoCapturado,
           precio_unitario: modal.tipo === 'SALIDA_VENTA' ? importe('precio_unitario') : undefined,
           registrar_gasto: form.has('registrar_gasto'), proveedor: valor('proveedor'),
           factura_ref: valor('factura_ref'), notas: valor('notas'),
+          ...(compraGranel ? { presentacion, cantidad_presentacion: cantidadCapturada, costo_presentacion: costoCapturado } : {}),
         });
       }
       setModal(null);
@@ -204,6 +244,7 @@ export default function Inventario() {
       setVersion(v => v + 1);
     } catch (error) {
       setErrorModal(mensaje(error));
+      if (modal.tipo === 'MEDICION' && isAxiosError(error) && error.response?.status === 409) setVersion(v => v + 1);
     } finally {
       setGuardando(false);
     }
@@ -215,6 +256,8 @@ export default function Inventario() {
     return coincide && (tab !== 'Stock crítico' || stockCritico(item));
   });
   const producto = modal && 'producto' in modal ? modal.producto : undefined;
+  const compraGranel = modal?.tipo === 'ENTRADA' && modal.producto.es_granel;
+  const variacion = modal?.tipo === 'MEDICION' && medido !== '' ? Number(medido) - modal.producto.stock_actual : null;
 
   return (
     <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 text-slate-900">
@@ -251,7 +294,9 @@ export default function Inventario() {
                     <tr key={m.id}>
                       <td>{fecha.format(new Date(m.created_at))}</td><td>{m.taller_inventario_items.nombre}<div className="text-xs text-slate-500">{m.taller_inventario_items.codigo}</div></td>
                       <td>{tipos[m.tipo]}{m.anulado && <div className="text-xs text-slate-500">Anulado</div>}</td>
-                      <td>{numero.format(m.cantidad)}</td><td>{moneda.format(m.costo_unitario)}</td><td>{m.precio_unitario === null ? '—' : moneda.format(m.precio_unitario)}</td>
+                      <td>{m.presentacion && m.cantidad_presentacion != null
+                        ? `${numero.format(m.cantidad_presentacion)} ${m.cantidad_presentacion === 1 ? m.presentacion : pluralVolumen[m.presentacion]} (${numero.format(m.cantidad)} L)`
+                        : numero.format(m.cantidad)}</td><td>{moneda.format(m.costo_unitario)}</td><td>{m.precio_unitario === null ? '—' : moneda.format(m.precio_unitario)}</td>
                       <td><div>{m.usuario_email}</div><div className="text-xs text-slate-500">{[m.proveedor, m.factura_ref, m.notas, m.gasto_id && (m.anulado || m.tipo === 'ANULACION' ? 'Gasto anulado' : 'Gasto vinculado')].filter(Boolean).join(' · ')}</div></td>
                       <td>{!m.anulado && !['ANULACION', 'SALIDA_ORDEN'].includes(m.tipo) && <button className={boton} onClick={() => abrir({ tipo: 'ANULACION', movimiento: m })}>Anular</button>}</td>
                     </tr>
@@ -277,13 +322,16 @@ export default function Inventario() {
                 <tbody className="divide-y divide-slate-100">{visibles.map(item => (
                   <tr key={item.id}>
                     <td><div className="font-semibold">{item.nombre}</div><div className="text-xs text-slate-500">{[item.codigo, item.categoria, !item.activo && 'Inactivo'].filter(Boolean).join(' · ')}</div></td>
-                    <td className={stockCritico(item) ? 'font-semibold text-amber-800' : ''}>{numero.format(item.stock_actual)} {item.unidad}</td>
+                    <td className={stockCritico(item) ? 'font-semibold text-amber-800' : ''}>{numero.format(item.stock_actual)} {item.unidad}
+                      {!!item.es_granel && !!item.capacidad_envase && <NivelGranel stock={item.stock_actual} capacidad={item.capacidad_envase} />}
+                    </td>
                     <td>{numero.format(item.stock_comprometido)}</td><td>{numero.format(item.stock_minimo)}</td>
                     <td>{moneda.format(item.costo_promedio)}</td><td>{moneda.format(item.precio_venta)}</td>
                     <td><div className="flex flex-wrap gap-2">
                       <button className={boton} onClick={() => abrir({ tipo: 'producto', producto: item })}>Editar</button>
                       {item.activo && <button className={boton} onClick={() => abrir({ tipo: 'ENTRADA', producto: item })}>Compra</button>}
                       <button className={boton} onClick={() => abrir({ tipo: 'AJUSTE', producto: item })}>Ajuste</button>
+                      {item.es_granel && <button className={boton} onClick={() => abrir({ tipo: 'MEDICION', producto: item })}>Medir nivel</button>}
                       {item.activo && <button className={boton} onClick={() => abrir({ tipo: 'SALIDA_VENTA', producto: item })}>Vender</button>}
                     </div></td>
                   </tr>
@@ -297,27 +345,37 @@ export default function Inventario() {
         className="m-auto max-h-[90vh] w-[min(92vw,32rem)] rounded-2xl bg-white p-5 shadow-xl backdrop:bg-slate-900/50"
         onCancel={e => { e.preventDefault(); if (!guardando) setModal(null); }}>
         {modal && <form onSubmit={guardar} className="space-y-4">
-          <h2 id="inventario-modal-titulo" className="text-lg font-semibold">{modal.tipo === 'producto' ? (producto ? 'Editar producto' : 'Nuevo producto') : tipos[modal.tipo]}</h2>
+          <h2 id="inventario-modal-titulo" className="text-lg font-semibold">{modal.tipo === 'producto' ? (producto ? 'Editar producto' : 'Nuevo producto') : modal.tipo === 'MEDICION' ? 'Medir nivel' : tipos[modal.tipo]}</h2>
           {modal.tipo === 'producto' ? <>
             <Campo label="Código"><input required className={campo} name="codigo" defaultValue={producto?.codigo} /></Campo>
             <Campo label="Nombre"><input required className={campo} name="nombre" defaultValue={producto?.nombre} /></Campo>
             <Campo label="Categoría"><input className={campo} name="categoria" defaultValue={producto?.categoria ?? ''} /></Campo>
-            <Campo label="Unidad"><select className={campo} name="unidad" defaultValue={producto?.unidad ?? 'und'}>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={esGranel} onChange={e => setEsGranel(e.target.checked)} /> Producto a granel</label>
+            {esGranel ? <Campo label="Capacidad del tambor (L)"><input required className={campo} name="capacidad_envase" type="number" min="0.001" step="0.001" defaultValue={producto?.capacidad_envase ?? 208.198} /></Campo>
+              : <Campo label="Unidad"><select className={campo} name="unidad" defaultValue={producto?.unidad ?? 'und'}>
               <option value="und">Unidad</option><option value="litro">Litro</option><option value="galón">Galón</option>
-            </select></Campo>
-            <Campo label="Precio de venta (COP)"><input required className={campo} name="precio_venta" type="number" min="0" step="0.01" defaultValue={producto?.precio_venta ?? 0} /></Campo>
-            <Campo label="Stock mínimo"><input required className={campo} name="stock_minimo" type="number" min="0" step="0.001" defaultValue={producto?.stock_minimo ?? 0} /></Campo>
+            </select></Campo>}
+            <Campo label={esGranel ? 'Precio de venta por litro (COP)' : 'Precio de venta (COP)'}><input required className={campo} name="precio_venta" type="number" min="0" step="0.01" defaultValue={producto?.precio_venta ?? 0} /></Campo>
+            <Campo label={esGranel ? 'Stock mínimo (L)' : 'Stock mínimo'}><input required className={campo} name="stock_minimo" type="number" min="0" step="0.001" defaultValue={producto?.stock_minimo ?? 0} /></Campo>
             <label className="flex items-center gap-2"><input name="activo" type="checkbox" defaultChecked={producto?.activo ?? true} /> Producto activo</label>
           </> : <>
             {modal.tipo === 'ANULACION' ? (
               <p>Se registrará un movimiento inverso para {modal.movimiento.taller_inventario_items.nombre}.
                 {modal.movimiento.gasto_id && ' También se anulará el gasto generado por esta compra.'}</p>
-            ) : <>
+            ) : modal.tipo === 'MEDICION' ? <>
+              <p>{modal.producto.nombre} · Stock en libros {numero.format(modal.producto.stock_actual)} L</p>
+              <Campo label="Nivel medido con varilla (L)"><input required className={campo} type="number" min="0" step="0.001" value={medido} onChange={e => setMedido(e.target.value)} /></Campo>
+              {variacion !== null && <p role="status" className="text-sm">Varianza {variacion > 0 ? '+' : ''}{numero.format(variacion)} L
+                {' · '}{modal.producto.stock_actual > 0 ? `${numero.format(100 * variacion / modal.producto.stock_actual)} %` : 'Porcentaje sin base de comparación'}</p>}
+            </> : <>
               <p>{modal.producto.nombre} · Stock físico {numero.format(modal.producto.stock_actual)} {modal.producto.unidad}</p>
-              <Campo label={modal.tipo === 'AJUSTE' ? 'Cantidad (positiva para sumar, negativa para restar)' : 'Cantidad'}>
+              {compraGranel && <Campo label="Presentación de compra"><select className={campo} value={presentacion} onChange={e => setPresentacion(e.target.value as typeof presentacion)}>
+                <option value="tambor">Tambor ({numero.format(modal.producto.capacidad_envase ?? 0)} L)</option><option value="galón">Galón</option><option value="litro">Litro</option>
+              </select></Campo>}
+              <Campo label={modal.tipo === 'AJUSTE' ? 'Cantidad (positiva para sumar, negativa para restar)' : compraGranel ? `Cantidad en ${pluralVolumen[presentacion]}` : 'Cantidad'}>
                 <input required className={campo} name="cantidad" type="number" step="0.001" min={modal.tipo === 'AJUSTE' ? undefined : '0.001'} />
               </Campo>
-              {modal.tipo !== 'SALIDA_VENTA' && <Campo label={modal.tipo === 'AJUSTE' ? 'Costo unitario para aumento (opcional)' : 'Costo unitario de factura (COP)'}>
+              {modal.tipo !== 'SALIDA_VENTA' && <Campo label={modal.tipo === 'AJUSTE' ? 'Costo unitario para aumento (opcional)' : compraGranel ? `Costo por ${presentacion} (COP)` : 'Costo unitario de factura (COP)'}>
                 <input required={modal.tipo === 'ENTRADA'} className={campo} name="costo_unitario" type="number" min="0" step="0.000001" />
               </Campo>}
               {modal.tipo === 'ENTRADA' && <>

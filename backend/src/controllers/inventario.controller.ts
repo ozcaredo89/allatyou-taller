@@ -7,7 +7,7 @@ const PAGE_SIZE = 100;
 const TIPOS = ['ENTRADA', 'AJUSTE', 'SALIDA_VENTA', 'SALIDA_ORDEN', 'ANULACION'];
 
 function responderError(res: Response, error: { code?: string; message: string }) {
-  const status = error.code === '23505' ? 409
+  const status = error.code === '23505' || error.code === '40001' ? 409
     : error.code === 'P0002' ? 404
     : /^(22|23)/.test(error.code || '') ? 400 : 500;
   res.status(status).json({ error: status >= 500 ? 'No se pudo consultar o actualizar el inventario.' : error.message });
@@ -27,6 +27,12 @@ export async function listarItems(req: Request, res: Response) {
 
 export async function guardarItem(req: Request, res: Response) {
   const body = req.body ?? {};
+  const esGranel = body.es_granel === true;
+  if ((body.es_granel !== undefined && typeof body.es_granel !== 'boolean') ||
+      (esGranel && (body.unidad !== 'litro' || !Number.isFinite(body.capacidad_envase) || body.capacidad_envase <= 0))) {
+    res.status(400).json({ error: 'El producto a granel requiere unidad litro y una capacidad de envase mayor que cero.' });
+    return;
+  }
   if (typeof body.codigo !== 'string' || !body.codigo.trim() ||
       typeof body.nombre !== 'string' || !body.nombre.trim() ||
       !['und', 'litro', 'galón'].includes(body.unidad) ||
@@ -40,19 +46,21 @@ export async function guardarItem(req: Request, res: Response) {
   const valores = [
     req.empresa_id, body.codigo.trim(), body.nombre.trim(),
     typeof body.categoria === 'string' ? body.categoria.trim() || null : null,
-    body.unidad, body.precio_venta, body.stock_minimo, body.activo ?? true,
+    body.unidad, body.precio_venta, body.stock_minimo, body.activo ?? true, esGranel, esGranel ? body.capacidad_envase : null,
   ];
   const { rows } = req.params.id
     ? await seguimientoDb().query(
       `UPDATE public.taller_inventario_items
-       SET codigo=$2, nombre=$3, categoria=$4, unidad=$5, precio_venta=$6, stock_minimo=$7, activo=$8
-       WHERE empresa_id=$1 AND id=$9 RETURNING to_jsonb(taller_inventario_items) AS producto`,
-      [...valores, req.params.id]
+       SET codigo=$2, nombre=$3, categoria=$4, unidad=$5, precio_venta=$6, stock_minimo=$7, activo=$8,
+           es_granel=CASE WHEN $11 THEN $9 ELSE es_granel END,
+           capacidad_envase=CASE WHEN $11 THEN $10 ELSE capacidad_envase END
+       WHERE empresa_id=$1 AND id=$12 RETURNING to_jsonb(taller_inventario_items) AS producto`,
+      [...valores, body.es_granel !== undefined, req.params.id]
     )
     : await seguimientoDb().query(
       `INSERT INTO public.taller_inventario_items
-       (empresa_id,codigo,nombre,categoria,unidad,precio_venta,stock_minimo,activo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING to_jsonb(taller_inventario_items) AS producto`, valores
+       (empresa_id,codigo,nombre,categoria,unidad,precio_venta,stock_minimo,activo,es_granel,capacidad_envase)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING to_jsonb(taller_inventario_items) AS producto`, valores
     );
   if (!rows.length) return responderError(res, { code: 'P0002', message: 'Producto no encontrado.' });
   res.status(req.params.id ? 200 : 201).json(rows[0].producto);
@@ -100,10 +108,10 @@ export async function listarMovimientos(req: Request, res: Response) {
 
 async function moverStock(req: Request, item: string, tipo: string, datos: object) {
   const { rows: [resultado] } = await seguimientoDb().query(
-    'SELECT to_jsonb(m) AS movimiento FROM public.registrar_movimiento_inventario($1,$2,$3,$4,$5) AS m',
+    'SELECT to_jsonb(m) AS movimiento FROM public.registrar_movimiento_inventario($1,$2,$3,$4,$5) AS m WHERE m.id IS NOT NULL',
     [req.empresa_id, item, tipo, JSON.stringify(datos), req.user_email]
   );
-  return resultado.movimiento;
+  return resultado?.movimiento ?? null;
 }
 
 export async function registrarMovimiento(req: Request, res: Response) {
@@ -114,6 +122,9 @@ export async function registrarMovimiento(req: Request, res: Response) {
   }
   const movimiento = await moverStock(req, item_id, tipo, {
     cantidad, costo_unitario, precio_unitario, registrar_gasto, proveedor, factura_ref, notas, operacion_id,
+    presentacion: req.body.presentacion, cantidad_presentacion: req.body.cantidad_presentacion,
+    costo_presentacion: req.body.costo_presentacion,
+    stock_medido: req.body.stock_medido, stock_esperado: req.body.stock_esperado,
   });
   res.status(201).json(movimiento);
 }

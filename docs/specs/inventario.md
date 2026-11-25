@@ -1,6 +1,6 @@
 # Ficha — Inventario del taller
 
-**Leer si:** la tarea toca bodega, descuento por entrega, compras o mostrador · **Actualizada:** 2026-11-20
+**Leer si:** la tarea toca bodega, descuento por entrega, compras o mostrador
 
 ## Archivos
 - Backend: `backend/src/controllers/inventario.controller.ts`, `ingresos.controller.ts` → `updateIngreso`, `getReportesFinanzas`.
@@ -15,6 +15,10 @@
 
 ## Reglas de negocio
 - La entrega descuenta líneas completas disponibles. Las pendientes se reintentan guardando la orden entregada.
+- Granel guarda existencias y mínimos en litros. La compra usa litros, galones o tambores con la capacidad configurada (`update_inventario_operativo_granel.sql`).
+- La línea conserva cantidad y precio de captura. Se redondean litros a 0,001 y precio sugerido por captura a 0,01 COP. Total = cantidad capturada × ese precio, redondeado a 0,01 COP.
+- El gasto usa cantidad original × costo de factura, redondeado a 0,01 COP. El costo de stock divide el importe sin redondear por los litros almacenados.
+- Medición física registra un `AJUSTE` por litros medidos menos stock en libros. Si cambió el stock, vuelve a confirmar sobre el saldo actualizado.
 - Anular conserva el movimiento original y revierte el stock. Si la compra generó un gasto, lo retira del P&L.
 - Mostrador registra el precio cobrado como ingreso y la diferencia frente al costo como utilidad bruta. Excluye las ventas anuladas.
 

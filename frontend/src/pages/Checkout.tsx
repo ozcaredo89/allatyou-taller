@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { isAxiosError } from 'axios';
 import type { ProductoInventario } from './Inventario';
+import { aLitros, factorLitros, mostrarCantidadInventario, pluralVolumen, type UnidadVolumen } from '../utils/volumenInventario';
 import { useAuth } from '../context/AuthContext';
 import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
 import { ModalVincularGasto } from '../components/ModalVincularGasto';
@@ -25,6 +26,9 @@ interface ItemFactura {
   categoria_crm?: 'aceite' | 'frenos' | 'aire' | 'general' | null;
   justificacion?: string;
   inventario_item_id?: string;
+  unidad_captura?: UnidadVolumen;
+  cantidad_captura?: number;
+  precio_unitario_captura?: number;
 }
 
 interface ItemCatalogoSugerencia {
@@ -88,6 +92,7 @@ const Checkout: React.FC = () => {
   const [nuevoTipo, setNuevoTipo] = useState<'repuesto' | 'mano_obra'>('repuesto');
   const [nuevoDesc, setNuevoDesc] = useState('');
   const [nuevoCant, setNuevoCant] = useState(1);
+  const [unidadCaptura, setUnidadCaptura] = useState<UnidadVolumen>('cuarto');
   const [nuevoPrecio, setNuevoPrecio] = useState<string>('');
   const [nuevoCategoria, setNuevoCategoria] = useState<ItemFactura['categoria_crm']>(null);
 
@@ -97,6 +102,8 @@ const Checkout: React.FC = () => {
   const [showSugerencias, setShowSugerencias] = useState(false);
   const [sugerenciaIdx, setSugerenciaIdx] = useState(-1);
   const [sugerenciaAplicada, setSugerenciaAplicada] = useState<ItemCatalogoSugerencia | null>(null);
+  const granelNuevo = nuevoTipo === 'repuesto' && !!sugerenciaAplicada?.inventario?.es_granel;
+  const cantidadNuevaStock = granelNuevo ? aLitros(nuevoCant, unidadCaptura) : nuevoCant;
   const autocompletarRef = useRef<HTMLDivElement>(null);
 
   // Edición inline de ítem existente
@@ -292,7 +299,8 @@ const Checkout: React.FC = () => {
 
   const seleccionarSugerencia = (sug: ItemCatalogoSugerencia) => {
     setNuevoDesc(sug.descripcion);
-    setNuevoPrecio(sug.precio_sugerido > 0 ? formatearPrecio(sug.precio_sugerido) : '');
+    setUnidadCaptura('cuarto');
+    setNuevoPrecio(sug.precio_sugerido > 0 ? formatearPrecio(sug.precio_sugerido * (sug.inventario?.es_granel ? factorLitros.cuarto : 1)) : '');
     setNuevoCategoria(sug.categoria_crm ?? detectarCategoria(sug.descripcion));
     setSugerenciaAplicada(sug);
     setShowSugerencias(false);
@@ -317,7 +325,7 @@ const Checkout: React.FC = () => {
 
   const agregarItem = () => {
     const precioNumerico = leerPrecio(nuevoPrecio);
-    if (!nuevoDesc.trim() || nuevoCant <= 0 || Math.abs(nuevoCant * 1000 - Math.round(nuevoCant * 1000)) > 0.000001 || isNaN(precioNumerico) || precioNumerico < 0) return;
+    if (!nuevoDesc.trim() || cantidadNuevaStock <= 0 || Math.abs(nuevoCant * 1000 - Math.round(nuevoCant * 1000)) > 0.000001 || isNaN(precioNumerico) || precioNumerico < 0) return;
     let tipoFinal = nuevoTipo;
     if (tipoFinal === 'repuesto' && !sugerenciaAplicada?.inventario && pareceManoObra(nuevoDesc)) {
       const cambiar = window.confirm(
@@ -326,15 +334,19 @@ const Checkout: React.FC = () => {
       );
       if (cambiar) tipoFinal = 'mano_obra';
     }
+    const precioCatalogo = sugerenciaAplicada?.inventario?.precio_venta ?? 0;
+    const precioPorLitro = granelNuevo && precioNumerico === leerPrecio(formatearPrecio(precioCatalogo * factorLitros[unidadCaptura]))
+      ? precioCatalogo : Math.round(precioNumerico / factorLitros[unidadCaptura] * 100) / 100;
     const newItem: ItemFactura = {
       id: crypto.randomUUID(),
       tipo: tipoFinal,
       descripcion: nuevoDesc.trim(),
-      cantidad: nuevoCant,
-      precio_unitario: precioNumerico,
+      cantidad: cantidadNuevaStock,
+      precio_unitario: granelNuevo ? precioPorLitro : precioNumerico,
       total: calcularTotalLinea(nuevoCant, precioNumerico),
       categoria_crm: nuevoCategoria,
       inventario_item_id: tipoFinal === 'repuesto' ? sugerenciaAplicada?.inventario?.id : undefined,
+      ...(granelNuevo ? { unidad_captura: unidadCaptura, cantidad_captura: nuevoCant, precio_unitario_captura: precioNumerico } : {}),
     };
     setItems(prev => [...prev, newItem]);
     setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(''); setNuevoCategoria(null);
@@ -357,8 +369,8 @@ const Checkout: React.FC = () => {
     setEditingItemId(item.id);
     setEditTipo(item.tipo);
     setEditDesc(item.descripcion);
-    setEditCant(item.cantidad);
-    setEditPrecio(formatearPrecio(item.precio_unitario));
+    setEditCant(item.cantidad_captura ?? item.cantidad);
+    setEditPrecio(formatearPrecio(item.precio_unitario_captura ?? item.precio_unitario));
     setEditCategoria(item.categoria_crm || null);
   };
 
@@ -428,15 +440,22 @@ const Checkout: React.FC = () => {
     
     setItems(prev => prev.map(item => {
       if (item.id === editingItemId) {
+        const unidad = tipoFinal === 'repuesto' ? item.unidad_captura : undefined;
+        const precioBase = unidad
+          ? precioNumerico === item.precio_unitario_captura ? item.precio_unitario : Math.round(precioNumerico / factorLitros[unidad] * 100) / 100
+          : precioNumerico;
         return {
           ...item,
           tipo: tipoFinal,
           descripcion: editDesc.trim(),
-          cantidad: editCant,
-          precio_unitario: precioNumerico,
+          cantidad: unidad ? aLitros(editCant, unidad) : editCant,
+          precio_unitario: precioBase,
           total: calcularTotalLinea(editCant, precioNumerico),
           categoria_crm: editCategoria,
           inventario_item_id: tipoFinal === 'repuesto' ? item.inventario_item_id : undefined,
+          unidad_captura: unidad,
+          cantidad_captura: unidad ? editCant : undefined,
+          precio_unitario_captura: unidad ? precioNumerico : undefined,
         };
       }
       return item;
@@ -445,6 +464,8 @@ const Checkout: React.FC = () => {
   };
 
   const total = items.reduce((acc, i) => acc + i.total, 0);
+  const mostrarCantidad = (item: ItemFactura) => mostrarCantidadInventario(item,
+    productosBodega.some(producto => producto.id === item.inventario_item_id && producto.unidad === 'litro'));
 
   // Guarda la orden y pone estado = cotizacion
   const handleGuardarOrden = async () => {
@@ -513,8 +534,8 @@ const Checkout: React.FC = () => {
         ? soloDigitos
         : `57${soloDigitos}`;
 
-      const formatCOP = (valor: number) =>
-        `$${Math.round(valor).toLocaleString('es-CO')}`;
+      const formatCOP = (valor: number, conservarCentavos = false) =>
+        `$${conservarCentavos ? formatearPrecio(valor) : Math.round(valor).toLocaleString('es-CO')}`;
 
       // 2. Resumen de diagnóstico mecánico relevante
       const diagnosticoMecanico = ingreso?.diagnostico_mecanico || {};
@@ -534,7 +555,7 @@ const Checkout: React.FC = () => {
       // 3. Desglose de ítems con justificaciones IA en cursiva
       const desgloseItems = items
         .map((item, idx) => {
-          const lineaItem = `${idx + 1}. *${item.descripcion}* (Cant: ${item.cantidad}) - ${formatCOP(item.total)}`;
+          const lineaItem = `${idx + 1}. *${item.descripcion}* (Cant: ${mostrarCantidad(item)}) - ${formatCOP(item.total, !!item.unidad_captura)}`;
           const lineaJustificacion = item.justificacion?.trim()
             ? `\n   _${item.justificacion.trim()}_`
             : '';
@@ -552,7 +573,7 @@ const Checkout: React.FC = () => {
         `🛠️ *Desglose de Servicios y Repuestos:*`,
         desgloseItems,
         `\n--------------------------------`,
-        `*TOTAL:* *${formatCOP(total)}*`,
+        `*TOTAL:* *${formatCOP(total, items.some(item => !!item.unidad_captura))}*`,
         `--------------------------------\n`,
         `¿Nos confirma si aprueba estos trabajos para proceder? ¡Quedamos muy atentos!`,
       ]
@@ -1064,11 +1085,22 @@ const Checkout: React.FC = () => {
                 <div className="flex-1">
                   <label className="text-xs text-slate-500 mb-0.5 block">{t('checkout.cantidad')}</label>
                   <input type="number" min={0.001} step={0.001} value={nuevoCant} onChange={e => setNuevoCant(Number(e.target.value))} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  {granelNuevo && <>
+                    <select aria-label="Unidad de aceite" value={unidadCaptura} className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm"
+                      onChange={e => {
+                        const unidad = e.target.value as UnidadVolumen;
+                        setUnidadCaptura(unidad);
+                        setNuevoPrecio(formatearPrecio((sugerenciaAplicada?.precio_sugerido ?? 0) * factorLitros[unidad]));
+                      }}>
+                      <option value="cuarto">Cuartos</option><option value="litro">Litros</option><option value="galón">Galones</option>
+                    </select>
+                    <span className="text-xs text-slate-500">{cantidadNuevaStock.toLocaleString('es-CO')} L de inventario</span>
+                  </>}
                 </div>
                 <div className="flex-[2]">
-                  <label className="text-xs text-slate-500 mb-0.5 block">{t('checkout.precio_unitario')}</label>
+                  <label className="text-xs text-slate-500 mb-0.5 block">{granelNuevo ? `Precio por ${unidadCaptura} (COP)` : t('checkout.precio_unitario')}</label>
                   <input type="text" placeholder="0" value={nuevoPrecio} onChange={handlePrecioChange} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                  {sugerenciaAplicada?.inventario && stockInsuficiente(sugerenciaAplicada.inventario, nuevoCant) && (
+                  {sugerenciaAplicada?.inventario && stockInsuficiente(sugerenciaAplicada.inventario, cantidadNuevaStock) && (
                     <p role="status" className="mt-1 text-xs text-amber-800">Stock físico insuficiente para la cantidad solicitada.</p>
                   )}
                   {sugerenciaAplicada && !sugerenciaAplicada.inventario && (
@@ -1156,6 +1188,7 @@ const Checkout: React.FC = () => {
                             onChange={e => setEditCant(Number(e.target.value))}
                             className="w-16 border border-indigo-200 bg-white rounded px-2 py-1 text-sm text-right focus:ring-1 focus:ring-indigo-500 outline-none"
                           />
+                          {item.unidad_captura && <div className="text-xs text-slate-500">{pluralVolumen[item.unidad_captura]}</div>}
                         </td>
                         <td className="py-2.5 text-right px-2">
                           <input 
@@ -1323,8 +1356,8 @@ const Checkout: React.FC = () => {
                         <td className="py-2.5 text-center">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{item.tipo === 'repuesto' ? t('checkout.repuesto') : t('checkout.mano_obra')}</span>
                         </td>
-                        <td className="py-2.5 text-right text-slate-600 px-2">{item.cantidad}</td>
-                        <td className="py-2.5 text-right text-slate-600 px-2">${item.precio_unitario.toLocaleString('es-CO')}</td>
+                        <td className="py-2.5 text-right text-slate-600 px-2">{mostrarCantidad(item)}</td>
+                        <td className="py-2.5 text-right text-slate-600 px-2">${formatearPrecio(item.precio_unitario_captura ?? item.precio_unitario)}{item.unidad_captura && ` / ${item.unidad_captura}`}</td>
                         <td className="py-2.5 text-right font-bold text-slate-800 px-2">${item.total.toLocaleString('es-CO')}</td>
                         <td className="py-2.5 text-right print:hidden whitespace-nowrap">
                           <button onClick={() => startEdit(item)} className="text-indigo-400 hover:text-indigo-600 transition p-1 mr-1"><Edit2 size={14} /></button>
