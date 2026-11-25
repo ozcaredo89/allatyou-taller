@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { seguimientoDb } from '../config/seguimientoDb';
+import { seguimientoDb, seguimientoDbSiConfigurada } from '../config/seguimientoDb';
 import { comprimirEvidencias, EvidenciaInvalida, evidenciasTabla } from '../services/seguimientoEvidencias';
-import { getInventoryClientIfConfigured, supabase } from '../config/supabase';
+import { supabase } from '../config/supabase';
 import { consultarVentasMostrador, resumirVentasMostradorPorDia } from '../services/ventasMostrador.service';
 import { toBogotaDateStr, bogotaToday, getBogotaRange, bogotaDayBounds } from '../utils/dateUtils';
 import { sumarItemsFactura } from '../utils/facturaUtils';
@@ -365,18 +365,20 @@ export const getIngresoById = async (req: Request, res: Response): Promise<void>
     const clienteDoc = (data as any)?.taller_vehiculos?.taller_clientes?.documento;
     const aplicaRenting = evaluarAplicaRenting(req.empresa_id, clienteDoc);
     const inventario = data.estado === 'entregado' && tieneRepuestoDeInventario(data.items_factura)
-      ? getInventoryClientIfConfigured() : undefined;
+      ? seguimientoDbSiConfigurada() : undefined;
     let faltantes: string[] = [];
     if (inventario) {
-      const { data: salidas, error: errorSalidas } = await inventario.from('taller_inventario_salidas_vigentes')
-        .select('ingreso_item_id').eq('empresa_id', req.empresa_id).eq('ingreso_id', id);
-      if (!errorSalidas) {
+      try {
+        const { rows: salidas } = await inventario.query(
+          'SELECT ingreso_item_id FROM public.taller_inventario_salidas_vigentes WHERE empresa_id=$1 AND ingreso_id=$2',
+          [req.empresa_id, id]
+        );
         const descontadas = new Set(salidas.map(salida => salida.ingreso_item_id));
         faltantes = [...new Set<string>(data.items_factura
           .filter((item: any) => item?.tipo === 'repuesto' && item.inventario_item_id && !descontadas.has(item.id))
           .map((item: any) => item.descripcion || 'Repuesto'))];
-      } else if (!['PGRST205', '42P01'].includes(errorSalidas.code)) {
-        throw errorSalidas;
+      } catch (error: any) {
+        if (error.code !== '42P01') throw error;
       }
     }
     res.json({ ...data, aplica_renting: aplicaRenting, inventario_faltantes: faltantes });
@@ -507,29 +509,28 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     let faltantesInventario: string[] = [];
 
     if (cambiaInventario) {
-      const client = getInventoryClientIfConfigured();
+      const client = seguimientoDbSiConfigurada();
       if (!client) {
         res.status(503).json({ error: 'El inventario no está configurado para actualizar los repuestos de esta orden.' });
         return;
       }
-      const { data: faltantes, error } = await client.rpc('actualizar_orden_inventario_operativo', {
-        p_empresa: req.empresa_id,
-        p_orden: id,
-        p_cambios: camposIngreso,
-        p_usuario: req.user_email,
-        p_estado_anterior: current.estado,
-        p_version_anterior: current.updated_at,
-      });
-      if (error?.code === 'PGRST202' || error?.code === '42883') {
-        res.status(503).json({ error: 'La migración de inventario está pendiente en este entorno.' });
-        return;
+      try {
+        const { rows: [resultado] } = await client.query<{ faltantes: string[] }>(
+          'SELECT public.actualizar_orden_inventario_operativo($1,$2,$3,$4,$5,$6) AS faltantes',
+          [req.empresa_id, id, JSON.stringify(camposIngreso), req.user_email, current.estado, current.updated_at]
+        );
+        faltantesInventario = [...new Set(resultado.faltantes)];
+      } catch (error: any) {
+        if (error.code === '42883') {
+          res.status(503).json({ error: 'La migración de inventario está pendiente en este entorno.' });
+          return;
+        }
+        if (error.code === '22023' || error.code === '40001') {
+          res.status(409).json({ error: error.message });
+          return;
+        }
+        throw error;
       }
-      if (error?.code === '22023' || error?.code === '40001') {
-        res.status(409).json({ error: error.message });
-        return;
-      }
-      if (error) throw error;
-      faltantesInventario = [...new Set<string>(faltantes ?? [])];
     }
 
     const tabla = supabase.from('taller_ingresos');
@@ -1445,7 +1446,7 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
     // ── Costos vinculados a ítems (chunked) ──
     const ingresoIds = ingresos.map((i: any) => i.id);
     const costoPorItem: Record<string, number> = {};
-    const inventario = getInventoryClientIfConfigured();
+    const inventario = seguimientoDbSiConfigurada();
     const costoInventario: Record<string, number> = {};
     const CHUNK = 100;
     for (let i = 0; i < ingresoIds.length; i += CHUNK) {
@@ -1461,20 +1462,21 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
         const key = `${g.ingreso_id}::${g.item_id}`;
         costoPorItem[key] = (costoPorItem[key] || 0) + Number(g.monto || 0);
       });
-      for (let offset = 0; inventario; offset += 500) {
-        const { data: salidas, error: errorSalidas } = await inventario
-          .from('taller_inventario_salidas_vigentes')
-          .select('ingreso_id, ingreso_item_id, taller_inventario_movimientos(cantidad, costo_unitario)')
-          .eq('empresa_id', req.empresa_id).in('ingreso_id', chunk)
-          .order('movimiento_id').range(offset, offset + 499);
-        if (errorSalidas?.code === 'PGRST205' || errorSalidas?.code === '42P01') break;
-        if (errorSalidas) throw errorSalidas;
-        for (const salida of salidas) {
-          const movimiento = salida.taller_inventario_movimientos as unknown as { cantidad: number; costo_unitario: number };
-          costoInventario[`${salida.ingreso_id}::${salida.ingreso_item_id}`] =
-            -Number(movimiento.cantidad) * Number(movimiento.costo_unitario);
+      if (inventario) {
+        try {
+          const { rows: salidas } = await inventario.query<{ ingreso_id: string; ingreso_item_id: string; costo: string }>(
+            `SELECT s.ingreso_id, s.ingreso_item_id, -m.cantidad * m.costo_unitario AS costo
+             FROM public.taller_inventario_salidas_vigentes s
+             JOIN public.taller_inventario_movimientos m ON m.empresa_id=s.empresa_id AND m.id=s.movimiento_id
+             WHERE s.empresa_id=$1 AND s.ingreso_id=ANY($2::uuid[])`,
+            [req.empresa_id, chunk]
+          );
+          for (const salida of salidas) {
+            costoInventario[`${salida.ingreso_id}::${salida.ingreso_item_id}`] = Number(salida.costo);
+          }
+        } catch (error: any) {
+          if (error.code !== '42P01') throw error;
         }
-        if (salidas.length < 500) break;
       }
     }
 

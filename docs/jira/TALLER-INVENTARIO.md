@@ -7,5 +7,5 @@
 - Las compras pueden generar un gasto en Repuestos. Su anulación revierte el stock y elimina el gasto generado, con referencia en el historial.
 - Mostrador registra como ingreso el importe cobrado y muestra la utilidad tras descontar el costo de la salida. Las ventas anuladas se excluyen.
 - **Migraciones** `docs/migrations/create_inventario.sql` y `docs/migrations/update_inventario_operativo.sql`.
-- **Configuración** `SUPABASE_SERVICE_ROLE_KEY` solo en el backend. `DATABASE_URL` habilita las migraciones automáticas en Railway.
+- **Configuración** Inventario usa el pool PostgreSQL existente. `DATABASE_URL` habilita las migraciones automáticas en Railway.
 - **Validación** Type-check de backend y frontend. Migraciones probadas en PostgreSQL aislado.
