@@ -13,6 +13,7 @@ export interface SincronizarGastoParams {
   date: string;
   description: string;
   items: SincronizarGastoItem[];
+  odometerKm?: number;
   leasing?: LeasingSyncOptions;
 }
 
@@ -25,6 +26,7 @@ export interface LeasingSyncOptions {
 
 export interface RentingSyncResult {
   ok: boolean;
+  status?: number;
   message?: string;
   expenseIds?: number[];
   debitNoteError?: string | null;
@@ -34,6 +36,16 @@ export interface LeasingResumen {
   has_leasing: boolean;
   maintenance_fund_available?: number;
   driver_name?: string | null;
+}
+
+export const CATEGORIA_CAMBIO_ACEITE = 'Cambio de aceite';
+
+export function esCambioAceite(item: { category?: unknown; categoria_crm?: unknown } | null | undefined) {
+  return item?.category === CATEGORIA_CAMBIO_ACEITE || item?.categoria_crm === 'aceite';
+}
+
+export function esKilometrajeValido(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
 function getRentingConfig() {
@@ -46,7 +58,7 @@ function getRentingConfig() {
 
   return {
     baseUrl: apiUrl.replace(/\/+$/, ''),
-    serviceToken
+    authHeaders: { 'X-Service-Token': serviceToken }
   };
 }
 
@@ -54,10 +66,10 @@ function getRentingConfig() {
  * Consulta en Renting si la placa tiene un contrato de leasing activo y su fondo de mantenimiento disponible.
  */
 export async function consultarLeasingRenting(placa: string): Promise<LeasingResumen> {
-  const { baseUrl, serviceToken } = getRentingConfig();
+  const { baseUrl, authHeaders } = getRentingConfig();
 
   const response = await fetch(`${baseUrl}/leasing/summary?plate=${encodeURIComponent(placa.toUpperCase().trim())}`, {
-    headers: { 'X-Service-Token': serviceToken },
+    headers: authHeaders,
     signal: AbortSignal.timeout(10_000)
   });
 
@@ -96,9 +108,9 @@ export function evaluarAplicaRenting(empresaId?: string, clienteDoc?: string): b
  * Si falla, revierte el reclamo (renting_sync_at = null) y persiste el mensaje de error.
  */
 export async function procesarSincronizacionRenting(params: SincronizarGastoParams): Promise<RentingSyncResult> {
-  const { ingresoId, empresaId, placa, date, description, items, leasing } = params;
+  const { ingresoId, empresaId, placa, date, description, items, leasing, odometerKm } = params;
 
-  const { baseUrl, serviceToken } = getRentingConfig();
+  const { baseUrl, authHeaders } = getRentingConfig();
 
   // 1. Reclamo Atómico (Optimistic Lock)
   const nowIso = new Date().toISOString();
@@ -134,7 +146,8 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
     date,
     description: description.trim(),
     items: payloadItems,
-    plates: [placa.toUpperCase().trim()]
+    plates: [placa.toUpperCase().trim()],
+    ...(odometerKm !== undefined && { odometer_km: odometerKm })
   };
 
   if (leasing) {
@@ -144,12 +157,13 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
     payload.leasing_advance_start_date = leasing.advanceStartDate;
   }
 
+  let rejectedByHub = false;
   try {
     const response = await fetch(`${baseUrl}/expenses`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Service-Token': serviceToken
+        ...authHeaders
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000)
@@ -157,6 +171,17 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
 
     if (!response.ok && response.status !== 207) {
       const errorText = await response.text().catch(() => '');
+      if (response.status === 400) {
+        rejectedByHub = true;
+        let message = errorText;
+        try {
+          const details = JSON.parse(errorText);
+          message = [details?.message, details?.error].find(value => typeof value === 'string' && value.trim()) || '';
+        } catch {
+          // El Hub también puede responder con texto.
+        }
+        throw new Error(message || 'Renting rechazó los datos del gasto.');
+      }
       throw new Error(`Renting API respondió HTTP ${response.status}: ${errorText || response.statusText}`);
     }
 
@@ -171,7 +196,8 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
       .from('taller_ingresos')
       .update({
         renting_expense_ids: createdIds,
-        renting_sync_error: debitNoteError
+        renting_sync_error: debitNoteError,
+        ...(odometerKm !== undefined && { kilometraje_entrega: odometerKm })
       })
       .eq('id', ingresoId)
       .eq('empresa_id', empresaId);
@@ -196,6 +222,7 @@ export async function procesarSincronizacionRenting(params: SincronizarGastoPara
       .eq('id', ingresoId)
       .eq('empresa_id', empresaId);
 
+    if (rejectedByHub) return { ok: false, status: 400, message: err.message };
     throw err;
   }
 }

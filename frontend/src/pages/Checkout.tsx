@@ -12,6 +12,7 @@ import { ModalVincularGasto } from '../components/ModalVincularGasto';
 import ModalAsignarTecnicos from '../components/ModalAsignarTecnicos';
 import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
+import { CATEGORIA_CAMBIO_ACEITE, esCambioAceite, pedirKilometrajeEntrega } from '../services/rentingOdometer';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
 
 interface ItemFactura {
@@ -129,6 +130,8 @@ const Checkout: React.FC = () => {
     date?: string;
     description?: string;
     items: RentingSyncItem[];
+    kilometrajeEntrega?: number;
+    requiereOdometro?: boolean;
   }>({ placa: '', items: [] });
 
   // Fix #5: Close popover on outside click
@@ -618,10 +621,14 @@ const Checkout: React.FC = () => {
       if (isEditMode) {
         navigate(`/${slug}/historial/${id}`);
       } else {
+        const requiereOdometro = Boolean(ingreso?.aplica_renting && items.some(esCambioAceite));
+        const kilometrajeEntrega = requiereOdometro ? pedirKilometrajeEntrega() : undefined;
+        if (kilometrajeEntrega === null) return;
         const res = await api.put(`/ingresos/${id}`, {
           items_factura: items,
           notas_factura: notasFactura,
           estado: 'entregado',
+          kilometraje_entrega: kilometrajeEntrega,
         });
 
         if (res.data?.inventario_faltantes?.length) {
@@ -634,6 +641,8 @@ const Checkout: React.FC = () => {
             placa: res.data.renting_info.prefill?.placa || vehiculo?.placa || '',
             date: res.data.renting_info.prefill?.date,
             description: res.data.renting_info.prefill?.description,
+            kilometrajeEntrega,
+            requiereOdometro,
             items: res.data.renting_info.prefill?.items || []
           });
           setShowRentingModal(true);
@@ -703,11 +712,13 @@ const Checkout: React.FC = () => {
                 onClick={() => {
                   const validItems = items
                     .filter(it => it.total > 0)
-                    .map(it => ({ item: it.descripcion, category: 'Mantenimiento', amount: it.total }));
+                    .map(it => ({ item: it.descripcion, category: esCambioAceite(it) ? CATEGORIA_CAMBIO_ACEITE : 'Mantenimiento', amount: it.total }));
                   setRentingModalData({
                     placa: vehiculo?.placa || '',
                     date: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date()),
                     description: `[Taller Orden #${id}] ${ingreso.motivo_visita || ''}`.trim(),
+                    kilometrajeEntrega: ingreso.kilometraje_entrega ?? undefined,
+                    requiereOdometro: items.some(esCambioAceite),
                     items: validItems
                   });
                   setShowRentingModal(true);
@@ -1481,6 +1492,8 @@ const Checkout: React.FC = () => {
           initialDate={rentingModalData.date}
           initialDescription={rentingModalData.description}
           initialItems={rentingModalData.items}
+          kilometrajeEntrega={rentingModalData.kilometrajeEntrega}
+          requiereOdometro={rentingModalData.requiereOdometro}
           onSuccess={() => {
             cargarIngreso();
             if (estadoActual !== 'entregado') {
