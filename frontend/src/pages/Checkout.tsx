@@ -4,6 +4,8 @@ import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench
 import { pareceManoObra } from '../utils/tipoItemUtils';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import { isAxiosError } from 'axios';
+import type { ProductoInventario } from './Inventario';
 import { useAuth } from '../context/AuthContext';
 import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
 import { ModalVincularGasto } from '../components/ModalVincularGasto';
@@ -21,6 +23,7 @@ interface ItemFactura {
   total: number;
   categoria_crm?: 'aceite' | 'frenos' | 'aire' | 'general' | null;
   justificacion?: string;
+  inventario_item_id?: string;
 }
 
 interface ItemCatalogoSugerencia {
@@ -34,6 +37,21 @@ interface ItemCatalogoSugerencia {
   ocurrencias: number;
   ocurrencias_totales: number;
   vehiculo_match: boolean;
+  inventario?: ProductoInventario;
+}
+
+function leerPrecio(texto: string) {
+  return Number(texto.replace(/\./g, '').replace(',', '.')) || 0;
+}
+
+function formatearPrecio(precio: number) {
+  return precio.toLocaleString('es-CO', { maximumFractionDigits: 2 });
+}
+
+function calcularTotalLinea(cantidad: number, precio: number) {
+  const milesimas = Math.round(cantidad * 1000);
+  const centavos = Math.round(precio * 100);
+  return Math.round(milesimas * centavos / 1000) / 100;
 }
 
 function normalizarParaFiltro(texto: string): string {
@@ -73,6 +91,7 @@ const Checkout: React.FC = () => {
   const [nuevoCategoria, setNuevoCategoria] = useState<ItemFactura['categoria_crm']>(null);
 
   // Autocompletado aprendido de repuestos y mano de obra
+  const [productosBodega, setProductosBodega] = useState<ProductoInventario[]>([]);
   const [catalogoItems, setCatalogoItems] = useState<ItemCatalogoSugerencia[]>([]);
   const [showSugerencias, setShowSugerencias] = useState(false);
   const [sugerenciaIdx, setSugerenciaIdx] = useState(-1);
@@ -164,14 +183,40 @@ const Checkout: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showSugerencias]);
 
+  useEffect(() => {
+    const abort = new AbortController();
+    api.get<ProductoInventario[]>('/inventario/items', { signal: abort.signal })
+      .then(({ data }) => setProductosBodega(data))
+      .catch(error => { if (!abort.signal.aborted) console.error('Error cargando inventario:', error); });
+    return () => abort.abort();
+  }, [id]);
+
   const sugerenciasFiltradas = useMemo(() => {
     const q = normalizarParaFiltro(nuevoDesc);
-    const delTipo = catalogoItems.filter(item => item.tipo === nuevoTipo);
-    if (!q) return delTipo.slice(0, 8);
-    return delTipo
-      .filter(item => normalizarParaFiltro(item.descripcion).includes(q))
-      .slice(0, 8);
-  }, [catalogoItems, nuevoTipo, nuevoDesc]);
+    const bodega: ItemCatalogoSugerencia[] = nuevoTipo === 'repuesto'
+      ? productosBodega
+        .filter(producto => producto.activo && normalizarParaFiltro(`${producto.codigo} ${producto.nombre}`).includes(q))
+        .slice(0, q ? 8 : 4)
+        .map(producto => ({
+          descripcion: producto.nombre, tipo: 'repuesto', categoria_crm: null,
+          precio_sugerido: producto.precio_venta, precio_promedio: producto.precio_venta,
+          precio_min: producto.precio_venta, precio_max: producto.precio_venta,
+          ocurrencias: 0, ocurrencias_totales: 0, vehiculo_match: false, inventario: producto,
+        }))
+      : [];
+    const historico = catalogoItems.filter(item => item.tipo === nuevoTipo && normalizarParaFiltro(item.descripcion).includes(q));
+    return [...bodega, ...historico].slice(0, 8);
+  }, [catalogoItems, productosBodega, nuevoTipo, nuevoDesc]);
+
+  const stockInsuficiente = (producto: ProductoInventario, cantidad: number) => {
+    const solicitado = items.reduce((total, item) =>
+      item.inventario_item_id === producto.id ? total + item.cantidad : total, cantidad);
+    const entregado = ingreso?.estado === 'entregado'
+      ? (ingreso.items_factura as ItemFactura[] | undefined)?.reduce((total, item) =>
+        item.inventario_item_id === producto.id ? total + item.cantidad : total, 0) ?? 0
+      : 0;
+    return Math.round(solicitado * 1000) > Math.round((producto.stock_actual + entregado) * 1000);
+  };
 
   const handleOpenModalGasto = (itemId?: string, itemDesc?: string, tab: 'nuevo' | 'existente' = 'nuevo') => {
     setModalGastoItemId(itemId || null);
@@ -215,9 +260,10 @@ const Checkout: React.FC = () => {
 
   // Formatea el valor visualmente con separadores de miles
   const formatCurrencyInput = (value: string) => {
-    const digitsOnly = value.replace(/\D/g, '');
-    if (!digitsOnly) return '';
-    return parseInt(digitsOnly, 10).toLocaleString('es-CO');
+    const [entero, fraccion] = value.split(',');
+    const digitos = entero.replace(/\D/g, '');
+    const base = digitos ? Number(digitos).toLocaleString('es-CO') : '';
+    return fraccion === undefined ? base : `${base || '0'},${fraccion.replace(/\D/g, '').slice(0, 2)}`;
   };
 
   const handlePrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -243,7 +289,7 @@ const Checkout: React.FC = () => {
 
   const seleccionarSugerencia = (sug: ItemCatalogoSugerencia) => {
     setNuevoDesc(sug.descripcion);
-    setNuevoPrecio(sug.precio_sugerido > 0 ? sug.precio_sugerido.toLocaleString('es-CO') : '');
+    setNuevoPrecio(sug.precio_sugerido > 0 ? formatearPrecio(sug.precio_sugerido) : '');
     setNuevoCategoria(sug.categoria_crm ?? detectarCategoria(sug.descripcion));
     setSugerenciaAplicada(sug);
     setShowSugerencias(false);
@@ -267,10 +313,10 @@ const Checkout: React.FC = () => {
   };
 
   const agregarItem = () => {
-    const precioNumerico = parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10);
-    if (!nuevoDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
+    const precioNumerico = leerPrecio(nuevoPrecio);
+    if (!nuevoDesc.trim() || nuevoCant <= 0 || Math.abs(nuevoCant * 1000 - Math.round(nuevoCant * 1000)) > 0.000001 || isNaN(precioNumerico) || precioNumerico < 0) return;
     let tipoFinal = nuevoTipo;
-    if (tipoFinal === 'repuesto' && pareceManoObra(nuevoDesc)) {
+    if (tipoFinal === 'repuesto' && !sugerenciaAplicada?.inventario && pareceManoObra(nuevoDesc)) {
       const cambiar = window.confirm(
         `"${nuevoDesc.trim()}" parece MANO DE OBRA, pero está marcado como REPUESTO.\n\n` +
         'Aceptar = guardarlo como Mano de obra\nCancelar = dejarlo como Repuesto'
@@ -283,8 +329,9 @@ const Checkout: React.FC = () => {
       descripcion: nuevoDesc.trim(),
       cantidad: nuevoCant,
       precio_unitario: precioNumerico,
-      total: nuevoCant * precioNumerico,
+      total: calcularTotalLinea(nuevoCant, precioNumerico),
       categoria_crm: nuevoCategoria,
+      inventario_item_id: tipoFinal === 'repuesto' ? sugerenciaAplicada?.inventario?.id : undefined,
     };
     setItems(prev => [...prev, newItem]);
     setNuevoDesc(''); setNuevoCant(1); setNuevoPrecio(''); setNuevoCategoria(null);
@@ -308,7 +355,7 @@ const Checkout: React.FC = () => {
     setEditTipo(item.tipo);
     setEditDesc(item.descripcion);
     setEditCant(item.cantidad);
-    setEditPrecio(item.precio_unitario.toString());
+    setEditPrecio(formatearPrecio(item.precio_unitario));
     setEditCategoria(item.categoria_crm || null);
   };
 
@@ -365,10 +412,10 @@ const Checkout: React.FC = () => {
 
   const saveEdit = () => {
     if (!editingItemId) return;
-    const precioNumerico = parseInt(editPrecio.replace(/\D/g, '') || '0', 10);
-    if (!editDesc.trim() || isNaN(precioNumerico) || precioNumerico < 0) return;
+    const precioNumerico = leerPrecio(editPrecio);
+    if (!editDesc.trim() || editCant <= 0 || Math.abs(editCant * 1000 - Math.round(editCant * 1000)) > 0.000001 || isNaN(precioNumerico) || precioNumerico < 0) return;
     let tipoFinal = editTipo;
-    if (tipoFinal === 'repuesto' && pareceManoObra(editDesc)) {
+    if (tipoFinal === 'repuesto' && !items.find(item => item.id === editingItemId)?.inventario_item_id && pareceManoObra(editDesc)) {
       const cambiar = window.confirm(
         `"${editDesc.trim()}" parece MANO DE OBRA, pero está marcado como REPUESTO.\n\n` +
         'Aceptar = guardarlo como Mano de obra\nCancelar = dejarlo como Repuesto'
@@ -384,8 +431,9 @@ const Checkout: React.FC = () => {
           descripcion: editDesc.trim(),
           cantidad: editCant,
           precio_unitario: precioNumerico,
-          total: editCant * precioNumerico,
+          total: calcularTotalLinea(editCant, precioNumerico),
           categoria_crm: editCategoria,
+          inventario_item_id: tipoFinal === 'repuesto' ? item.inventario_item_id : undefined,
         };
       }
       return item;
@@ -428,8 +476,8 @@ const Checkout: React.FC = () => {
       await cargarGastos();
       const v = ingreso?.taller_vehiculos;
       cargarCatalogoItems(v?.marca, v?.linea);
-    } catch {
-      setError('Error al guardar la orden.');
+    } catch (err) {
+      setError(isAxiosError(err) ? err.response?.data?.error || 'Error al guardar la orden.' : 'Error al guardar la orden.');
     } finally {
       setSaving(false);
     }
@@ -576,6 +624,10 @@ const Checkout: React.FC = () => {
           estado: 'entregado',
         });
 
+        if (res.data?.inventario_faltantes?.length) {
+          window.alert(`Vehículo entregado. Quedó pendiente el descuento de stock de ${res.data.inventario_faltantes.join(', ')}.`);
+        }
+
         // Si la orden califica para Renting y no está sincronizada, abrir modal de confirmación
         if (res.data?.renting_info?.aplica_renting && !res.data?.renting_info?.ya_sincronizado) {
           setRentingModalData({
@@ -590,8 +642,8 @@ const Checkout: React.FC = () => {
 
         navigate(`/${slug}`);
       }
-    } catch {
-      setError('Error al entregar.');
+    } catch (error) {
+      setError(isAxiosError(error) ? error.response?.data?.error || 'Error al entregar.' : 'Error al entregar.');
     } finally {
       setEntregando(false);
       setShowConfirmEntregarSinTecnico(false);
@@ -606,6 +658,8 @@ const Checkout: React.FC = () => {
   const diagnostico = ingreso.diagnostico_mecanico || {};
   const estadoActual = ingreso.estado;
 
+  const faltantesBodega = productosBodega.filter(producto =>
+    items.some(item => item.inventario_item_id === producto.id) && stockInsuficiente(producto, 0));
   const tieneItems = items.length > 0;
 
   // Puede notificar siempre que haya ítems (puede reenviar cuantas veces quiera)
@@ -733,7 +787,17 @@ const Checkout: React.FC = () => {
         </div>
       )}
 
-      {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 print:hidden">{error}</div>}
+      {isEditMode && ingreso.inventario_faltantes?.length > 0 && (
+        <p role="status" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Descuento de stock pendiente para {ingreso.inventario_faltantes.join(', ')}. Después de registrar la entrada en bodega, vuelve a guardar la orden para completar el descuento.
+        </p>
+      )}
+      {faltantesBodega.length > 0 && (
+          <p role="status" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Stock físico insuficiente para {faltantesBodega.map(producto => producto.nombre).join(', ')}. Puedes guardar la orden abierta.
+          </p>
+        )}
+        {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 print:hidden">{error}</div>}
 
       <div className="bg-white p-8 md:p-12 border border-slate-200 rounded-2xl shadow-sm print:shadow-none print:border-none print:p-0">
         {/* Factura Header */}
@@ -914,7 +978,7 @@ const Checkout: React.FC = () => {
                   <Wrench size={14} /> {t('checkout.mano_obra')}
                 </button>
               </div>
-              {nuevoTipo === 'repuesto' && pareceManoObra(nuevoDesc) && (
+              {nuevoTipo === 'repuesto' && !sugerenciaAplicada?.inventario && pareceManoObra(nuevoDesc) && (
                 <div className="flex flex-wrap items-center gap-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-3 py-2 text-xs">
                   <AlertTriangle size={14} className="shrink-0" />
                   <span className="flex-1">Esta descripción parece <b>mano de obra</b>, pero está marcada como <b>repuesto</b>.</span>
@@ -943,7 +1007,7 @@ const Checkout: React.FC = () => {
                     <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto divide-y divide-slate-100">
                       {sugerenciasFiltradas.map((sug, idx) => (
                         <button
-                          key={`${sug.tipo}-${sug.descripcion}`}
+                          key={sug.inventario?.id ?? `${sug.tipo}-${sug.descripcion}`}
                           type="button"
                           onMouseDown={(e) => {
                             e.preventDefault();
@@ -961,14 +1025,16 @@ const Checkout: React.FC = () => {
                                   {ingreso.taller_vehiculos.linea}
                                 </span>
                               )}
-                              <span>Usado {sug.ocurrencias_totales} {sug.ocurrencias_totales === 1 ? 'vez' : 'veces'}</span>
+                              {sug.inventario ? (
+                                <span>{sug.inventario.codigo} · Stock {sug.inventario.stock_actual} {sug.inventario.unidad} · Comprometido {sug.inventario.stock_comprometido}</span>
+                              ) : <span>Usado {sug.ocurrencias_totales} {sug.ocurrencias_totales === 1 ? 'vez' : 'veces'}</span>}
                               {sug.precio_promedio !== sug.precio_sugerido && (
                                 <span>· Prom: ${sug.precio_promedio.toLocaleString('es-CO')}</span>
                               )}
                             </div>
                           </div>
                           <span className="font-bold text-indigo-700 whitespace-nowrap">
-                            ${sug.precio_sugerido.toLocaleString('es-CO')}
+                            ${formatearPrecio(sug.precio_sugerido)}
                           </span>
                         </button>
                       ))}
@@ -986,12 +1052,15 @@ const Checkout: React.FC = () => {
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="text-xs text-slate-500 mb-0.5 block">{t('checkout.cantidad')}</label>
-                  <input type="number" min={1} value={nuevoCant} onChange={e => setNuevoCant(Number(e.target.value))} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  <input type="number" min={0.001} step={0.001} value={nuevoCant} onChange={e => setNuevoCant(Number(e.target.value))} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                 </div>
                 <div className="flex-[2]">
                   <label className="text-xs text-slate-500 mb-0.5 block">{t('checkout.precio_unitario')}</label>
                   <input type="text" placeholder="0" value={nuevoPrecio} onChange={handlePrecioChange} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                  {sugerenciaAplicada && (
+                  {sugerenciaAplicada?.inventario && stockInsuficiente(sugerenciaAplicada.inventario, nuevoCant) && (
+                    <p role="status" className="mt-1 text-xs text-amber-800">Stock físico insuficiente para la cantidad solicitada.</p>
+                  )}
+                  {sugerenciaAplicada && !sugerenciaAplicada.inventario && (
                     <p className="text-[11px] text-indigo-600 mt-1">
                       Valor sugerido{sugerenciaAplicada.vehiculo_match && ingreso?.taller_vehiculos?.linea ? ` para ${ingreso.taller_vehiculos.linea}` : ''} ({sugerenciaAplicada.ocurrencias} {sugerenciaAplicada.ocurrencias === 1 ? 'registro' : 'registros'}) · editable
                     </p>
@@ -999,7 +1068,7 @@ const Checkout: React.FC = () => {
                 </div>
                 <div className="flex items-end pb-0.5">
                   <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-2 rounded-lg whitespace-nowrap">
-                    = ${(nuevoCant * (parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10))).toLocaleString('es-CO')}
+                    = ${calcularTotalLinea(nuevoCant, leerPrecio(nuevoPrecio)).toLocaleString('es-CO')}
                   </span>
                 </div>
               </div>
@@ -1007,9 +1076,9 @@ const Checkout: React.FC = () => {
                 <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">{t('diagnostico.btn_cancelar')}</button>
                 <button
                   onClick={agregarItem}
-                  disabled={!nuevoDesc.trim() || parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10) < 0}
+                  disabled={!nuevoDesc.trim() || leerPrecio(nuevoPrecio) < 0}
                   className={`px-4 py-2 text-sm font-bold rounded-lg transition ${
-                    !nuevoDesc.trim() || parseInt(nuevoPrecio.replace(/\D/g, '') || '0', 10) < 0
+                    !nuevoDesc.trim() || leerPrecio(nuevoPrecio) < 0
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                       : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   }`}
@@ -1071,7 +1140,7 @@ const Checkout: React.FC = () => {
                         <td className="py-2.5 text-right px-2">
                           <input 
                             type="number" 
-                            min={1} 
+                            min={0.001} step={0.001}
                             value={editCant} 
                             onChange={e => setEditCant(Number(e.target.value))}
                             className="w-16 border border-indigo-200 bg-white rounded px-2 py-1 text-sm text-right focus:ring-1 focus:ring-indigo-500 outline-none"
@@ -1086,7 +1155,7 @@ const Checkout: React.FC = () => {
                           />
                         </td>
                         <td className="py-2.5 text-right font-bold text-indigo-700 px-2">
-                          ${(editCant * (parseInt(editPrecio.replace(/\D/g, '') || '0', 10))).toLocaleString('es-CO')}
+                          ${calcularTotalLinea(editCant, leerPrecio(editPrecio)).toLocaleString('es-CO')}
                         </td>
                         <td className="py-2.5 text-right print:hidden whitespace-nowrap">
                           <button onClick={saveEdit} className="text-emerald-600 hover:text-emerald-700 transition p-1 mr-1 bg-emerald-50 rounded"><Check size={14} /></button>

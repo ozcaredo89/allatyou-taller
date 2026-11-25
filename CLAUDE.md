@@ -28,6 +28,7 @@ Rutas en `backend/src/routes/<x>.routes.ts`, lógica en `backend/src/controllers
 | Cotización y salida | `ingresos`, `gastos` | `pages/Checkout` | — |
 | Seguimiento y reportes | `ingresos` (`/reportes/*`, `/:id/seguimiento`) | `pages/Reportes`, `components/Reporte*`, `ModalSeguimientoIngreso` | `reportes-operativos-y-seguimiento.md` |
 | Gastos | `gastos`, `utils/gastosProrrateo` | `pages/Gastos`, `components/ModalVincular*` | — |
+| Inventario | `inventario`, `services/ventasMostrador`, `ingresos.updateIngreso` | `pages/Inventario`, `pages/Checkout` | `inventario.md` |
 | Sincronización con Renting | `ingresos`, `services/allatyouSync.service` | `components/RentingSyncModal` | `sincronizacion-gastos-renting.md` |
 | CRM (retención y reseñas) | `crm` | `pages/CRM`, `utils/whatsapp` | `crm-resenas-mejoras.md` |
 | Acceso, equipo, dispositivos | `auth`, `middlewares/auth.middleware` | `pages/{Login,Registro,Equipo,Configuracion}`, `context/AuthContext` | `recuperacion-contrasena.md` |
