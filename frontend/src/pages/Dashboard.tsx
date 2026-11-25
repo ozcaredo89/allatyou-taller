@@ -12,8 +12,8 @@ import ModalEditarIngreso from '../components/ModalEditarIngreso';
 import ModalSeguimientoIngreso from '../components/ModalSeguimientoIngreso';
 import TimelineDrawer from '../components/TimelineDrawer';
 import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyncModal';
-import { esCambioAceite, parseKilometraje } from '../services/rentingOdometer';
-import { CampoKilometrajeEntrega, ERROR_KILOMETRAJE } from '../components/KilometrajeEntrega';
+import { esCambioAceite, kilometrajeRecepcion, parseKilometraje } from '../services/rentingOdometer';
+import { CampoKilometrajeEntrega, ERROR_KILOMETRAJE, KilometrajeRecepcionInfo } from '../components/KilometrajeEntrega';
 import { useDashboardCentinela } from '../hooks/useDashboardCentinela';
 
 interface Cliente {
@@ -52,6 +52,7 @@ interface Ingreso {
   taller_ingresos_tecnicos?: { taller_tecnicos: { id: string; nombre: string } }[];
   aplica_renting?: boolean;
   renting_sync_at?: string;
+  kilometraje?: number | null;
 }
 
 const estadoColors: Record<string, string> = {
@@ -345,7 +346,9 @@ const Dashboard: React.FC = () => {
   const confirmarEntrega = async () => {
     if (!entregarTarget) return;
     const requiereOdometro = Boolean(entregarTarget.aplica_renting && entregarTarget.items_factura?.some(esCambioAceite));
-    const kilometrajeEntrega = requiereOdometro ? parseKilometraje(kmEntrega) : undefined;
+    const kilometrajeEntrega = requiereOdometro
+      ? kilometrajeRecepcion(entregarTarget) ?? parseKilometraje(kmEntrega)
+      : undefined;
     if (kilometrajeEntrega === null) { setKmEntregaError(ERROR_KILOMETRAJE); return; }
     try {
       setEntregando(true);
@@ -432,6 +435,7 @@ const Dashboard: React.FC = () => {
         const tieneTecnicos = Array.isArray(entregarTarget.taller_ingresos_tecnicos) && entregarTarget.taller_ingresos_tecnicos.length > 0;
         const faltaTecnicoMO = tieneManoObra && !tieneTecnicos;
         const requiereOdometro = Boolean(entregarTarget.aplica_renting && items.some(esCambioAceite));
+        const kmRecepcion = kilometrajeRecepcion(entregarTarget);
 
         return (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -468,7 +472,10 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
 
-              {requiereOdometro && (
+              {requiereOdometro && kmRecepcion !== null && (
+                <div className="mb-5"><KilometrajeRecepcionInfo km={kmRecepcion} /></div>
+              )}
+              {requiereOdometro && kmRecepcion === null && (
                 <div className="mb-5">
                   <CampoKilometrajeEntrega
                     value={kmEntrega}

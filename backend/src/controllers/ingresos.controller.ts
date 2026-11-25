@@ -423,6 +423,10 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
     const requiereOdometro = body.estado === 'entregado' && current.estado !== 'entregado'
       && evaluarAplicaRenting(req.empresa_id, documentoRenting)
       && Array.isArray(itemsOrden) && itemsOrden.some(esCambioAceite);
+    // Kilometraje de entrega: si no viene, se toma el registrado en la recepción
+    if (requiereOdometro && body.kilometraje_entrega === undefined && esKilometrajeValido(Number(current.kilometraje))) {
+      body.kilometraje_entrega = Number(current.kilometraje);
+    }
     if ((requiereOdometro || body.kilometraje_entrega !== undefined) && !esKilometrajeValido(body.kilometraje_entrega)) {
       res.status(400).json({ error: 'Ingresa el kilometraje del tablero en km, mayor a cero.' });
       return;
@@ -683,7 +687,7 @@ export const updateIngreso = async (req: Request, res: Response): Promise<void> 
 
         if (cliErr) {
           console.error('[updateIngreso] Error actualizando datos del cliente:', cliErr.message);
-          res.status(400).json({ error: cliErr.message });
+          res.status(400).json({ error: 'No se pudieron actualizar los datos del cliente. Revisa la información e intenta de nuevo.' });
           return;
         }
       }
@@ -2011,7 +2015,7 @@ async function validarOrdenRenting(
 ): Promise<{ placa: string; kilometrajeEntrega: number | null; requiereOdometro: boolean } | { status: number; error: string }> {
   const { data: ingreso, error: fetchErr } = await supabase
     .from('taller_ingresos')
-    .select('id, estado, kilometraje_entrega, items_factura, taller_vehiculos(placa, taller_clientes(documento))')
+    .select('id, estado, kilometraje, kilometraje_entrega, items_factura, taller_vehiculos(placa, taller_clientes(documento))')
     .eq('empresa_id', empresaId)
     .eq('id', ingresoId)
     .single();
@@ -2038,7 +2042,7 @@ async function validarOrdenRenting(
 
   return {
     placa,
-    kilometrajeEntrega: ingreso.kilometraje_entrega,
+    kilometrajeEntrega: ingreso.kilometraje_entrega ?? (esKilometrajeValido(Number(ingreso.kilometraje)) ? Number(ingreso.kilometraje) : null),
     requiereOdometro: Array.isArray(ingreso.items_factura) && ingreso.items_factura.some(esCambioAceite)
   };
 }
