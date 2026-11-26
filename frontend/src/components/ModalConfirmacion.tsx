@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId } from 'react';
 import { X, AlertTriangle, Trash2, Info, CheckCircle2, Loader2 } from 'lucide-react';
 
 export type ModalTipoConfirmacion = 'danger' | 'warning' | 'info' | 'success';
@@ -30,6 +30,7 @@ export const ModalConfirmacion: React.FC<ModalConfirmacionProps> = ({
   icon,
   children,
 }) => {
+  const tituloId = useId();
   // Cerrar con Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -72,6 +73,7 @@ export const ModalConfirmacion: React.FC<ModalConfirmacionProps> = ({
       onClick={() => { if (!loading) onClose(); }}
       role="dialog"
       aria-modal="true"
+      aria-labelledby={tituloId}
     >
       <div
         className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden p-6 relative animate-fade-in-up"
@@ -93,7 +95,7 @@ export const ModalConfirmacion: React.FC<ModalConfirmacionProps> = ({
             {tipoConfig.icon}
           </div>
           <div className="pr-6">
-            <h3 className="text-lg font-bold text-slate-900 tracking-tight leading-snug">
+            <h3 id={tituloId} className="text-lg font-bold text-slate-900 tracking-tight leading-snug">
               {title}
             </h3>
             {description && (

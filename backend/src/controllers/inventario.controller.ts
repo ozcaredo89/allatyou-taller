@@ -2,9 +2,29 @@ import { NextFunction, Request, Response } from 'express';
 import { seguimientoDb } from '../config/seguimientoDb';
 import { consultarVentasMostrador } from '../services/ventasMostrador.service';
 import { bogotaToday } from '../utils/dateUtils';
+import { resumirAceites, sugerirAceite } from '../services/aceites.service';
 
 const PAGE_SIZE = 100;
 const TIPOS = ['ENTRADA', 'AJUSTE', 'SALIDA_VENTA', 'SALIDA_ORDEN', 'ANULACION'];
+
+export async function sugerenciaAceite(req: Request, res: Response) {
+  const id = req.query.vehiculo_id;
+  if (typeof id !== 'string' || !/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(id)) {
+    res.status(400).json({ error: 'Selecciona un vehículo válido.' });
+    return;
+  }
+  res.json(await sugerirAceite(req.empresa_id!, id));
+}
+
+export async function resumenAceites(req: Request, res: Response) {
+  const { desde, hasta } = req.query;
+  const fecha = /^\d{4}-\d{2}-\d{2}$/;
+  if (typeof desde !== 'string' || typeof hasta !== 'string' || !fecha.test(desde) || !fecha.test(hasta) || desde > hasta) {
+    res.status(400).json({ error: 'Selecciona un rango de fechas válido.' });
+    return;
+  }
+  res.json(await resumirAceites(req.empresa_id!, desde, hasta));
+}
 
 function responderError(res: Response, error: { code?: string; message: string }) {
   const status = error.code === '23505' || error.code === '40001' ? 409
@@ -32,6 +52,17 @@ export async function listarItems(req: Request, res: Response) {
 export async function guardarItem(req: Request, res: Response) {
   const body = req.body ?? {};
   const esGranel = body.es_granel === true;
+  const tipo = body.tipo_producto ?? (esGranel ? 'aceite' : 'repuesto');
+  const viscosidad = typeof body.viscosidad === 'string' ? body.viscosidad.trim().toUpperCase() || null : null;
+  const base = body.base_aceite || null;
+  const texto = (valor: unknown) => typeof valor === 'string' ? valor.trim() || null : null;
+  if (!['repuesto','aceite'].includes(tipo) || (esGranel && tipo !== 'aceite') ||
+      (tipo === 'aceite' && ((viscosidad && !/^([0-9]{1,2}W-[0-9]{2}|SAE [0-9]{1,2})$/.test(viscosidad)) ||
+        (base && !['mineral','semisintetico','sintetico'].includes(base)) || (!esGranel &&
+          (body.unidad !== 'und' || !Number.isFinite(body.contenido_litros) || body.contenido_litros < 0.001))))) {
+    res.status(400).json({ error: 'Revisa el tipo, la viscosidad, la base y la presentación del aceite.' });
+    return;
+  }
   if ((body.es_granel !== undefined && typeof body.es_granel !== 'boolean') ||
       (esGranel && (body.unidad !== 'litro' || !Number.isFinite(body.capacidad_envase) || body.capacidad_envase <= 0))) {
     res.status(400).json({ error: 'El producto a granel requiere unidad litro y una capacidad de envase mayor que cero.' });
@@ -52,23 +83,34 @@ export async function guardarItem(req: Request, res: Response) {
     typeof body.categoria === 'string' ? body.categoria.trim() || null : null,
     body.unidad, body.precio_venta, body.stock_minimo, body.activo ?? true, esGranel, esGranel ? body.capacidad_envase : null,
   ];
+  const atributos = [tipo, tipo === 'aceite' ? viscosidad : null, tipo === 'aceite' ? base : null,
+    tipo === 'aceite' ? texto(body.marca) : null, tipo === 'aceite' ? texto(body.especificacion) : null,
+    tipo === 'aceite' && !esGranel ? body.contenido_litros : null];
   const { rows } = req.params.id
     ? await seguimientoDb().query(
       `UPDATE public.taller_inventario_items
        SET codigo=$2, nombre=$3, categoria=$4, unidad=$5, precio_venta=$6, stock_minimo=$7, activo=$8,
            es_granel=CASE WHEN $11 THEN $9 ELSE es_granel END,
-           capacidad_envase=CASE WHEN $11 THEN $10 ELSE capacidad_envase END
+           capacidad_envase=CASE WHEN $11 THEN $10 ELSE capacidad_envase END,
+           tipo_producto=CASE WHEN $19 THEN $13 ELSE tipo_producto END,
+           viscosidad=CASE WHEN $19 THEN $14 ELSE viscosidad END,
+           base_aceite=CASE WHEN $19 THEN $15 ELSE base_aceite END,
+           marca=CASE WHEN $19 THEN $16 ELSE marca END,
+           especificacion=CASE WHEN $19 THEN $17 ELSE especificacion END,
+           contenido_litros=CASE WHEN $19 THEN $18 ELSE contenido_litros END
        WHERE empresa_id=$1 AND id=$12
          AND (unidad=$5 OR NOT (es_granel OR $9) OR (stock_actual=0 AND NOT EXISTS (
            SELECT 1 FROM public.taller_inventario_movimientos m WHERE m.empresa_id=$1 AND m.item_id=$12
          )))
        RETURNING to_jsonb(taller_inventario_items) AS producto`,
-      [...valores, body.es_granel !== undefined, req.params.id]
+      [...valores, body.es_granel !== undefined, req.params.id, ...atributos, body.tipo_producto !== undefined]
     )
     : await seguimientoDb().query(
       `INSERT INTO public.taller_inventario_items
-       (empresa_id,codigo,nombre,categoria,unidad,precio_venta,stock_minimo,activo,es_granel,capacidad_envase)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING to_jsonb(taller_inventario_items) AS producto`, valores
+       (empresa_id,codigo,nombre,categoria,unidad,precio_venta,stock_minimo,activo,es_granel,capacidad_envase,
+        tipo_producto,viscosidad,base_aceite,marca,especificacion,contenido_litros)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING to_jsonb(taller_inventario_items) AS producto`,
+      [...valores, ...atributos]
     );
   if (!rows.length) {
     const { rowCount } = await seguimientoDb().query(

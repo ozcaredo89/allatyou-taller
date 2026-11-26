@@ -1,9 +1,11 @@
 import { Router } from 'express';
-import { anularMovimiento, desactivarItem, guardarItem, listarDescuentosPendientes, listarItems, listarMovimientos, manejarErrorInventario, registrarMovimiento, resumirVentasMostradorHoy } from '../controllers/inventario.controller';
+import { anularMovimiento, desactivarItem, guardarItem, listarDescuentosPendientes, listarItems, listarMovimientos, manejarErrorInventario, registrarMovimiento, resumirVentasMostradorHoy, resumenAceites, sugerenciaAceite } from '../controllers/inventario.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
 router.use(requireAuth);
+router.get('/aceites/sugerencia', sugerenciaAceite);
+router.get('/aceites/resumen', resumenAceites);
 router.get('/ventas/hoy', resumirVentasMostradorHoy);
 router.get('/pendientes', listarDescuentosPendientes);
 router.get('/items', listarItems);
