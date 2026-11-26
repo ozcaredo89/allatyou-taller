@@ -46,6 +46,7 @@ export function calcularRentabilidad(
       cantidad_captura: item.cantidad_captura,
       unidad_captura: item.unidad_captura,
       precio_unitario_captura: item.precio_unitario_captura,
+      contenido_aceite_litros: item.contenido_aceite_litros,
       precio_unitario: item.precio_unitario || 0,
       total: ventaTotal,
       gastosVinculados,

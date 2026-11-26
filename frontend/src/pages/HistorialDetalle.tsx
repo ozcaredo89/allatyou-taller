@@ -17,6 +17,7 @@ interface ItemFactura {
   unidad_captura?: UnidadVolumen;
   cantidad_captura?: number;
   precio_unitario_captura?: number;
+  contenido_aceite_litros?: number;
   precio_unitario: number;
   total: number;
   categoria_crm?: 'aceite' | 'frenos' | 'aire' | 'general' | null;
@@ -203,7 +204,7 @@ const HistorialDetalle: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-2 text-right text-slate-600">{mostrarCantidadInventario(item)}</td>
-                  <td className="py-2 text-right text-slate-600">${(item.precio_unitario_captura ?? item.precio_unitario).toLocaleString('es-CO')}{item.unidad_captura && ` / ${item.precio_unitario_captura == null ? 'litro' : item.unidad_captura}`}</td>
+                  <td className="py-2 text-right text-slate-600">${(item.precio_unitario_captura ?? item.precio_unitario).toLocaleString('es-CO')}{item.unidad_captura ? ` / ${item.precio_unitario_captura == null ? 'litro' : item.unidad_captura}` : item.contenido_aceite_litros ? ' / tarro' : ''}</td>
                   <td className="py-2 text-right font-bold text-slate-800">${item.total.toLocaleString('es-CO')}</td>
                 </tr>
               ))}

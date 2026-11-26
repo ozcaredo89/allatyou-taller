@@ -9,7 +9,8 @@
     "db:migrate": "node dist/scripts/migrate.js",
     "db:migrate:dev": "ts-node src/scripts/migrate.ts",
     "backfill:precios": "ts-node src/scripts/backfill-precios.ts",
-    "test": "ts-node src/utils/gastosProrrateo.test.ts && ts-node src/utils/dateUtils.test.ts"
+    "test": "ts-node src/utils/gastosProrrateo.test.ts && ts-node src/utils/dateUtils.test.ts",
+    "test:inventario": "ts-node --files scripts/test-inventario.ts"
   },
   "keywords": [],
   "author": "",

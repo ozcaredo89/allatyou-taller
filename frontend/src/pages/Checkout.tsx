@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { isAxiosError } from 'axios';
 import type { ProductoInventario } from './Inventario';
-import { aLitros, factorLitros, mostrarCantidadInventario, pluralVolumen, type UnidadVolumen } from '../utils/volumenInventario';
+import { aCuartos, aLitros, factorLitros, mostrarCantidadInventario, mostrarCuartos, pluralVolumen, type UnidadVolumen } from '../utils/volumenInventario';
 import { useAuth } from '../context/AuthContext';
 import { RentabilidadRepuestos } from '../components/RentabilidadRepuestos';
 import { ModalVincularGasto } from '../components/ModalVincularGasto';
@@ -16,6 +16,19 @@ import { RentingSyncModal, type RentingSyncItem } from '../components/RentingSyn
 import { CATEGORIA_CAMBIO_ACEITE, esCambioAceite, kilometrajeRecepcion } from '../services/rentingOdometer';
 import { ModalKilometrajeEntrega } from '../components/KilometrajeEntrega';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
+import { ModalConfirmacion } from '../components/ModalConfirmacion';
+
+interface SugerenciaAceite {
+  nombre: string;
+  viscosidad: string | null;
+  fecha: string | null;
+  unidad_captura: UnidadVolumen | null;
+  cantidad_captura: string | null;
+  litros: string;
+  producto: ProductoInventario | null;
+  sustituto: boolean | null;
+  cantidad_stock: string | null;
+}
 
 interface ItemFactura {
   id: string;
@@ -30,6 +43,7 @@ interface ItemFactura {
   unidad_captura?: UnidadVolumen;
   cantidad_captura?: number;
   precio_unitario_captura?: number;
+  contenido_aceite_litros?: number;
 }
 
 interface ItemCatalogoSugerencia {
@@ -90,6 +104,8 @@ const Checkout: React.FC = () => {
 
   // Nuevo ítem (form inline)
   const [showForm, setShowForm] = useState(false);
+  const [ultimoAceite, setUltimoAceite] = useState<SugerenciaAceite | null>(null);
+  const [mostrarWhatsApp, setMostrarWhatsApp] = useState(false);
   const [nuevoTipo, setNuevoTipo] = useState<'repuesto' | 'mano_obra'>('repuesto');
   const [nuevoDesc, setNuevoDesc] = useState('');
   const [nuevoCant, setNuevoCant] = useState(1);
@@ -204,14 +220,27 @@ const Checkout: React.FC = () => {
     return () => abort.abort();
   }, [id]);
 
+  const vehiculoId = ingreso?.vehiculo_id ?? ingreso?.taller_vehiculos?.id;
+  useEffect(() => {
+    if (!vehiculoId) return;
+    const abort = new AbortController();
+    api.get<SugerenciaAceite | null>('/inventario/aceites/sugerencia', { params: { vehiculo_id: vehiculoId }, signal: abort.signal })
+      .then(({ data }) => setUltimoAceite(data))
+      .catch(error => { if (!abort.signal.aborted) console.error('Error cargando el último aceite:', error); });
+    return () => abort.abort();
+  }, [vehiculoId]);
+
   const sugerenciasFiltradas = useMemo(() => {
     const q = normalizarParaFiltro(nuevoDesc);
+    const buscaAceite = /aceite|lubricante|\b\d{1,2}w\s*-?\s*\d{2}\b|\bsae\s+\d{1,2}\b/i.test(q);
     const bodega: ItemCatalogoSugerencia[] = nuevoTipo === 'repuesto'
       ? productosBodega
-        .filter(producto => producto.activo && normalizarParaFiltro(`${producto.codigo} ${producto.nombre}`).includes(q))
+        .filter(producto => producto.activo && (normalizarParaFiltro(`${producto.codigo} ${producto.nombre} ${producto.viscosidad ?? ''} ${producto.marca ?? ''}`).includes(q)
+          || buscaAceite && producto.tipo_producto === 'aceite' && /^(aceite|lubricante)$/.test(q)))
+        .sort((a, b) => buscaAceite ? Number(b.tipo_producto === 'aceite') - Number(a.tipo_producto === 'aceite') : 0)
         .slice(0, q ? 8 : 4)
         .map(producto => ({
-          descripcion: producto.nombre, tipo: 'repuesto', categoria_crm: null,
+          descripcion: producto.nombre, tipo: 'repuesto', categoria_crm: producto.tipo_producto === 'aceite' ? 'aceite' : null,
           precio_sugerido: producto.precio_venta, precio_promedio: producto.precio_venta,
           precio_min: producto.precio_venta, precio_max: producto.precio_venta,
           ocurrencias: 0, ocurrencias_totales: 0, vehiculo_match: false, inventario: producto,
@@ -220,6 +249,22 @@ const Checkout: React.FC = () => {
     const historico = catalogoItems.filter(item => item.tipo === nuevoTipo && normalizarParaFiltro(item.descripcion).includes(q));
     return [...bodega, ...historico].slice(0, 8);
   }, [catalogoItems, productosBodega, nuevoTipo, nuevoDesc]);
+
+  function agregarUltimoAceite() {
+    const producto = ultimoAceite?.producto;
+    if (!producto || !ultimoAceite.cantidad_stock || items.some(item => item.inventario_item_id === producto.id)) return;
+    const cantidad = Number(ultimoAceite.cantidad_stock);
+    const cuartos = ultimoAceite.unidad_captura === 'cuarto' && ultimoAceite.cantidad_captura != null
+      ? Number(ultimoAceite.cantidad_captura) : aCuartos(Number(ultimoAceite.litros));
+    const precioCuarto = leerPrecio(formatearPrecio(producto.precio_venta * factorLitros.cuarto));
+    setItems(prev => [...prev, {
+      id: crypto.randomUUID(), tipo: 'repuesto', descripcion: producto.nombre, cantidad,
+      inventario_item_id: producto.id, categoria_crm: 'aceite', precio_unitario: producto.precio_venta,
+      total: producto.es_granel ? calcularTotalLinea(cuartos, precioCuarto) : calcularTotalLinea(cantidad, producto.precio_venta),
+      ...(producto.es_granel ? { unidad_captura: 'cuarto' as const, cantidad_captura: cuartos, precio_unitario_captura: precioCuarto } : {}),
+      contenido_aceite_litros: producto.contenido_litros ?? undefined,
+    }]);
+  }
 
   const stockInsuficiente = (producto: ProductoInventario, cantidad: number) => {
     const solicitado = items.reduce((total, item) =>
@@ -349,6 +394,7 @@ const Checkout: React.FC = () => {
       total: calcularTotalLinea(nuevoCant, precioNumerico),
       categoria_crm: nuevoCategoria,
       inventario_item_id: tipoFinal === 'repuesto' ? sugerenciaAplicada?.inventario?.id : undefined,
+      contenido_aceite_litros: tipoFinal === 'repuesto' ? sugerenciaAplicada?.inventario?.contenido_litros ?? undefined : undefined,
       ...(granelNuevo ? { unidad_captura: unidadCaptura, cantidad_captura: nuevoCant, precio_unitario_captura: precioNumerico } : {}),
     };
     setItems(prev => [...prev, newItem]);
@@ -459,6 +505,7 @@ const Checkout: React.FC = () => {
           unidad_captura: unidad,
           cantidad_captura: unidad ? editCant : undefined,
           precio_unitario_captura: unidad ? precioNumerico : undefined,
+          contenido_aceite_litros: tipoFinal === 'repuesto' ? item.contenido_aceite_litros : undefined,
         };
       }
       return item;
@@ -510,6 +557,63 @@ const Checkout: React.FC = () => {
     }
   };
 
+  function mensajeCotizacion() {
+    const vehiculo = ingreso?.taller_vehiculos;
+    const cliente = vehiculo?.taller_clientes;
+    const formatCOP = (valor: number, conservarCentavos = false) =>
+      `$${conservarCentavos ? formatearPrecio(valor) : Math.round(valor).toLocaleString('es-CO')}`;
+
+    // 2. Resumen de diagnóstico mecánico relevante
+    const diagnosticoMecanico = ingreso?.diagnostico_mecanico || {};
+    const fallasDiagnostico = Object.entries(diagnosticoMecanico)
+      .filter(([, val]: any) => val && (val.estado === 'danado' || val.estado === 'revisar' || val.notas))
+      .map(([key, val]: any) => {
+        const sistema = key.replace(/_/g, ' ');
+        const estado = val.estado === 'danado' ? '⚠️ Requiere cambio' : '🔍 Revisión sugerida';
+        const detalle = val.notas ? ` - ${val.notas}` : '';
+        return `  • *${sistema.toUpperCase()}*: ${estado}${detalle}`;
+      });
+
+    const seccionDiagnostico = fallasDiagnostico.length > 0
+      ? `📋 *Diagnóstico Principal:*\n${fallasDiagnostico.join('\n')}\n\n`
+      : '';
+
+    // 3. Desglose de ítems con justificaciones IA en cursiva
+    const desgloseItems = items
+      .map((item, idx) => {
+        const lineaItem = `${idx + 1}. *${item.descripcion}* (Cant: ${mostrarCantidad(item)}) - ${formatCOP(item.total, !!item.unidad_captura)}`;
+        const lineaJustificacion = item.justificacion?.trim()
+          ? `\n   _${item.justificacion.trim()}_`
+          : '';
+        return `${lineaItem}${lineaJustificacion}`;
+      })
+      .join('\n\n');
+
+    // 4. Mensaje completo con formato WhatsApp Markdown
+    const mensajeWhatsApp = [
+      `👋 ¡Hola *${cliente?.nombre_completo || 'Estimado(a) Cliente'}*!`,
+      `Le saludamos de *${empresaNombre || 'TallerPro'}*. A continuación le compartimos el detalle y cotización del servicio para su vehículo:\n`,
+      `🚗 *Vehículo:* ${vehiculo?.marca || ''} ${vehiculo?.linea || ''} ${vehiculo?.modelo_anio ? `(${vehiculo.modelo_anio})` : ''}`.trim(),
+      `🏷️ *Placa:* *${vehiculo?.placa || 'N/A'}*\n`,
+      seccionDiagnostico,
+      `🛠️ *Desglose de Servicios y Repuestos:*`,
+      desgloseItems,
+      `\n--------------------------------`,
+      `*TOTAL:* *${formatCOP(total, items.some(item => !!item.unidad_captura))}*`,
+      `--------------------------------\n`,
+      `¿Nos confirma si aprueba estos trabajos para proceder? ¡Quedamos muy atentos!`,
+    ]
+      .filter(line => line !== '')
+      .join('\n');
+
+    // 5. Guard de longitud: wa.me trunca silenciosamente mensajes muy largos
+    const WA_MAX_CHARS = 3000;
+    return mensajeWhatsApp.length > WA_MAX_CHARS
+      ? `${mensajeWhatsApp.slice(0, WA_MAX_CHARS)}...\n_(Mensaje recortado por longitud)_`
+      : mensajeWhatsApp;
+
+  }
+
   // Notifica al cliente por WhatsApp con cotización detallada y enriquecida
   const handleNotificarCliente = async () => {
     // 1. Abrir pestaña inmediatamente para prevenir el bloqueo de popups del navegador
@@ -537,59 +641,7 @@ const Checkout: React.FC = () => {
         ? soloDigitos
         : `57${soloDigitos}`;
 
-      const formatCOP = (valor: number, conservarCentavos = false) =>
-        `$${conservarCentavos ? formatearPrecio(valor) : Math.round(valor).toLocaleString('es-CO')}`;
-
-      // 2. Resumen de diagnóstico mecánico relevante
-      const diagnosticoMecanico = ingreso?.diagnostico_mecanico || {};
-      const fallasDiagnostico = Object.entries(diagnosticoMecanico)
-        .filter(([, val]: any) => val && (val.estado === 'danado' || val.estado === 'revisar' || val.notas))
-        .map(([key, val]: any) => {
-          const sistema = key.replace(/_/g, ' ');
-          const estado = val.estado === 'danado' ? '⚠️ Requiere cambio' : '🔍 Revisión sugerida';
-          const detalle = val.notas ? ` - ${val.notas}` : '';
-          return `  • *${sistema.toUpperCase()}*: ${estado}${detalle}`;
-        });
-
-      const seccionDiagnostico = fallasDiagnostico.length > 0
-        ? `📋 *Diagnóstico Principal:*\n${fallasDiagnostico.join('\n')}\n\n`
-        : '';
-
-      // 3. Desglose de ítems con justificaciones IA en cursiva
-      const desgloseItems = items
-        .map((item, idx) => {
-          const lineaItem = `${idx + 1}. *${item.descripcion}* (Cant: ${mostrarCantidad(item)}) - ${formatCOP(item.total, !!item.unidad_captura)}`;
-          const lineaJustificacion = item.justificacion?.trim()
-            ? `\n   _${item.justificacion.trim()}_`
-            : '';
-          return `${lineaItem}${lineaJustificacion}`;
-        })
-        .join('\n\n');
-
-      // 4. Mensaje completo con formato WhatsApp Markdown
-      const mensajeWhatsApp = [
-        `👋 ¡Hola *${cliente?.nombre_completo || 'Estimado(a) Cliente'}*!`,
-        `Le saludamos de *${empresaNombre || 'TallerPro'}*. A continuación le compartimos el detalle y cotización del servicio para su vehículo:\n`,
-        `🚗 *Vehículo:* ${vehiculo?.marca || ''} ${vehiculo?.linea || ''} ${vehiculo?.modelo_anio ? `(${vehiculo.modelo_anio})` : ''}`.trim(),
-        `🏷️ *Placa:* *${vehiculo?.placa || 'N/A'}*\n`,
-        seccionDiagnostico,
-        `🛠️ *Desglose de Servicios y Repuestos:*`,
-        desgloseItems,
-        `\n--------------------------------`,
-        `*TOTAL:* *${formatCOP(total, items.some(item => !!item.unidad_captura))}*`,
-        `--------------------------------\n`,
-        `¿Nos confirma si aprueba estos trabajos para proceder? ¡Quedamos muy atentos!`,
-      ]
-        .filter(line => line !== '')
-        .join('\n');
-
-      // 5. Guard de longitud: wa.me trunca silenciosamente mensajes muy largos
-      const WA_MAX_CHARS = 3000;
-      const mensajeFinal = mensajeWhatsApp.length > WA_MAX_CHARS
-        ? `${mensajeWhatsApp.slice(0, WA_MAX_CHARS)}...\n_(Mensaje recortado por longitud)_`
-        : mensajeWhatsApp;
-
-      const waUrl = generarLinkWhatsApp(telefonoLimpio, mensajeFinal);
+      const waUrl = generarLinkWhatsApp(telefonoLimpio, mensajeCotizacion());
 
       if (newWindow) newWindow.location.href = waUrl;
 
@@ -710,6 +762,10 @@ const Checkout: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
+      <ModalConfirmacion isOpen={mostrarWhatsApp} title="Vista previa de WhatsApp" tipo="info" confirmText="Abrir WhatsApp"
+        onClose={() => setMostrarWhatsApp(false)} onConfirm={() => { setMostrarWhatsApp(false); void handleNotificarCliente(); }}>
+        <pre className="max-h-[52vh] overflow-y-auto whitespace-pre-wrap rounded-lg bg-emerald-50 p-3 font-sans text-sm">{mostrarWhatsApp ? mensajeCotizacion() : ''}</pre>
+      </ModalConfirmacion>
       {/* Botones Header */}
       <div className="flex justify-between items-center print:hidden">
         <button onClick={() => navigate(`/${slug}`)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
@@ -780,7 +836,7 @@ const Checkout: React.FC = () => {
 
           {/* Notificar al cliente — solo cuando cotizacion está guardada */}
           <button
-            onClick={handleNotificarCliente}
+            onClick={() => setMostrarWhatsApp(true)}
             disabled={!puedeNotificar || notificando}
             title={!puedeNotificar ? 'Agrega ítems a la orden primero' : ''}
             className={`px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center gap-2 ${
@@ -1001,6 +1057,14 @@ const Checkout: React.FC = () => {
           </div>
 
           {/* Form de nuevo ítem */}
+          {ultimoAceite && <div className="px-4 pb-2 print:hidden">
+            <button type="button" className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-900 disabled:opacity-60"
+              disabled={!ultimoAceite.producto || items.some(item => item.inventario_item_id === ultimoAceite.producto?.id)} onClick={agregarUltimoAceite}>
+              Último cambio: {ultimoAceite.viscosidad || ultimoAceite.nombre} · {mostrarCuartos(Number(ultimoAceite.litros))}{ultimoAceite.fecha && ` · ${ultimoAceite.fecha.split('-').reverse().join('/')}`}
+            </button>
+            {ultimoAceite.sustituto && <p className="mt-1 text-xs text-slate-600">Alternativa disponible: {ultimoAceite.producto?.nombre}</p>}
+            {!ultimoAceite.producto && <p className="mt-1 text-xs text-slate-600">Sin una alternativa disponible de la misma viscosidad.</p>}
+          </div>}
           {showForm && (
             <div className="mb-4 p-4 bg-indigo-50 border border-dashed border-indigo-200 rounded-xl space-y-3 print:hidden">
               <div className="flex gap-2">
@@ -1067,7 +1131,7 @@ const Checkout: React.FC = () => {
                                 </span>
                               )}
                               {sug.inventario ? (
-                                <span>{sug.inventario.codigo} · Stock {sug.inventario.stock_actual} {sug.inventario.unidad} · Comprometido {sug.inventario.stock_comprometido}</span>
+                                <span>{sug.inventario.codigo} · {sug.inventario.viscosidad && `${sug.inventario.viscosidad} · `}Stock {sug.inventario.tipo_producto === 'aceite' ? mostrarCuartos(sug.inventario.stock_actual * (sug.inventario.es_granel ? 1 : sug.inventario.contenido_litros ?? 0)) : `${sug.inventario.stock_actual} ${sug.inventario.unidad}`}</span>
                               ) : <span>Usado {sug.ocurrencias_totales} {sug.ocurrencias_totales === 1 ? 'vez' : 'veces'}</span>}
                               {sug.precio_promedio !== sug.precio_sugerido && (
                                 <span>· Prom: ${sug.precio_promedio.toLocaleString('es-CO')}</span>
@@ -1366,7 +1430,7 @@ const Checkout: React.FC = () => {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{item.tipo === 'repuesto' ? t('checkout.repuesto') : t('checkout.mano_obra')}</span>
                         </td>
                         <td className="py-2.5 text-right text-slate-600 px-2">{mostrarCantidad(item)}</td>
-                        <td className="py-2.5 text-right text-slate-600 px-2">${formatearPrecio(item.precio_unitario_captura ?? item.precio_unitario)}{item.unidad_captura && ` / ${item.unidad_captura}`}</td>
+                        <td className="py-2.5 text-right text-slate-600 px-2">${formatearPrecio(item.precio_unitario_captura ?? item.precio_unitario)}{item.unidad_captura ? ` / ${item.unidad_captura}` : item.contenido_aceite_litros ? ' / tarro' : ''}</td>
                         <td className="py-2.5 text-right font-bold text-slate-800 px-2">${item.total.toLocaleString('es-CO')}</td>
                         <td className="py-2.5 text-right print:hidden whitespace-nowrap">
                           <button onClick={() => startEdit(item)} className="text-indigo-400 hover:text-indigo-600 transition p-1 mr-1"><Edit2 size={14} /></button>
