@@ -1,3 +1,4 @@
+import { mostrarCantidadInventario, type CapturaVolumen } from '../utils/volumenInventario';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -6,7 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 
-interface DetalleRepuesto {
+interface DetalleRepuesto extends CapturaVolumen {
   ingreso_id: string;
   fecha_entrega: string;
   placa: string;
@@ -24,6 +25,7 @@ interface RepuestoAgrupado {
   key: string;
   descripcion: string;
   posibleManoObra?: boolean;
+  unidad?: 'litro';
   cantidad: number;
   ordenes: number;
   ventaTotal: number;
@@ -39,6 +41,7 @@ interface RepuestoAgrupado {
 interface Resumen {
   repuestosDistintos: number;
   unidades: number;
+  litros?: number;
   ventaTotal: number;
   ventaConCosto: number;
   costoTotal: number;
@@ -143,7 +146,7 @@ const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros
     ];
     lista.forEach((r) =>
       r.detalle.forEach((d) =>
-        filas.push([r.descripcion, d.fecha_entrega, d.placa, d.vehiculo, d.cliente, d.cantidad, Math.round(d.precio_unitario), Math.round(d.total),
+        filas.push([r.descripcion, d.fecha_entrega, d.placa, d.vehiculo, d.cliente, mostrarCantidadInventario(d), Math.round(d.precio_unitario_captura ?? d.precio_unitario), Math.round(d.total),
           d.costo === null ? null : Math.round(d.costo), d.utilidad === null ? null : Math.round(d.utilidad)])
       )
     );
@@ -190,7 +193,7 @@ const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-wider"><Hash size={14} /> Unidades vendidas</div>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{fmtNum(resumen?.unidades || 0)}</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{fmtNum(resumen?.unidades || 0)}{Boolean(resumen?.litros) && <span className="text-sm"> · {fmtNum(resumen?.litros ?? 0)} L</span>}</p>
               <p className="text-xs text-slate-400 mt-0.5">{resumen?.repuestosDistintos || 0} repuestos distintos</p>
             </div>
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -302,7 +305,7 @@ const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros
                                 <span className="text-[11px] text-slate-400">{r.ordenes} orden(es) · {dinero(r.ventaTotal)}</span>
                               </div>
                             </div>
-                            <span className="text-right font-bold text-slate-900">{fmtNum(r.cantidad)}</span>
+                            <span className="text-right font-bold text-slate-900">{fmtNum(r.cantidad)}{r.unidad && ' L'}</span>
                             <span className="text-right text-slate-700">{dinero(r.precioPromedio)}</span>
                             <span className="text-right text-slate-700">
                               {r.costoPromedio === null ? <span className="text-slate-300">—</span> : dinero(r.costoPromedio)}
@@ -323,7 +326,7 @@ const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros
                               <span className="text-slate-400 shrink-0">{isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
                             </div>
                             <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
-                              <div><p className="text-slate-400">Cantidad</p><p className="font-bold text-slate-900">{fmtNum(r.cantidad)}</p></div>
+                              <div><p className="text-slate-400">Cantidad</p><p className="font-bold text-slate-900">{fmtNum(r.cantidad)}{r.unidad && ' L'}</p></div>
                               <div><p className="text-slate-400">Precio prom.</p><p className="font-semibold text-slate-700">{dinero(r.precioPromedio)}</p></div>
                               <div><p className="text-slate-400">Costo prom.</p><p className="font-semibold text-slate-700">{r.costoPromedio === null ? '—' : dinero(r.costoPromedio)}</p></div>
                               <div><p className="text-slate-400">Venta</p><p className="font-semibold text-slate-700">{dinero(r.ventaTotal)}</p></div>
@@ -338,7 +341,7 @@ const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros
                             <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-600 mb-3">
                               <span>Venta total: <b>{dinero(r.ventaTotal)}</b></span>
                               <span>Costo total: <b>{r.cantidadConCosto > 0 ? dinero(r.costoTotal) : '—'}</b></span>
-                              <span>Unidades con costo: <b>{fmtNum(r.cantidadConCosto)} / {fmtNum(r.cantidad)}</b></span>
+                              <span>Unidades con costo: <b>{fmtNum(r.cantidadConCosto)} / {fmtNum(r.cantidad)}{r.unidad && ' L'}</b></span>
                             </div>
                             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                               <table className="w-full text-xs min-w-[720px]">
@@ -365,8 +368,8 @@ const ReporteRepuestos: React.FC<Props> = ({ start, end, slug, disabled, filtros
                                         {d.descripcion !== r.descripcion && <p className="text-[10px] text-slate-400 italic">“{d.descripcion}”</p>}
                                       </td>
                                       <td className="px-3 py-2 text-slate-600 truncate max-w-[160px]" title={d.cliente}>{d.cliente}</td>
-                                      <td className="px-3 py-2 text-right">{fmtNum(d.cantidad)}</td>
-                                      <td className="px-3 py-2 text-right">{dinero(d.precio_unitario)}</td>
+                                      <td className="px-3 py-2 text-right">{mostrarCantidadInventario(d)}</td>
+                                      <td className="px-3 py-2 text-right">{dinero(d.precio_unitario_captura ?? d.precio_unitario)}</td>
                                       <td className="px-3 py-2 text-right font-semibold">{dinero(d.total)}</td>
                                       <td className="px-3 py-2 text-right">{d.costo === null ? <span className="text-amber-500" title="Sin costo registrado">Sin costo</span> : dinero(d.costo)}</td>
                                       <td className={`px-3 py-2 text-right font-semibold ${d.utilidad === null ? 'text-slate-300' : d.utilidad >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>

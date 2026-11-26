@@ -15,6 +15,8 @@ export interface ProductoInventario {
   stock_actual: number;
   stock_minimo: number;
   stock_comprometido: number;
+  aceite_ordenes_abiertas?: number;
+  stock_pendiente_entrega?: number;
   activo: boolean;
   es_granel?: boolean;
   capacidad_envase?: number | null;
@@ -153,6 +155,7 @@ export default function Inventario() {
   const [esGranel, setEsGranel] = useState(false);
   const [presentacion, setPresentacion] = useState<'tambor' | 'galón' | 'litro'>('tambor');
   const [medido, setMedido] = useState('');
+  const [despachado, setDespachado] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
   const operacion = useRef('');
 
@@ -187,6 +190,7 @@ export default function Inventario() {
     setEsGranel(formulario.tipo === 'producto' && !!formulario.producto?.es_granel);
     setPresentacion('tambor');
     setMedido('');
+    setDespachado('');
     setModal(formulario);
   }
 
@@ -213,6 +217,8 @@ export default function Inventario() {
         await api.post('/inventario/movimientos', {
           operacion_id: operacion.current, tipo: 'AJUSTE', item_id: modal.producto.id,
           stock_medido: Number(medido), stock_esperado: modal.producto.stock_actual, notas: valor('notas'),
+          litros_despachados_sin_descontar: despachado === '' ? undefined : Number(despachado),
+          por_descontar_esperado: porDescontar,
         });
       } else {
         if (modal.tipo === 'ENTRADA' && form.has('registrar_gasto') &&
@@ -257,7 +263,10 @@ export default function Inventario() {
   });
   const producto = modal && 'producto' in modal ? modal.producto : undefined;
   const compraGranel = modal?.tipo === 'ENTRADA' && modal.producto.es_granel;
-  const variacion = modal?.tipo === 'MEDICION' && medido !== '' ? Number(medido) - modal.producto.stock_actual : null;
+  const porDescontar = modal?.tipo === 'MEDICION'
+    ? Math.round(((modal.producto.aceite_ordenes_abiertas ?? 0) + (modal.producto.stock_pendiente_entrega ?? 0)) * 1000) / 1000 : 0;
+  const variacion = modal?.tipo === 'MEDICION' && medido !== '' && (porDescontar === 0 || despachado !== '')
+    ? Math.round((Number(medido) + Number(despachado) - modal.producto.stock_actual) * 1000) / 1000 : null;
 
   return (
     <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 text-slate-900">
@@ -295,7 +304,7 @@ export default function Inventario() {
                       <td>{fecha.format(new Date(m.created_at))}</td><td>{m.taller_inventario_items.nombre}<div className="text-xs text-slate-500">{m.taller_inventario_items.codigo}</div></td>
                       <td>{tipos[m.tipo]}{m.anulado && <div className="text-xs text-slate-500">Anulado</div>}</td>
                       <td>{m.presentacion && m.cantidad_presentacion != null
-                        ? `${numero.format(m.cantidad_presentacion)} ${m.cantidad_presentacion === 1 ? m.presentacion : pluralVolumen[m.presentacion]} (${numero.format(m.cantidad)} L)`
+                        ? `${m.tipo === 'ANULACION' ? 'Reversión de ' : ''}${numero.format(m.cantidad_presentacion)} ${m.cantidad_presentacion === 1 ? m.presentacion : pluralVolumen[m.presentacion]} (${numero.format(m.cantidad)} L de stock)`
                         : numero.format(m.cantidad)}</td><td>{moneda.format(m.costo_unitario)}</td><td>{m.precio_unitario === null ? '—' : moneda.format(m.precio_unitario)}</td>
                       <td><div>{m.usuario_email}</div><div className="text-xs text-slate-500">{[m.proveedor, m.factura_ref, m.notas, m.gasto_id && (m.anulado || m.tipo === 'ANULACION' ? 'Gasto anulado' : 'Gasto vinculado')].filter(Boolean).join(' · ')}</div></td>
                       <td>{!m.anulado && !['ANULACION', 'SALIDA_ORDEN'].includes(m.tipo) && <button className={boton} onClick={() => abrir({ tipo: 'ANULACION', movimiento: m })}>Anular</button>}</td>
@@ -365,7 +374,12 @@ export default function Inventario() {
             ) : modal.tipo === 'MEDICION' ? <>
               <p>{modal.producto.nombre} · Stock en libros {numero.format(modal.producto.stock_actual)} L</p>
               <Campo label="Nivel medido con varilla (L)"><input required className={campo} type="number" min="0" step="0.001" value={medido} onChange={e => setMedido(e.target.value)} /></Campo>
-              {variacion !== null && <p role="status" className="text-sm">Varianza {variacion > 0 ? '+' : ''}{numero.format(variacion)} L
+              {porDescontar > 0 && <>
+                <p className="text-sm text-amber-900">Por descontar: {numero.format(modal.producto.aceite_ordenes_abiertas ?? 0)} L en órdenes abiertas y {numero.format(modal.producto.stock_pendiente_entrega ?? 0)} L en entregas pendientes de descuento.</p>
+                <Campo label="Litros ya usados físicamente en esas órdenes"><input required className={campo} type="number" min="0" max={porDescontar} step="0.001" value={despachado} onChange={e => setDespachado(e.target.value)} /></Campo>
+                <p className="text-xs text-slate-600">Ingresa 0 si todavía no se usó aceite. Los litros ya usados se suman a la medición para reservar su descuento a la orden.</p>
+              </>}
+              {variacion !== null && <p role="status" className="text-sm">Ajuste a registrar {variacion > 0 ? '+' : ''}{numero.format(variacion)} L
                 {' · '}{modal.producto.stock_actual > 0 ? `${numero.format(100 * variacion / modal.producto.stock_actual)} %` : 'Porcentaje sin base de comparación'}</p>}
             </> : <>
               <p>{modal.producto.nombre} · Stock físico {numero.format(modal.producto.stock_actual)} {modal.producto.unidad}</p>

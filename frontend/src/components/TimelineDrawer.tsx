@@ -1,3 +1,4 @@
+import { mostrarCantidadInventario } from '../utils/volumenInventario';
 import React, { useEffect, useState } from 'react';
 import {
   X, Car, CheckCircle2, FileSearch, Receipt, XCircle,
@@ -100,7 +101,7 @@ const renderMetadata = (evento: Evento) => {
         {evento.metadata.items_factura.map((item: any, i: number) => (
           <div key={i} className="text-xs flex justify-between items-center bg-slate-50 px-2 py-1.5 rounded-md border border-slate-100">
             <span className="text-slate-600 truncate mr-2" title={item.descripcion}>
-              {item.cantidad}x {item.descripcion}
+              {mostrarCantidadInventario(item)}x {item.descripcion}
             </span>
             <strong className="text-slate-700 whitespace-nowrap">
               ${(item.total || 0).toLocaleString('es-CO')}

@@ -7,6 +7,12 @@ export const pluralVolumen: Record<UnidadVolumen | 'tambor', string> = {
 
 const numero = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 3 });
 
+export interface CapturaVolumen {
+  cantidad_captura?: number;
+  unidad_captura?: UnidadVolumen;
+  precio_unitario_captura?: number;
+}
+
 export function aLitros(cantidad: number, unidad: UnidadVolumen) {
   return Math.round(cantidad * factorLitros[unidad] * 1000) / 1000;
 }

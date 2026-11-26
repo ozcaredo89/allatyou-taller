@@ -1363,6 +1363,9 @@ export const getReportesFinanzasDetalle = async (req: Request, res: Response): P
           tipo: it.tipo || 'repuesto',
           descripcion: it.descripcion || 'Sin descripción',
           cantidad: Number(it.cantidad || 1),
+          unidad_captura: it.unidad_captura,
+          cantidad_captura: it.cantidad_captura,
+          precio_unitario_captura: it.precio_unitario_captura,
           precio_unitario: Number(it.precio_unitario || 0),
           total: itemTot,
         });
@@ -1509,11 +1512,15 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
       total: number;
       costo: number | null;
       utilidad: number | null;
+      unidad_captura?: string;
+      cantidad_captura?: number;
+      precio_unitario_captura?: number;
     };
     type Grupo = {
       key: string;
       descripcion: string;
       descripcionesConteo: Record<string, number>;
+      unidad?: 'litro';
       cantidad: number;
       ordenes: Set<string>;
       ventaTotal: number;
@@ -1531,7 +1538,9 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
       (ing.items_factura || []).forEach((it: any) => {
         if (!it || it.tipo !== 'repuesto') return;
         const descripcion = String(it.descripcion || '').trim() || 'Sin descripción';
-        const key = normalizarDescripcionRepuesto(descripcion) || 'sin descripcion';
+        const unidad = it.unidad_captura ? 'litro' as const : undefined;
+        const normalizada = normalizarDescripcionRepuesto(descripcion) || 'sin descripcion';
+        const key = unidad ? `litro:${normalizada}` : normalizada;
         const cantidad = Number(it.cantidad || 1);
         const total = Number(it.total || 0);
         const precioUnit = Number(it.precio_unitario || (cantidad ? total / cantidad : 0));
@@ -1541,7 +1550,7 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
 
         if (!grupos[key]) {
           grupos[key] = {
-            key, descripcion, descripcionesConteo: {}, cantidad: 0, ordenes: new Set(),
+            key, descripcion, unidad, descripcionesConteo: {}, cantidad: 0, ordenes: new Set(),
             ventaTotal: 0, ventaConCosto: 0, cantidadConCosto: 0, costoTotal: 0, detalle: [],
           };
         }
@@ -1563,6 +1572,9 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
           cliente: veh?.taller_clientes?.nombre_completo || 'Cliente no registrado',
           descripcion,
           cantidad,
+          unidad_captura: it.unidad_captura,
+          cantidad_captura: it.cantidad_captura,
+          precio_unitario_captura: it.precio_unitario_captura,
           precio_unitario: precioUnit,
           total,
           costo,
@@ -1581,6 +1593,7 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
         descripcion,
         posibleManoObra: pareceManoObra(descripcion),
         cantidad: g.cantidad,
+        unidad: g.unidad,
         ordenes: g.ordenes.size,
         ventaTotal: g.ventaTotal,
         precioPromedio: g.cantidad > 0 ? g.ventaTotal / g.cantidad : 0,
@@ -1599,7 +1612,8 @@ export const getReportesRepuestos = async (req: Request, res: Response): Promise
     const costoTotal = Object.values(grupos).reduce((s, g) => s + g.costoTotal, 0);
     const resumen = {
       repuestosDistintos: repuestos.length,
-      unidades: repuestos.reduce((s, r) => s + r.cantidad, 0),
+      unidades: repuestos.reduce((s, r) => s + (r.unidad ? 0 : r.cantidad), 0),
+      litros: repuestos.reduce((s, r) => s + (r.unidad === 'litro' ? r.cantidad : 0), 0),
       ventaTotal: repuestos.reduce((s, r) => s + r.ventaTotal, 0),
       ventaConCosto,
       costoTotal,

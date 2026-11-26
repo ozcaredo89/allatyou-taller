@@ -203,7 +203,7 @@ const HistorialDetalle: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-2 text-right text-slate-600">{mostrarCantidadInventario(item)}</td>
-                  <td className="py-2 text-right text-slate-600">${item.precio_unitario.toLocaleString('es-CO')}</td>
+                  <td className="py-2 text-right text-slate-600">${(item.precio_unitario_captura ?? item.precio_unitario).toLocaleString('es-CO')}{item.unidad_captura && ` / ${item.precio_unitario_captura == null ? 'litro' : item.unidad_captura}`}</td>
                   <td className="py-2 text-right font-bold text-slate-800">${item.total.toLocaleString('es-CO')}</td>
                 </tr>
               ))}
