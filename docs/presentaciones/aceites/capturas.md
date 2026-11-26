@@ -7,3 +7,4 @@
 `07-medir-nivel.png` · Conciliación con entregas pendientes · La medición evita descontar por segunda vez el aceite ya usado.
 `08-resumen-aceites.png` · Ventas, merma y margen · El taller compara el volumen vendido y la rentabilidad del cambio.
 `09-movil-inventario.png` · Bodega desde el celular · El operario puede ver el saldo de aceite junto al vehículo.
+`10-venta-mostrador.png` · Venta en mostrador por cuarto · El cliente paga el total que el taller ve antes de guardar.

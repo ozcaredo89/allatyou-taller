@@ -116,12 +116,37 @@ async function main() {
 
     const { id: galon } = await uno("INSERT INTO taller_inventario_items(empresa_id,codigo,nombre,unidad) VALUES($1,'GAL','Galón','galón') RETURNING id",[empresa]);
     await mov(galon,'ENTRADA',{cantidad:10,costo_unitario:10});
-    let status = 200;
-    const res = { status(code: number) { status=code; return this; }, json() {} } as unknown as Response;
-    await guardarItem({ empresa_id:empresa, params:{id:galon}, body:{codigo:'GAL',nombre:'Galón',unidad:'litro',
-      es_granel:true,capacidad_envase:208.198,tipo_producto:'aceite',precio_venta:100,stock_minimo:0} } as unknown as Request,res);
-    assert.equal(status,409);
+    async function editar(id: string, body: object) {
+      let status = 200;
+      const res = { status(code: number) { status=code; return this; }, json() {} } as unknown as Response;
+      await guardarItem({ empresa_id:empresa, params:{id}, body } as unknown as Request,res);
+      return status;
+    }
+    const aceiteTarro = { codigo:'TAR', nombre:'Tarro', unidad:'und', tipo_producto:'aceite',
+      es_granel:false, contenido_litros:0.946, precio_venta:100, stock_minimo:0 };
+    const granel = { ...aceiteTarro, unidad:'litro', es_granel:true, capacidad_envase:208.198 };
+    assert.equal(await editar(galon,{ ...aceiteTarro, codigo:'GAL' }),409);
     assert.equal(await stock(galon),10);
+    const {id: tarro} = await uno(`INSERT INTO taller_inventario_items
+      (empresa_id,codigo,nombre,unidad,tipo_producto,contenido_litros) VALUES($1,'TAR','Tarro','und','aceite',0.946) RETURNING id`,[empresa]);
+    await mov(tarro,'ENTRADA',{cantidad:2,costo_unitario:10});
+    assert.equal(await editar(tarro,granel),409);
+    assert.equal(await stock(tarro),2);
+    await mov(tarro,'AJUSTE',{cantidad:-2});
+    assert.equal(await editar(tarro,{ ...aceiteTarro, contenido_litros:3.785 }),409);
+    assert.equal(await stock(tarro),0);
+    assert.equal(await editar(tarro,{ ...aceiteTarro, viscosidad:'5W-30', precio_venta:200 }),200);
+    assert.equal(await editar(item,{ ...granel, codigo:'Caneca', capacidad_envase:200 }),409);
+    assert.equal(await stock(item),204.413);
+
+    const venta = await mov(item,'SALIDA_VENTA',{cantidad:1.893,precio_unitario:26000,
+      unidad_captura_venta:'cuarto',cantidad_captura_venta:2,precio_captura_venta:24605.18});
+    assert.equal(Number(venta.precio_unitario),26000);
+    assert.equal(await stock(item),202.52);
+    assert.equal(Number(venta.importe_venta),49210.36);
+    const fechaMostrador = (await uno("SELECT ($1::timestamptz AT TIME ZONE 'America/Bogota')::date::text AS fecha",[venta.created_at])).fecha;
+    assert.equal(Number((await uno('SELECT ingreso FROM consultar_ventas_mostrador($1,$2,$2) WHERE id=$3',[empresa,fechaMostrador,venta.id])).ingreso),49210.36);
+    assert.equal(Number((await uno('SELECT ingreso FROM resumir_ventas_mostrador_por_dia($1,$2) WHERE fecha=$2',[empresa,fechaMostrador])).ingreso),49210.36);
 
     const nueva = await orden(item);
     await entregar(nueva);

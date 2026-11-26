@@ -41,7 +41,11 @@ export function manejarErrorInventario(error: Error, _req: Request, res: Respons
 export async function listarItems(req: Request, res: Response) {
   const { rows } = await seguimientoDb().query(
     `SELECT producto || jsonb_build_object('aceite_ordenes_abiertas', coalesce(a.abiertos, 0),
-                                           'stock_pendiente_entrega', coalesce(a.pendientes, 0)) AS producto
+                                           'stock_pendiente_entrega', coalesce(a.pendientes, 0),
+                                           'presentacion_bloqueada', (producto->>'stock_actual')::numeric <> 0 OR EXISTS (
+                                             SELECT 1 FROM public.taller_inventario_movimientos m
+                                             WHERE m.empresa_id=$1 AND m.item_id=(producto->>'id')::uuid
+                                           )) AS producto
      FROM public.consultar_inventario($1) AS producto
      LEFT JOIN public.consultar_aceite_por_descontar($1) a ON a.item_id::text = producto->>'id'`,
     [req.empresa_id]
@@ -90,20 +94,15 @@ export async function guardarItem(req: Request, res: Response) {
     ? await seguimientoDb().query(
       `UPDATE public.taller_inventario_items
        SET codigo=$2, nombre=$3, categoria=$4, unidad=$5, precio_venta=$6, stock_minimo=$7, activo=$8,
-           es_granel=CASE WHEN $11 THEN $9 ELSE es_granel END,
-           capacidad_envase=CASE WHEN $11 THEN $10 ELSE capacidad_envase END,
-           tipo_producto=CASE WHEN $19 THEN $13 ELSE tipo_producto END,
-           viscosidad=CASE WHEN $19 THEN $14 ELSE viscosidad END,
-           base_aceite=CASE WHEN $19 THEN $15 ELSE base_aceite END,
-           marca=CASE WHEN $19 THEN $16 ELSE marca END,
-           especificacion=CASE WHEN $19 THEN $17 ELSE especificacion END,
-           contenido_litros=CASE WHEN $19 THEN $18 ELSE contenido_litros END
-       WHERE empresa_id=$1 AND id=$12
-         AND (unidad=$5 OR NOT (es_granel OR $9) OR (stock_actual=0 AND NOT EXISTS (
-           SELECT 1 FROM public.taller_inventario_movimientos m WHERE m.empresa_id=$1 AND m.item_id=$12
+           es_granel=$9, capacidad_envase=$10, tipo_producto=$11, viscosidad=$12,
+           base_aceite=$13, marca=$14, especificacion=$15, contenido_litros=$16
+       WHERE empresa_id=$1 AND id=$17
+         AND ((unidad=$5 AND es_granel=$9 AND capacidad_envase IS NOT DISTINCT FROM $10::numeric(12,3)
+           AND contenido_litros IS NOT DISTINCT FROM $16::numeric(12,3)) OR (stock_actual=0 AND NOT EXISTS (
+           SELECT 1 FROM public.taller_inventario_movimientos m WHERE m.empresa_id=$1 AND m.item_id=$17
          )))
        RETURNING to_jsonb(taller_inventario_items) AS producto`,
-      [...valores, body.es_granel !== undefined, req.params.id, ...atributos, body.tipo_producto !== undefined]
+      [...valores, ...atributos, req.params.id]
     )
     : await seguimientoDb().query(
       `INSERT INTO public.taller_inventario_items
@@ -117,7 +116,7 @@ export async function guardarItem(req: Request, res: Response) {
       'SELECT 1 FROM public.taller_inventario_items WHERE empresa_id=$1 AND id=$2', [req.empresa_id, req.params.id]
     );
     if (rowCount) {
-      res.status(409).json({ error: 'El producto ya tiene stock o movimientos. Crea un producto a granel con unidad litro.' });
+      res.status(409).json({ error: 'La unidad y la presentación no se pueden cambiar porque el producto tiene stock o movimientos. Crea otro producto para usar una presentación distinta.' });
       return;
     }
     return responderError(res, { code: 'P0002', message: 'Producto no encontrado.' });
@@ -183,6 +182,9 @@ export async function registrarMovimiento(req: Request, res: Response) {
     cantidad, costo_unitario, precio_unitario, registrar_gasto, proveedor, factura_ref, notas, operacion_id,
     presentacion: req.body.presentacion, cantidad_presentacion: req.body.cantidad_presentacion,
     costo_presentacion: req.body.costo_presentacion,
+    unidad_captura_venta: req.body.unidad_captura_venta,
+    cantidad_captura_venta: req.body.cantidad_captura_venta,
+    precio_captura_venta: req.body.precio_captura_venta,
     stock_medido: req.body.stock_medido, stock_esperado: req.body.stock_esperado,
     litros_despachados_sin_descontar: req.body.litros_despachados_sin_descontar,
     por_descontar_esperado: req.body.por_descontar_esperado,
