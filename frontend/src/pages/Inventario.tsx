@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
-import { aLitros, factorLitros, litrosPorTarro, mostrarCuartos, pluralVolumen } from '../utils/volumenInventario';
+import { aLitros, factorLitros, litrosPorTarro, mostrarCuartos, pluralVolumen, type UnidadVolumen } from '../utils/volumenInventario';
 import { bogotaToday } from '../utils/dateUtils';
 
 export interface ProductoInventario {
@@ -27,6 +27,7 @@ export interface ProductoInventario {
   marca?: string | null;
   especificacion?: string | null;
   contenido_litros?: number | null;
+  presentacion_bloqueada?: boolean;
 }
 
 const tipos = {
@@ -67,6 +68,16 @@ const principal = 'rounded-lg bg-indigo-600 px-3 py-2 font-medium text-white hov
 const numero = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 3 });
 const moneda = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
 const fecha = new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Bogota' });
+const basesAceite: Record<string, string> = { mineral: 'Mineral', semisintetico: 'Semisintético', sintetico: 'Sintético' };
+
+function formatoMedicion(litros: number, unidad: UnidadVolumen) {
+  const valor = Math.round(litros / factorLitros[unidad] * 1000) / 1000 || 0;
+  return `${numero.format(valor)} ${Math.abs(valor) === 1 ? unidad : pluralVolumen[unidad]}`;
+}
+
+function precioPorUnidad(precioLitro: number, unidad: UnidadVolumen) {
+  return Math.round(precioLitro * factorLitros[unidad] * 100) / 100;
+}
 
 interface ResumenAceites {
   viscosidades: { viscosidad: string; ordenes: number; mostrador: number }[];
@@ -212,6 +223,8 @@ export default function Inventario() {
   const [cantidadCompra, setCantidadCompra] = useState('1');
   const [medido, setMedido] = useState('');
   const [despachado, setDespachado] = useState('');
+  const [unidadMedicion, setUnidadMedicion] = useState<UnidadVolumen>('cuarto');
+  const [precioVenta, setPrecioVenta] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
   const operacion = useRef('');
 
@@ -252,6 +265,8 @@ export default function Inventario() {
     setCantidadCompra('1');
     setMedido('');
     setDespachado('');
+    setUnidadMedicion('cuarto');
+    setPrecioVenta(formulario.tipo === 'SALIDA_VENTA' ? String(precioPorUnidad(formulario.producto.precio_venta, 'cuarto')) : '');
     setModal(formulario);
   }
 
@@ -267,10 +282,11 @@ export default function Inventario() {
       if (modal.tipo === 'producto') {
         const data = {
           codigo: valor('codigo'), nombre: valor('nombre'), categoria: valor('categoria'),
-          unidad: tipoProducto === 'aceite' ? esGranel ? 'litro' : 'und' : valor('unidad'),
-          tipo_producto: tipoProducto, es_granel: esGranel, capacidad_envase: esGranel ? importe('capacidad_envase') : null,
+          unidad: presentacionBloqueada ? producto?.unidad : tipoProducto === 'aceite' ? esGranel ? 'litro' : 'und' : valor('unidad'),
+          tipo_producto: tipoProducto, es_granel: esGranel,
+          capacidad_envase: esGranel ? presentacionBloqueada ? producto?.capacidad_envase : importe('capacidad_envase') : null,
           viscosidad: valor('viscosidad'), base_aceite: valor('base_aceite'), marca: valor('marca'), especificacion: valor('especificacion'),
-          contenido_litros: tipoProducto === 'aceite' && !esGranel ? importe('contenido_litros') : null,
+          contenido_litros: tipoProducto === 'aceite' && !esGranel ? presentacionBloqueada ? producto?.contenido_litros : importe('contenido_litros') : null,
           precio_venta: importe('precio_venta'), stock_minimo: esGranel ? aLitros(importe('stock_minimo'), unidadMinimo) : importe('stock_minimo'), activo: form.has('activo'),
         };
         if (modal.producto) await api.put(`/inventario/items/${modal.producto.id}`, data);
@@ -280,8 +296,8 @@ export default function Inventario() {
       } else if (modal.tipo === 'MEDICION') {
         await api.post('/inventario/movimientos', {
           operacion_id: operacion.current, tipo: 'AJUSTE', item_id: modal.producto.id,
-          stock_medido: Number(medido), stock_esperado: modal.producto.stock_actual, notas: valor('notas'),
-          litros_despachados_sin_descontar: Math.round((pendienteEntregado + Number(despachado)) * 1000) / 1000,
+          stock_medido: litrosMedidos, stock_esperado: modal.producto.stock_actual, notas: valor('notas'),
+          litros_despachados_sin_descontar: Math.round((pendienteEntregado + litrosUsados) * 1000) / 1000,
           por_descontar_esperado: porDescontar,
         });
       } else {
@@ -304,10 +320,14 @@ export default function Inventario() {
         await api.post('/inventario/movimientos', {
           operacion_id: operacion.current, tipo: modal.tipo, item_id: modal.producto.id, cantidad,
           costo_unitario: compraGranel && costoCapturado !== undefined ? costoCapturado * cantidadCapturada / cantidad : costoCapturado,
-          precio_unitario: modal.tipo === 'SALIDA_VENTA' ? importe('precio_unitario') : undefined,
+          precio_unitario: modal.tipo === 'SALIDA_VENTA' ? ventaGranel
+            ? Number(precioVenta) === precioPorUnidad(modal.producto.precio_venta, unidadVenta)
+              ? modal.producto.precio_venta : Math.round(Number(precioVenta) / factorLitros[unidadVenta] * 100) / 100
+            : importe('precio_unitario') : undefined,
           registrar_gasto: form.has('registrar_gasto'), proveedor: valor('proveedor'),
           factura_ref: valor('factura_ref'), notas: valor('notas'),
           ...(compraGranel ? { presentacion, cantidad_presentacion: cantidadCapturada, costo_presentacion: costoCapturado } : {}),
+          ...(ventaGranel ? { unidad_captura_venta: unidadVenta, cantidad_captura_venta: cantidadCapturada, precio_captura_venta: Number(precioVenta) } : {}),
         });
       }
       setModal(null);
@@ -328,15 +348,21 @@ export default function Inventario() {
       : tab === 'Repuestos' ? item.tipo_producto !== 'aceite' : tab !== 'Stock crítico' || stockCritico(item));
   });
   const producto = modal && 'producto' in modal ? modal.producto : undefined;
+  const presentacionBloqueada = modal?.tipo === 'producto' && !!producto && (!!producto.presentacion_bloqueada || producto.stock_actual !== 0);
   const compraGranel = modal?.tipo === 'ENTRADA' && modal.producto.es_granel;
   const ventaGranel = modal?.tipo === 'SALIDA_VENTA' && modal.producto.es_granel;
+  const unidadVenta: UnidadVolumen = presentacion === 'tambor' ? 'cuarto' : presentacion;
+  const litrosVenta = aLitros(Number(cantidadCompra), unidadVenta);
+  const totalVenta = Math.round(Math.round(Number(cantidadCompra) * 1000) * Math.round(Number(precioVenta) * 100) / 1000) / 100;
+  const litrosMedidos = aLitros(Number(medido), unidadMedicion);
+  const litrosUsados = aLitros(Number(despachado), unidadMedicion);
   const litrosCompra = compraGranel ? Number(cantidadCompra) * (presentacion === 'tambor' ? modal.producto.capacidad_envase ?? 0 : factorLitros[presentacion]) : 0;
   const pendienteEntregado = modal?.tipo === 'MEDICION' ? modal.producto.stock_pendiente_entrega ?? 0 : 0;
   const abierto = modal?.tipo === 'MEDICION' ? modal.producto.aceite_ordenes_abiertas ?? 0 : 0;
   const porDescontar = modal?.tipo === 'MEDICION'
     ? Math.round(((modal.producto.aceite_ordenes_abiertas ?? 0) + (modal.producto.stock_pendiente_entrega ?? 0)) * 1000) / 1000 : 0;
   const variacion = modal?.tipo === 'MEDICION' && medido !== '' && (abierto === 0 || despachado !== '')
-    ? Math.round((Number(medido) + pendienteEntregado + Number(despachado) - modal.producto.stock_actual) * 1000) / 1000 : null;
+    ? Math.round((litrosMedidos + pendienteEntregado + litrosUsados - modal.producto.stock_actual) * 1000) / 1000 : null;
 
   return (
     <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 text-slate-900">
@@ -397,7 +423,7 @@ export default function Inventario() {
           {tab === 'Aceites' && <div className="grid gap-3 md:hidden">{visibles.map(item => (
             <article key={item.id} className="rounded-xl border bg-white p-4 space-y-2">
               <h2 className="font-semibold">{item.nombre}</h2>
-              <p className="text-sm text-slate-600">{[item.viscosidad || 'Completar datos', item.base_aceite, item.marca, item.es_granel ? 'Granel' : 'Tarro'].filter(Boolean).join(' · ')}</p>
+              <p className="text-sm text-slate-600">{[item.viscosidad || 'Completar datos', basesAceite[item.base_aceite ?? ''], item.marca, item.es_granel ? 'Granel' : 'Tarro'].filter(Boolean).join(' · ')}</p>
               <p className="font-bold">{mostrarCuartos(item.es_granel ? item.stock_actual : item.stock_actual * litrosPorTarro(item.contenido_litros ?? 0))} en stock</p>
               {!!item.es_granel && !!item.capacidad_envase && <NivelGranel stock={item.stock_actual} capacidad={item.capacidad_envase} />}
               <div className="flex flex-wrap gap-2 text-sm">
@@ -415,7 +441,7 @@ export default function Inventario() {
                 <tbody className="divide-y divide-slate-100">{visibles.map(item => (
                   <tr key={item.id}>
                     <td><div className="font-semibold">{item.nombre}</div><div className="text-xs text-slate-500">{[item.codigo, item.categoria, !item.activo && 'Inactivo'].filter(Boolean).join(' · ')}</div></td>
-                    {tab === 'Aceites' && <><td>{item.viscosidad || 'Completar datos'}</td><td className="capitalize">{item.base_aceite || '—'}</td><td>{item.marca || '—'}</td><td>{item.es_granel ? 'Granel' : `Tarro · ${mostrarCuartos(item.contenido_litros ?? 0)}`}</td></>}
+                    {tab === 'Aceites' && <><td>{item.viscosidad || 'Completar datos'}</td><td>{basesAceite[item.base_aceite ?? ''] ?? '—'}</td><td>{item.marca || '—'}</td><td>{item.es_granel ? 'Granel' : `Tarro · ${mostrarCuartos(item.contenido_litros ?? 0)}`}</td></>}
                     <td className={stockCritico(item) ? 'font-semibold text-amber-800' : ''}>{item.tipo_producto === 'aceite' ? <>
                       <strong>{mostrarCuartos(item.es_granel ? item.stock_actual : item.stock_actual * litrosPorTarro(item.contenido_litros ?? 0))}</strong>
                       <div className="text-xs text-slate-500">{numero.format((item.es_granel ? item.stock_actual : item.stock_actual * litrosPorTarro(item.contenido_litros ?? 0)) / factorLitros['galón'])} gal · {numero.format(item.es_granel ? item.stock_actual : item.stock_actual * (item.contenido_litros ?? 0))} L</div>
@@ -445,21 +471,22 @@ export default function Inventario() {
         {modal && <form onSubmit={guardar} className="space-y-4">
           <h2 id="inventario-modal-titulo" className="text-lg font-semibold">{modal.tipo === 'producto' ? (producto ? 'Editar producto' : tipoProducto === 'aceite' ? 'Nuevo aceite' : 'Nuevo producto') : modal.tipo === 'MEDICION' ? 'Medir nivel' : tipos[modal.tipo]}</h2>
           {modal.tipo === 'producto' ? <>
-            <Campo label="Tipo de producto"><select className={campo} value={tipoProducto} onChange={e => { setTipoProducto(e.target.value as typeof tipoProducto); if (e.target.value !== 'aceite') setEsGranel(false); }}><option value="repuesto">Repuesto</option><option value="aceite">Aceite</option></select></Campo>
+            {presentacionBloqueada && <p className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">La unidad y la presentación están bloqueadas porque el producto tiene stock o movimientos. Puedes editar sus demás datos.</p>}
+            <Campo label="Tipo de producto"><select className={campo} disabled={presentacionBloqueada} value={tipoProducto} onChange={e => { setTipoProducto(e.target.value as typeof tipoProducto); if (e.target.value !== 'aceite') setEsGranel(false); }}><option value="repuesto">Repuesto</option><option value="aceite">Aceite</option></select></Campo>
             <Campo label="Código"><input required className={campo} name="codigo" defaultValue={producto?.codigo} /></Campo>
             <Campo label="Nombre"><input required className={campo} name="nombre" defaultValue={producto?.nombre} /></Campo>
             <Campo label="Categoría"><input className={campo} name="categoria" defaultValue={producto?.categoria ?? ''} /></Campo>
             {tipoProducto === 'aceite' ? <>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Campo label="Viscosidad"><input className={campo} name="viscosidad" placeholder="5W-30" defaultValue={producto?.viscosidad ?? ''} /></Campo>
-                <Campo label="Base"><select className={campo} name="base_aceite" defaultValue={producto?.base_aceite ?? ''}><option value="">Sin definir</option><option value="mineral">Mineral</option><option value="semisintetico">Semisintético</option><option value="sintetico">Sintético</option></select></Campo>
+                <Campo label="Base"><select className={campo} name="base_aceite" defaultValue={producto?.base_aceite ?? ''}><option value="">Sin definir</option>{Object.entries(basesAceite).map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}</select></Campo>
                 <Campo label="Marca"><input className={campo} name="marca" defaultValue={producto?.marca ?? ''} /></Campo>
                 <Campo label="Especificación"><input className={campo} name="especificacion" placeholder="API SP" defaultValue={producto?.especificacion ?? ''} /></Campo>
               </div>
-              <Campo label="Presentación"><select className={campo} value={esGranel ? 'granel' : 'tarro'} onChange={e => { setEsGranel(e.target.value === 'granel'); setMinimo('0'); }}><option value="tarro">Tarro</option><option value="granel">Granel · caneca</option></select></Campo>
-              {esGranel ? <Campo key="caneca" label="Capacidad de la caneca (L)"><input required className={campo} name="capacidad_envase" type="number" min="0.001" step="0.001" defaultValue={producto?.capacidad_envase ?? 208.198} /></Campo>
-                : <Campo key="tarro" label="Contenido del tarro (L)"><input required className={campo} name="contenido_litros" type="number" min="0.001" step="0.001" defaultValue={producto?.contenido_litros ?? 0.946} /></Campo>}
-            </> : <Campo label="Unidad"><select className={campo} name="unidad" defaultValue={producto?.unidad ?? 'und'}>
+              <Campo label="Presentación"><select className={campo} disabled={presentacionBloqueada} value={esGranel ? 'granel' : 'tarro'} onChange={e => { setEsGranel(e.target.value === 'granel'); setMinimo('0'); }}><option value="tarro">Tarro</option><option value="granel">Granel · caneca</option></select></Campo>
+              {esGranel ? <Campo key="caneca" label="Capacidad de la caneca (L)"><input required disabled={presentacionBloqueada} className={campo} name="capacidad_envase" type="number" min="0.001" step="0.001" defaultValue={producto?.capacidad_envase ?? 208.198} /></Campo>
+                : <Campo key="tarro" label="Contenido del tarro (L)"><input required disabled={presentacionBloqueada} className={campo} name="contenido_litros" type="number" min="0.001" step="0.001" defaultValue={producto?.contenido_litros ?? 0.946} /></Campo>}
+            </> : <Campo label="Unidad"><select className={campo} disabled={presentacionBloqueada} name="unidad" defaultValue={producto?.unidad ?? 'und'}>
               <option value="und">Unidad</option><option value="litro">Litro</option><option value="galón">Galón</option>
             </select></Campo>}
             <Campo label={esGranel ? 'Precio de venta por litro (COP)' : 'Precio de venta (COP)'}><input required className={campo} name="precio_venta" type="number" min="0" step="0.01" defaultValue={producto?.precio_venta ?? 0} /></Campo>
@@ -474,26 +501,36 @@ export default function Inventario() {
               <p>Se registrará un movimiento inverso para {modal.movimiento.taller_inventario_items.nombre}.
                 {modal.movimiento.gasto_id && ' También se anulará el gasto generado por esta compra.'}</p>
             ) : modal.tipo === 'MEDICION' ? <>
-              <p>{modal.producto.nombre} · Stock en libros {numero.format(modal.producto.stock_actual)} L</p>
-              <Campo label="Nivel medido con varilla (L)"><input required className={campo} type="number" min="0" step="0.001" value={medido} onChange={e => setMedido(e.target.value)} /></Campo>
+              <p>{modal.producto.nombre} · Stock en libros <strong>{formatoMedicion(modal.producto.stock_actual, unidadMedicion)}</strong> <span className="text-sm text-slate-500">({numero.format(modal.producto.stock_actual)} L)</span></p>
+              <Campo label="Unidad de medición"><select className={campo} value={unidadMedicion} onChange={e => {
+                const unidad = e.target.value as UnidadVolumen;
+                const convertir = (valor: string) => valor === '' ? '' : String(Number((Number(valor) * factorLitros[unidadMedicion] / factorLitros[unidad]).toFixed(6)));
+                setMedido(convertir(medido)); setDespachado(convertir(despachado)); setUnidadMedicion(unidad);
+              }}><option value="cuarto">Cuartos</option><option value="galón">Galones</option><option value="litro">Litros (avanzado)</option></select></Campo>
+              <Campo label={`Nivel medido con varilla (${pluralVolumen[unidadMedicion]})`}><input required className={campo} type="number" min="0" step="any" value={medido} onChange={e => setMedido(e.target.value)} /></Campo>
               {porDescontar > 0 && <>
-                <p className="text-sm text-amber-900">Por descontar: {numero.format(modal.producto.aceite_ordenes_abiertas ?? 0)} L en órdenes abiertas y {numero.format(modal.producto.stock_pendiente_entrega ?? 0)} L en entregas pendientes de descuento.</p>
-                {pendienteEntregado > 0 && <p className="text-sm font-medium">Entregas pendientes incluidas: {mostrarCuartos(pendienteEntregado)} ({numero.format(pendienteEntregado)} L).</p>}
-                {abierto > 0 && <Campo label="Litros usados en órdenes abiertas"><input required className={campo} type="number" min="0" max={abierto} step="0.001" value={despachado} onChange={e => setDespachado(e.target.value)} /></Campo>}
+                <p className="text-sm text-amber-900">Por descontar en órdenes abiertas: {formatoMedicion(abierto, unidadMedicion)} <span className="text-slate-500">({numero.format(abierto)} L)</span>.</p>
+                {pendienteEntregado > 0 && <p className="text-sm font-medium">Entregas pendientes incluidas: {formatoMedicion(pendienteEntregado, unidadMedicion)} <span className="text-slate-500">({numero.format(pendienteEntregado)} L)</span>.</p>}
+                {abierto > 0 && <Campo label={`Usados en órdenes abiertas (${pluralVolumen[unidadMedicion]})`}><input required className={campo} type="number" min="0" max={(abierto + 0.000499) / factorLitros[unidadMedicion]} step="any" value={despachado} onChange={e => setDespachado(e.target.value)} /></Campo>}
                 <p className="text-xs text-slate-600">Indica solo lo que ya se usó en órdenes abiertas. Las entregas pendientes se incluyen automáticamente.</p>
               </>}
-              {variacion !== null && <p role="status" className="text-sm">Ajuste a registrar {variacion > 0 ? '+' : ''}{numero.format(variacion)} L
+              {variacion !== null && <p role="status" className="text-sm">Ajuste a registrar {variacion > 0 ? '+' : ''}{formatoMedicion(variacion, unidadMedicion)} <span className="text-slate-500">({numero.format(variacion)} L)</span>
                 {' · '}{modal.producto.stock_actual > 0 ? `${numero.format(100 * variacion / modal.producto.stock_actual)} %` : 'Porcentaje sin base de comparación'}</p>}
             </> : <>
-              <p>{modal.producto.nombre} · Stock físico {numero.format(modal.producto.stock_actual)} {modal.producto.unidad}</p>
+              <p>{modal.producto.nombre} · Stock físico {ventaGranel
+                ? <>{formatoMedicion(modal.producto.stock_actual, unidadVenta)} <span className="text-sm text-slate-500">({numero.format(modal.producto.stock_actual)} L)</span></>
+                : `${numero.format(modal.producto.stock_actual)} ${modal.producto.unidad}`}</p>
               {compraGranel && <Campo label="Presentación de compra"><select className={campo} value={presentacion} onChange={e => setPresentacion(e.target.value as typeof presentacion)}>
                 <option value="tambor">Caneca</option><option value="galón">Galón</option><option value="cuarto">Cuarto</option><option value="litro">Litro (avanzado)</option>
               </select></Campo>}
-              {ventaGranel && <Campo label="Unidad de venta"><select className={campo} value={presentacion} onChange={e => setPresentacion(e.target.value as typeof presentacion)}>
+              {ventaGranel && <Campo label="Unidad de venta"><select className={campo} value={presentacion} onChange={e => {
+                const unidad = e.target.value as UnidadVolumen;
+                setPresentacion(unidad); setPrecioVenta(String(precioPorUnidad(modal.producto.precio_venta, unidad)));
+              }}>
                 <option value="cuarto">Cuarto</option><option value="galón">Galón</option><option value="litro">Litro (avanzado)</option>
               </select></Campo>}
               <Campo label={modal.tipo === 'AJUSTE' ? 'Cantidad (positiva para sumar, negativa para restar)' : compraGranel || ventaGranel ? `Cantidad en ${pluralVolumen[presentacion]}` : 'Cantidad'}>
-                <input required className={campo} name="cantidad" type="number" step="0.001" min={modal.tipo === 'AJUSTE' ? undefined : '0.001'} value={compraGranel ? cantidadCompra : undefined} onChange={compraGranel ? e => setCantidadCompra(e.target.value) : undefined} />
+                <input required className={campo} name="cantidad" type="number" step="0.001" min={modal.tipo === 'AJUSTE' ? undefined : '0.001'} value={compraGranel || ventaGranel ? cantidadCompra : undefined} onChange={compraGranel || ventaGranel ? e => setCantidadCompra(e.target.value) : undefined} />
               </Campo>
               {compraGranel && <p role="status" className="text-sm font-medium">Equivale a {mostrarCuartos(litrosCompra)} · {numero.format(litrosCompra / factorLitros['galón'])} gal · {numero.format(litrosCompra)} L</p>}
               {modal.tipo !== 'SALIDA_VENTA' && <Campo label={modal.tipo === 'AJUSTE' ? 'Costo unitario para aumento (opcional)' : compraGranel ? `Costo por ${presentacion === 'tambor' ? 'caneca' : presentacion} (COP)` : 'Costo unitario de factura (COP)'}>
@@ -503,7 +540,10 @@ export default function Inventario() {
                 <Campo label="Proveedor"><input className={campo} name="proveedor" maxLength={255} /></Campo>
                 <label className="flex items-center gap-2"><input name="registrar_gasto" type="checkbox" /> Registrar como gasto en Repuestos</label>
               </>}
-              {modal.tipo === 'SALIDA_VENTA' && <Campo label={ventaGranel ? 'Precio base por litro (COP)' : 'Precio unitario (COP)'}><input required className={campo} name="precio_unitario" type="number" min="0" step="0.01" defaultValue={modal.producto.precio_venta} /></Campo>}
+              {modal.tipo === 'SALIDA_VENTA' && (ventaGranel ? <>
+                <Campo label={`Precio por ${unidadVenta} (COP)`}><input required className={campo} name="precio_unitario" type="number" min="0" step="0.01" value={precioVenta} onChange={e => setPrecioVenta(e.target.value)} /></Campo>
+                <p role="status" className="rounded-lg bg-indigo-50 p-3 font-semibold">Total: {moneda.format(totalVenta)} · equivale a {numero.format(litrosVenta)} L</p>
+              </> : <Campo label="Precio unitario (COP)"><input required className={campo} name="precio_unitario" type="number" min="0" step="0.01" defaultValue={modal.producto.precio_venta} /></Campo>)}
               {modal.tipo !== 'AJUSTE' && <Campo label="Referencia de factura"><input className={campo} name="factura_ref" /></Campo>}
             </>}
             <Campo label="Notas"><textarea className={campo} name="notas" required={modal.tipo === 'AJUSTE' || modal.tipo === 'ANULACION'} /></Campo>

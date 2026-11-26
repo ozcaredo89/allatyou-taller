@@ -19,10 +19,10 @@
 - Aceite en tarro usa unidades y contenido por envase. Granel guarda stock y mínimos en litros; la interfaz prioriza cuartos, galones y canecas.
 - La línea conserva cantidad y precio de captura. Se redondean litros a 0,001 y precio sugerido por captura a 0,01 COP. Total = cantidad capturada × ese precio, redondeado a 0,01 COP.
 - El gasto usa cantidad original × costo de factura, redondeado a 0,01 COP. El costo de stock divide el importe sin redondear por los litros almacenados.
-- Medición: litros medidos + todo lo pendiente de entregas + uso confirmado de órdenes abiertas. Revalida saldo y pendientes al guardar.
-- Cambiar a o desde granel no reinterpreta la unidad de un producto con stock o movimientos.
+- Medición en cuartos, galones o litros. Envía litros a 0,001, incluye todas las entregas pendientes y revalida saldo y pendientes.
+- Con stock o movimientos quedan bloqueados unidad, granel, contenido y capacidad. Los metadatos comerciales se pueden editar.
 - Anular conserva el movimiento original y revierte el stock. Si la compra generó un gasto, lo retira del P&L.
-- Mostrador registra el precio cobrado como ingreso y la diferencia frente al costo como utilidad bruta. Excluye las ventas anuladas.
+- Mostrador granel cobra cantidad × precio de captura a 0,01 COP. Guarda ese importe para reportes, sin recalcular con litros redondeados. Conserva el precio base de catálogo si no se editó y excluye ventas anuladas.
 
 ## Trampas / no tocar
 - Filtrar por empresa_id en API y RPC. Inventario reutiliza el pool PostgreSQL de Taller mediante DATABASE_URL.

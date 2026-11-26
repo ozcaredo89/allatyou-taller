@@ -51,10 +51,22 @@ test('recorrido de Aceites en escritorio', async ({ page }, info) => {
   const producto = page.getByRole('row', { name: /Aceite 20W-50 mineral/ });
   await expect(producto.getByText('132 cuartos', { exact: true })).toBeVisible();
   await expect(producto.getByText(/Caneca en uso · 60 %/)).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Sintético', exact: true }).first()).toBeVisible();
   await captura(page, '01-inventario-aceites');
 
-  await page.getByRole('button', { name: 'Nuevo aceite' }).click();
   const modal = page.getByRole('dialog');
+  await producto.getByRole('button', { name: 'Editar', exact: true }).click();
+  await expect(modal.getByLabel(/^Presentación/)).toBeDisabled();
+  await expect(modal.getByLabel('Capacidad de la caneca (L)')).toBeDisabled();
+  await expect(modal.getByText(/bloqueadas porque el producto tiene stock o movimientos/)).toBeVisible();
+  await expect(modal.getByLabel('Viscosidad')).toBeEnabled();
+  await modal.getByRole('button', { name: 'Cerrar' }).click();
+  await page.getByRole('button', { name: 'Repuestos', exact: true }).click();
+  await page.getByRole('row', { name: /Filtro para Spark/ }).getByRole('button', { name: 'Editar' }).click();
+  await expect(modal.getByLabel(/^Unidad/)).toBeDisabled();
+  await modal.getByRole('button', { name: 'Cerrar' }).click();
+  await page.getByRole('button', { name: 'Aceites', exact: true }).click();
+  await page.getByRole('button', { name: 'Nuevo aceite' }).click();
   await modal.getByLabel('Código').fill('ACE-1040');
   await modal.getByLabel('Nombre').fill('Aceite 10W-40 semisintético');
   await modal.getByLabel('Viscosidad').fill('10W-40');
@@ -93,10 +105,11 @@ test('recorrido de Aceites en escritorio', async ({ page }, info) => {
   await page.goto('/taller-demo/inventario');
   await page.getByRole('button', { name: 'Aceites', exact: true }).click();
   await producto.getByRole('button', { name: 'Medir nivel' }).click();
-  await modal.getByLabel('Nivel medido con varilla (L)').fill('116.349');
-  await modal.getByLabel('Litros usados en órdenes abiertas').fill('3.785');
+  await expect(modal.getByLabel(/^Unidad de medición/)).toHaveValue('cuarto');
+  await modal.getByLabel('Nivel medido con varilla (cuartos)').fill('122.945');
+  await modal.getByLabel('Usados en órdenes abiertas (cuartos)').fill('4');
   await expect(modal.getByText(/Entregas pendientes incluidas: 4 cuartos/)).toBeVisible();
-  await expect(modal.getByText(/Ajuste a registrar -1 L/)).toBeVisible();
+  await expect(modal.getByText(/Ajuste a registrar -1,057 cuartos.*\(-1 L\)/)).toBeVisible();
   await captura(page, '07-medir-nivel');
   await modal.getByRole('button', { name: 'Cerrar' }).click();
 
@@ -106,6 +119,18 @@ test('recorrido de Aceites en escritorio', async ({ page }, info) => {
   await expect(resumen).toContainText('Margen promedio por cambio');
   await resumen.scrollIntoViewIfNeeded();
   await captura(page, '08-resumen-aceites');
+
+  await producto.getByRole('button', { name: 'Vender', exact: true }).click();
+  await expect(modal.getByLabel('Precio por cuarto (COP)')).toHaveValue('24605.18');
+  await modal.getByLabel('Cantidad en cuartos').fill('2');
+  await expect(modal.getByRole('status')).toContainText(/Total:.*49\.210,36.*equivale a 1,893 L/);
+  await captura(page, '10-venta-mostrador');
+  const venta = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/api/inventario/movimientos'));
+  await modal.getByRole('button', { name: 'Guardar', exact: true }).click();
+  expect((await venta).postDataJSON()).toMatchObject({
+    tipo: 'SALIDA_VENTA', cantidad: 1.893, precio_unitario: 26000,
+    unidad_captura_venta: 'cuarto', cantidad_captura_venta: 2, precio_captura_venta: 24605.18,
+  });
 });
 
 test('catálogo de Aceites en móvil', async ({ page }, info) => {
@@ -115,5 +140,6 @@ test('catálogo de Aceites en móvil', async ({ page }, info) => {
   const tarjeta = page.getByRole('article').filter({ hasText: 'Aceite 20W-50 mineral' });
   await expect(tarjeta.getByText('132 cuartos en stock')).toBeVisible();
   await expect(tarjeta.getByRole('progressbar')).toHaveAttribute('aria-label', 'Nivel de la caneca en uso');
+  await expect(page.getByRole('article').filter({ hasText: /^Aceite 5W-30 sintético/ }).first()).toContainText('Sintético ·');
   await captura(page, '09-movil-inventario');
 });
