@@ -20,7 +20,11 @@ export function manejarErrorInventario(error: Error, _req: Request, res: Respons
 
 export async function listarItems(req: Request, res: Response) {
   const { rows } = await seguimientoDb().query(
-    'SELECT producto FROM public.consultar_inventario($1) AS producto', [req.empresa_id]
+    `SELECT producto || jsonb_build_object('aceite_ordenes_abiertas', coalesce(a.abiertos, 0),
+                                           'stock_pendiente_entrega', coalesce(a.pendientes, 0)) AS producto
+     FROM public.consultar_inventario($1) AS producto
+     LEFT JOIN public.consultar_aceite_por_descontar($1) a ON a.item_id::text = producto->>'id'`,
+    [req.empresa_id]
   );
   res.json(rows.map(row => row.producto));
 }
@@ -54,7 +58,11 @@ export async function guardarItem(req: Request, res: Response) {
        SET codigo=$2, nombre=$3, categoria=$4, unidad=$5, precio_venta=$6, stock_minimo=$7, activo=$8,
            es_granel=CASE WHEN $11 THEN $9 ELSE es_granel END,
            capacidad_envase=CASE WHEN $11 THEN $10 ELSE capacidad_envase END
-       WHERE empresa_id=$1 AND id=$12 RETURNING to_jsonb(taller_inventario_items) AS producto`,
+       WHERE empresa_id=$1 AND id=$12
+         AND (unidad=$5 OR NOT (es_granel OR $9) OR (stock_actual=0 AND NOT EXISTS (
+           SELECT 1 FROM public.taller_inventario_movimientos m WHERE m.empresa_id=$1 AND m.item_id=$12
+         )))
+       RETURNING to_jsonb(taller_inventario_items) AS producto`,
       [...valores, body.es_granel !== undefined, req.params.id]
     )
     : await seguimientoDb().query(
@@ -62,7 +70,16 @@ export async function guardarItem(req: Request, res: Response) {
        (empresa_id,codigo,nombre,categoria,unidad,precio_venta,stock_minimo,activo,es_granel,capacidad_envase)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING to_jsonb(taller_inventario_items) AS producto`, valores
     );
-  if (!rows.length) return responderError(res, { code: 'P0002', message: 'Producto no encontrado.' });
+  if (!rows.length) {
+    const { rowCount } = await seguimientoDb().query(
+      'SELECT 1 FROM public.taller_inventario_items WHERE empresa_id=$1 AND id=$2', [req.empresa_id, req.params.id]
+    );
+    if (rowCount) {
+      res.status(409).json({ error: 'El producto ya tiene stock o movimientos. Crea un producto a granel con unidad litro.' });
+      return;
+    }
+    return responderError(res, { code: 'P0002', message: 'Producto no encontrado.' });
+  }
   res.status(req.params.id ? 200 : 201).json(rows[0].producto);
 }
 
@@ -125,6 +142,8 @@ export async function registrarMovimiento(req: Request, res: Response) {
     presentacion: req.body.presentacion, cantidad_presentacion: req.body.cantidad_presentacion,
     costo_presentacion: req.body.costo_presentacion,
     stock_medido: req.body.stock_medido, stock_esperado: req.body.stock_esperado,
+    litros_despachados_sin_descontar: req.body.litros_despachados_sin_descontar,
+    por_descontar_esperado: req.body.por_descontar_esperado,
   });
   res.status(201).json(movimiento);
 }

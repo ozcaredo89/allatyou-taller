@@ -1,3 +1,4 @@
+import { mostrarCantidadInventario, type CapturaVolumen } from '../utils/volumenInventario';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -41,7 +42,7 @@ interface GastoPorCategoria {
   fijos?: number;
 }
 
-interface FacturaItem {
+interface FacturaItem extends CapturaVolumen {
   id?: string;
   tipo?: string;
   descripcion: string;
@@ -862,7 +863,7 @@ const Reportes: React.FC = () => {
 
     const rows = filteredIngresos.map((o) => {
       const itemsDetalle = (o.items || [])
-        .map((it) => `[${it.tipo === 'mano_obra' ? t('reportes.mano_obra_corto', 'M.O.') : t('reportes.repuestos_corto', 'Rep')}] ${it.descripcion} (${it.cantidad} x ${it.precio_unitario} = ${it.total})`)
+        .map((it) => `[${it.tipo === 'mano_obra' ? t('reportes.mano_obra_corto', 'M.O.') : t('reportes.repuestos_corto', 'Rep')}] ${it.descripcion} (${mostrarCantidadInventario(it)} x ${it.precio_unitario_captura ?? it.precio_unitario} = ${it.total})`)
         .join(' | ');
       return [
         formatearFecha(o.fecha_entrega),
@@ -935,7 +936,7 @@ const Reportes: React.FC = () => {
 
       const ordenRows = filteredIngresos.map((o) => {
         const itemsSummary = (o.items || [])
-          .map((it) => `${it.cantidad}x ${it.descripcion} (${formatearDinero(it.total)})`)
+          .map((it) => `${mostrarCantidadInventario(it)}x ${it.descripcion} (${formatearDinero(it.total)})`)
           .join(', ');
         return [
           formatearFecha(o.fecha_entrega),
@@ -986,8 +987,8 @@ const Reportes: React.FC = () => {
           o.cliente || '',
           it.tipo === 'mano_obra' ? t('reportes.mano_obra', 'Mano de Obra') : t('reportes.repuesto_item', 'Repuesto'),
           it.descripcion || '',
-          Number(it.cantidad || 1),
-          Number(it.precio_unitario || 0),
+          it.unidad_captura ? mostrarCantidadInventario(it) : Number(it.cantidad || 1),
+          Number(it.precio_unitario_captura ?? it.precio_unitario ?? 0),
           Number(it.total || 0),
         ])
       );
@@ -1024,7 +1025,7 @@ const Reportes: React.FC = () => {
         <div class="item-line">
           <span class="badge ${it.tipo === 'mano_obra' ? 'mo' : 'rep'}">${escapeHtml(it.tipo === 'mano_obra' ? t('reportes.mano_obra_corto', 'M.O.') : t('reportes.repuestos_corto', 'Rep'))}</span>
           <span class="item-desc">${escapeHtml(it.descripcion)}</span>
-          <span class="item-meta">${it.cantidad} × ${formatearDinero(it.precio_unitario)}</span>
+          <span class="item-meta">${mostrarCantidadInventario(it)} × ${formatearDinero(it.precio_unitario_captura ?? it.precio_unitario)}</span>
           <span class="item-total">${formatearDinero(it.total)}</span>
         </div>
       `).join('');
@@ -2707,7 +2708,7 @@ const Reportes: React.FC = () => {
                                             </div>
                                             <div className="flex items-center gap-4 text-right shrink-0">
                                               <span className="text-slate-400">
-                                                {it.cantidad} × {formatearDinero(it.precio_unitario)}
+                                                {mostrarCantidadInventario(it)} × {formatearDinero(it.precio_unitario_captura ?? it.precio_unitario)}
                                               </span>
                                               <span className="font-bold text-slate-800 w-24">
                                                 {formatearDinero(it.total)}
@@ -2829,7 +2830,7 @@ const Reportes: React.FC = () => {
                                       {it.tipo === 'mano_obra' ? t('reportes.mano_obra', 'Mano de Obra') : t('reportes.repuesto_item', 'Repuesto')}
                                     </span>
                                     <span className="font-medium text-slate-800">{it.descripcion}</span>
-                                    <span className="text-[11px] text-slate-400 block">{it.cantidad} × {formatearDinero(it.precio_unitario)}</span>
+                                    <span className="text-[11px] text-slate-400 block">{mostrarCantidadInventario(it)} × {formatearDinero(it.precio_unitario_captura ?? it.precio_unitario)}</span>
                                   </div>
                                   <span className="font-bold text-slate-800 shrink-0">{formatearDinero(it.total)}</span>
                                 </div>

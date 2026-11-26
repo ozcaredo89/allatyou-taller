@@ -9,6 +9,7 @@ import {
   Info
 } from 'lucide-react';
 import { calcularRentabilidad } from '../utils/rentabilidadUtils';
+import { mostrarCantidadInventario } from '../utils/volumenInventario';
 
 interface Props {
   itemsFactura: any[];
@@ -148,7 +149,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                     {/* Repuesto */}
                     <td className="px-4 py-3">
                       <p className="font-semibold text-slate-800">{item.descripcion}</p>
-                      <p className="text-xs text-slate-400">Cant: {item.cantidad} · Unit: {formatearDinero(item.precio_unitario)}</p>
+                      <p className="text-xs text-slate-400">Cant: {mostrarCantidadInventario(item)} · Unit: {formatearDinero(item.precio_unitario_captura ?? item.precio_unitario)}{item.unidad_captura && ` / ${item.precio_unitario_captura == null ? 'litro' : item.unidad_captura}`}</p>
                     </td>
 
                     {/* Venta al cliente */}

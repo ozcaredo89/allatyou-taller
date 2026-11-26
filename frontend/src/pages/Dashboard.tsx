@@ -1,3 +1,4 @@
+import { mostrarCantidadInventario } from '../utils/volumenInventario';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Car, CalendarDays, CalendarClock, BellRing, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity, FileEdit, Clock } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -582,7 +583,7 @@ const Dashboard: React.FC = () => {
                       <div key={item.id} className="bg-white border border-slate-200 rounded-lg px-3 py-2 flex justify-between items-center">
                         <div>
                           <p className="font-medium text-slate-800 text-sm">{item.descripcion}</p>
-                          <p className="text-xs text-slate-500">{item.tipo === 'repuesto' ? 'Repuesto' : 'Mano de obra'} · Cant: {item.cantidad}</p>
+                          <p className="text-xs text-slate-500">{item.tipo === 'repuesto' ? 'Repuesto' : 'Mano de obra'} · Cant: {mostrarCantidadInventario(item)}</p>
                         </div>
                         <p className="font-bold text-slate-800 text-sm">${item.total.toLocaleString('es-CO')}</p>
                       </div>
