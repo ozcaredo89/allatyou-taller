@@ -3,13 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
-import { Loader2, ArrowLeft, AlertCircle, Wrench, Building2, CheckCircle2, Lock, Mail, KeyRound, Shield, Key, RefreshCw } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, Wrench, Building2, CheckCircle2, Lock, Mail, KeyRound, Shield, Key, RefreshCw, ChevronDown } from 'lucide-react';
 
 interface EmpresaItem {
   id: string;
   nombre: string;
   slug: string;
 }
+
+const LAST_EMPRESA_KEY = 'taller_last_empresa';
+
+const getLastEmpresaId = (): string | null => {
+  try { return localStorage.getItem(LAST_EMPRESA_KEY); } catch { return null; }
+};
+
+const saveLastEmpresaId = (id: string) => {
+  try { localStorage.setItem(LAST_EMPRESA_KEY, id); } catch { /* ignore */ }
+};
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -22,6 +32,7 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [empresas, setEmpresas] = useState<EmpresaItem[]>([]);
   const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaItem | null>(null);
+  const [pickedEmpresaId, setPickedEmpresaId] = useState('');
 
   // Password mode
   const [email, setEmail] = useState('');
@@ -56,7 +67,10 @@ const Login: React.FC = () => {
     try {
       setLoading(true);
       const { data } = await api.get('/auth/empresas');
-      setEmpresas(data);
+      const sorted = [...(data as EmpresaItem[])].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+      setEmpresas(sorted);
+      const lastId = getLastEmpresaId();
+      if (lastId && sorted.some(e => e.id === lastId)) setPickedEmpresaId(lastId);
     } catch (err: any) {
       setError('No se pudo cargar la lista de empresas.');
     } finally {
@@ -157,6 +171,7 @@ const Login: React.FC = () => {
       });
       if (data.token) {
         if (sessionExpired) clearSessionExpired();
+        saveLastEmpresaId(selectedEmpresa.id);
         login(data.token, data.empresa.id, data.empresa.slug, data.empresa.nombre, resetEmail.trim());
         navigate(`/${data.empresa.slug}`);
       } else {
@@ -180,6 +195,7 @@ const Login: React.FC = () => {
     try {
       const result = await loginWithPassword(selectedEmpresa.id, email, password, rememberMe);
       if (sessionExpired) clearSessionExpired();
+      saveLastEmpresaId(selectedEmpresa.id);
       navigate(`/${result.slug}`);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Credenciales inválidas.');
@@ -202,6 +218,7 @@ const Login: React.FC = () => {
 
       if (data.token) {
         if (sessionExpired) clearSessionExpired();
+        saveLastEmpresaId(selectedEmpresa.id);
         login(data.token, data.empresa.id, data.empresa.slug, data.empresa.nombre, 'kiosco@taller');
         navigate(`/${data.empresa.slug}`);
       }
@@ -267,25 +284,44 @@ const Login: React.FC = () => {
              <div className="space-y-4">
                {loading && empresas.length === 0 ? (
                  <div className="flex justify-center p-6"><Loader2 className="animate-spin text-indigo-600" /></div>
-               ) : (
-                 <div className="grid grid-cols-1 gap-3">
-                   {empresas.map(empresa => (
-                     <button
-                       key={empresa.id}
-                       onClick={() => handleSelectEmpresa(empresa)}
+               ) : empresas.length > 0 && (
+                 <form
+                   className="space-y-4"
+                   onSubmit={e => {
+                     e.preventDefault();
+                     const empresa = empresas.find(x => x.id === pickedEmpresaId);
+                     if (empresa) handleSelectEmpresa(empresa);
+                   }}
+                 >
+                   <label htmlFor="empresa-select" className="block text-sm font-semibold text-slate-600 mb-1.5">
+                     <Building2 size={14} className="inline mr-1.5 -mt-0.5" />Sucursal
+                   </label>
+                   <div className="relative">
+                     <select
+                       id="empresa-select"
+                       value={pickedEmpresaId}
+                       onChange={e => setPickedEmpresaId(e.target.value)}
                        disabled={loading}
-                       className="flex items-center gap-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 p-4 rounded-xl transition duration-200 disabled:opacity-50 text-left"
+                       className="block w-full appearance-none px-4 py-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition-shadow disabled:opacity-50"
                      >
-                       <div className="bg-white p-2 border border-slate-200 rounded-lg">
-                         <Building2 className="text-indigo-600 shrink-0" size={20} />
-                       </div>
-                       <div>
-                         <strong className="text-slate-800 block text-lg leading-none mb-1">{empresa.nombre}</strong>
-                         <span className="text-slate-500 text-xs">Sucursal: {empresa.slug}</span>
-                       </div>
-                     </button>
-                   ))}
-                 </div>
+                       <option value="" disabled>Selecciona un taller…</option>
+                       {empresas.map(empresa => (
+                         <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>
+                       ))}
+                     </select>
+                     <ChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                   </div>
+                   {pickedEmpresaId && pickedEmpresaId === getLastEmpresaId() && (
+                     <p className="text-xs text-slate-400 -mt-2">Último acceso en este dispositivo</p>
+                   )}
+                   <button
+                     type="submit"
+                     disabled={loading || !pickedEmpresaId}
+                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
+                   >
+                     {loading ? <Loader2 className="animate-spin" size={20} /> : 'Continuar'}
+                   </button>
+                 </form>
                )}
                {empresas.length === 0 && !loading && (
                  <p className="text-center text-slate-500 text-sm">No hay talleres registrados en el sistema.</p>
