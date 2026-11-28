@@ -1,3 +1,4 @@
+import appI18n, { displayLocale } from '../i18n';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { History, Car, CalendarDays, CheckCircle2, XCircle, Loader2, ArrowLeft, ChevronRight, Receipt, Search, Filter } from 'lucide-react';
@@ -145,11 +146,11 @@ const Historial: React.FC = () => {
                       {reg.aplica_renting && !isCancelado && (
                         reg.renting_sync_at ? (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            Renting ✓
+                            {appI18n.t("ui.Historial.renting_synced")}
                           </span>
                         ) : (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                            Renting pendiente ⚠️
+                            {appI18n.t("ui.Historial.renting_pending")}
                           </span>
                         )
                       )}
@@ -162,7 +163,7 @@ const Historial: React.FC = () => {
                         {reg.taller_vehiculos?.taller_clientes?.nombre_completo}
                       </span>
                       <span className="flex items-center gap-1">
-                        <CalendarDays size={13} /> {new Date(reg.updated_at || reg.fecha_ingreso).toLocaleDateString()}
+                        <CalendarDays size={13} /> {new Date(reg.updated_at || reg.fecha_ingreso).toLocaleDateString(displayLocale())}
                       </span>
                     </div>
                   </div>

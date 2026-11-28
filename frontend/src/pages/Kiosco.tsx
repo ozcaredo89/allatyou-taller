@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Car, QrCode, CheckCircle2, ChevronRight, Loader2, MessageCircle, Wrench, SkipForward } from 'lucide-react';
@@ -47,7 +48,7 @@ const Kiosco: React.FC = () => {
         setEmpresa(data);
         setStep('placa');
       } catch {
-        setErrorMsg('No se pudo cargar la información del taller. Verifica el enlace.');
+        setErrorMsg(appI18n.t('ui.Kiosco.could_not_load_workshop_information_check_the_link'));
         setStep('error');
       }
     };
@@ -70,7 +71,7 @@ const Kiosco: React.FC = () => {
       }
       setStep(data.existe ? 'motivo' : 'datos');
     } catch {
-      setErrorMsg('Error verificando la placa. Intenta de nuevo.');
+      setErrorMsg(appI18n.t('ui.Kiosco.could_not_check_the_license_plate_try_again'));
     } finally {
       setSubmitting(false);
     }
@@ -175,7 +176,7 @@ const Kiosco: React.FC = () => {
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Car size={36} className="text-red-500" />
           </div>
-          <h1 className="text-xl font-bold text-slate-800 mb-2">Enlace no válido</h1>
+          <h1 className="text-xl font-bold text-slate-800 mb-2">{appI18n.t("ui.Kiosco.invalid_link")}</h1>
           <p className="text-slate-500 text-sm">{errorMsg}</p>
         </div>
       </div>
@@ -192,7 +193,7 @@ const Kiosco: React.FC = () => {
         <h1 className="text-2xl font-extrabold text-white tracking-tight">
           {empresa?.nombre}
         </h1>
-        <p className="text-indigo-300 text-sm mt-1">Auto-Registro de Vehículo</p>
+        <p className="text-indigo-300 text-sm mt-1">{appI18n.t("ui.Kiosco.vehicle_self_check_in")}</p>
       </div>
 
       {/* Card principal */}
@@ -207,7 +208,7 @@ const Kiosco: React.FC = () => {
                   <Car size={28} className="text-indigo-600" />
                 </div>
                 <h2 className="text-xl font-bold text-slate-900">{t('kiosco.ingresa_placa')}</h2>
-                <p className="text-slate-500 text-sm mt-1">Escribe la placa de tu vehículo para comenzar</p>
+                <p className="text-slate-500 text-sm mt-1">{appI18n.t("ui.Kiosco.enter_your_vehicle_s_license_plate_to_get")}</p>
               </div>
               <input
                 type="text"
@@ -225,7 +226,7 @@ const Kiosco: React.FC = () => {
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg transition disabled:opacity-50"
               >
                 {submitting ? <Loader2 className="animate-spin" size={22} /> : <ChevronRight size={22} />}
-                Siguiente
+                {appI18n.t("ui.Kiosco.next")}
               </button>
             </form>
           )}
@@ -237,27 +238,27 @@ const Kiosco: React.FC = () => {
                 <div className="inline-flex items-center justify-center w-14 h-14 bg-amber-50 rounded-2xl mb-3">
                   <QrCode size={28} className="text-amber-600" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900">Primera vez aquí</h2>
+                <h2 className="text-xl font-bold text-slate-900">{appI18n.t("ui.Kiosco.first_time_here")}</h2>
                 <p className="text-slate-500 text-sm mt-1">{t('kiosco.datos_cliente')}</p>
               </div>
               <div className="space-y-3">
-                <input required type="text" placeholder="Nombre completo *" value={nombre} onChange={e => setNombre(e.target.value)}
+                <input required type="text" placeholder={appI18n.t("ui.Kiosco.full_name")} value={nombre} onChange={e => setNombre(e.target.value)}
                   className="block w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium" />
-                <input required type="tel" placeholder="Teléfono *" value={telefono} onChange={e => setTelefono(e.target.value)}
+                <input required type="tel" placeholder={appI18n.t("ui.Kiosco.phone")} value={telefono} onChange={e => setTelefono(e.target.value)}
                   className="block w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium" />
-                <input type="text" placeholder="Documento (opcional)" value={documento} onChange={e => setDocumento(e.target.value)}
+                <input type="text" placeholder={appI18n.t("ui.Kiosco.id_optional")} value={documento} onChange={e => setDocumento(e.target.value)}
                   className="block w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium" />
                 <div className="grid grid-cols-2 gap-3">
-                  <input required type="text" placeholder="Marca *" value={marca} onChange={e => setMarca(e.target.value)}
+                  <input required type="text" placeholder={appI18n.t("ui.Kiosco.make")} value={marca} onChange={e => setMarca(e.target.value)}
                     className="block w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium" />
-                  <input required type="text" placeholder="Línea / Modelo *" value={linea} onChange={e => setLinea(e.target.value)}
+                  <input required type="text" placeholder={appI18n.t("ui.Kiosco.model_line")} value={linea} onChange={e => setLinea(e.target.value)}
                     className="block w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium" />
                 </div>
               </div>
               <button type="submit"
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-lg transition"
               >
-                <ChevronRight size={22} /> Continuar
+                <ChevronRight size={22} /> {appI18n.t("ui.Kiosco.continue")}
               </button>
             </form>
           )}
@@ -345,7 +346,7 @@ const Kiosco: React.FC = () => {
                 /* Fallback: textarea libre si no hay config */
                 <textarea
                   rows={4}
-                  placeholder="Describe el problema o servicio que necesitas..."
+                  placeholder={appI18n.t("ui.Kiosco.describe_the_issue_or_service_you_need")}
                   value={detalleOtro}
                   onChange={e => setDetalleOtro(e.target.value)}
                   className="block w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none font-medium leading-relaxed"
@@ -357,7 +358,7 @@ const Kiosco: React.FC = () => {
                 <textarea
                   rows={3}
                   autoFocus
-                  placeholder="Describe el detalle adicional..."
+                  placeholder={appI18n.t("ui.Kiosco.enter_additional_details")}
                   value={detalleOtro}
                   onChange={e => setDetalleOtro(e.target.value)}
                   className="block w-full px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm focus:ring-2 focus:ring-amber-400 outline-none resize-none font-medium leading-relaxed"
@@ -399,7 +400,7 @@ const Kiosco: React.FC = () => {
               <div>
                 <h2 className="text-2xl font-extrabold text-slate-900">{t('kiosco.exito_titulo')}</h2>
                 <p className="text-slate-600 text-base mt-2 leading-relaxed">
-                  Tu vehículo <strong className="text-indigo-700 tracking-wider">{placa.toUpperCase()}</strong> ha sido registrado.<br/>
+                  {appI18n.t("ui.Kiosco.your_vehicle")} <strong className="text-indigo-700 tracking-wider">{placa.toUpperCase()}</strong> {appI18n.t("ui.Kiosco.has_been_checked_in")}<br/>
                   <span className="text-sm text-slate-500 mt-1 block">{t('kiosco.exito_desc')}</span>
                 </p>
               </div>
@@ -410,14 +411,14 @@ const Kiosco: React.FC = () => {
                   rel="noreferrer"
                   className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl text-lg transition shadow-lg shadow-emerald-900/20"
                 >
-                  <MessageCircle size={24} /> Notificar por WhatsApp
+                  <MessageCircle size={24} /> {appI18n.t("ui.Kiosco.notify_via_whatsapp")}
                 </a>
               )}
               <button
                 onClick={resetAll}
                 className="w-full border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 font-medium py-3.5 rounded-2xl text-sm transition"
               >
-                Registrar otro vehículo
+                {appI18n.t("ui.Kiosco.check_in_another_vehicle")}
               </button>
             </div>
           )}

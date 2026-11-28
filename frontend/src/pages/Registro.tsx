@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -70,8 +71,8 @@ const Registro: React.FC = () => {
           <div className="p-3 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/30 mb-4">
             <Wrench className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Crea tu Taller</h1>
-          <p className="text-slate-500 text-sm mt-1">Regístrate gratis y comienza a gestionar en minutos.</p>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">{appI18n.t("ui.Registro.create_your_workshop")}</h1>
+          <p className="text-slate-500 text-sm mt-1">{appI18n.t("ui.Registro.sign_up_for_free_and_start_managing_your")}</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border border-slate-100">
@@ -85,7 +86,7 @@ const Registro: React.FC = () => {
           {step === 1 && (
              <form onSubmit={submitRegistro} className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                <div>
-                 <label className="block text-sm font-bold text-slate-700 mb-1.5">Nombre de tu Taller</label>
+                 <label className="block text-sm font-bold text-slate-700 mb-1.5">{appI18n.t("ui.Registro.workshop_name")}</label>
                  <div className="relative">
                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                      <Building2 className="text-slate-400" size={18} />
@@ -93,7 +94,7 @@ const Registro: React.FC = () => {
                    <input
                      type="text"
                      required
-                     placeholder="Ej. Motores Express"
+                     placeholder={appI18n.t("ui.Registro.e_g_express_motors")}
                      className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 font-medium transition-shadow"
                      value={nombre}
                      onChange={e => setNombre(e.target.value)}
@@ -103,7 +104,7 @@ const Registro: React.FC = () => {
                </div>
 
                <div>
-                 <label className="block text-sm font-bold text-slate-700 mb-1.5">Correo del Administrador</label>
+                 <label className="block text-sm font-bold text-slate-700 mb-1.5">{appI18n.t("ui.Registro.administrator_email")}</label>
                  <input
                    type="email"
                    required
@@ -131,7 +132,7 @@ const Registro: React.FC = () => {
                    className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
                  >
                    {loading ? <Loader2 className="animate-spin" size={20} /> : <ArrowRight size={20} />}
-                   Crear mi cuenta gratis
+                   {appI18n.t("ui.Registro.create_my_free_account")}
                  </button>
                </div>
                <div className="text-center pt-2">
@@ -140,7 +141,7 @@ const Registro: React.FC = () => {
                    onClick={() => navigate('/login')}
                    className="text-sm text-slate-500 hover:text-indigo-600 font-medium transition-colors"
                  >
-                   ¿Ya tienes un taller registrado? <span className="underline">Inicia Sesión</span>
+                   {appI18n.t("ui.Registro.already_have_a_workshop_account")} <span className="underline">{appI18n.t("ui.Registro.sign_in")}</span>
                  </button>
                </div>
              </form>
@@ -152,9 +153,9 @@ const Registro: React.FC = () => {
                  <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full mb-3 shadow-sm">
                    <CheckCircle2 size={24} />
                  </div>
-                 <h2 className="text-xl font-bold text-slate-800 tracking-tight">¡Taller creado con éxito!</h2>
+                 <h2 className="text-xl font-bold text-slate-800 tracking-tight">{appI18n.t("ui.Registro.workshop_created")}</h2>
                  <p className="text-sm text-slate-500 mt-2 px-2 leading-relaxed">
-                   Ingresa el código de 4 dígitos que acabamos de enviarte as <strong>{email}</strong> para entrar al tablero de <strong>{nombre}</strong>.
+                   {appI18n.t("ui.Registro.enter_the_4_digit_code_we_sent_to")} <strong>{email}</strong> {appI18n.t("ui.Registro.to_open_the_dashboard_for")} <strong>{nombre}</strong>.
                  </p>
                </div>
 
@@ -175,7 +176,7 @@ const Registro: React.FC = () => {
                  disabled={loading || otp.length < 4}
                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
                >
-                 {loading ? <Loader2 className="animate-spin" size={20} /> : 'Validar Entrada'}
+                 {loading ? <Loader2 className="animate-spin" size={20} /> : appI18n.t('ui.Registro.verify_code')}
                </button>
              </form>
           )}

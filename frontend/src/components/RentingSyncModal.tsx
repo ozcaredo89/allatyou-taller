@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useEffect, useState } from 'react';
 import { 
   X, 
@@ -107,7 +108,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
 
   const handleRemoveItem = (index: number) => {
     if (items.length <= 1) {
-      setError('Debes conservar al menos un ítem');
+      setError(appI18n.t('ui.RentingSyncModal.keep_at_least_one_item'));
       return;
     }
     const updated = items.filter((_, i) => i !== index);
@@ -131,23 +132,23 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
 
     // Validaciones
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      setError('Selecciona una fecha válida (YYYY-MM-DD)');
+      setError(appI18n.t('ui.RentingSyncModal.select_a_valid_date_yyyy_mm_dd'));
       return;
     }
 
     if (!description.trim()) {
-      setError('Ingresa una descripción del gasto');
+      setError(appI18n.t('ui.RentingSyncModal.enter_an_expense_description'));
       return;
     }
 
     if (items.length === 0) {
-      setError('Debes incluir al menos un ítem');
+      setError(appI18n.t('ui.RentingSyncModal.add_at_least_one_item'));
       return;
     }
 
     for (const it of items) {
       if (!it.item.trim()) {
-        setError('Todos los ítems deben tener una descripción');
+        setError(appI18n.t('ui.RentingSyncModal.all_items_must_have_a_description'));
         return;
       }
       if (typeof it.amount !== 'number' || isNaN(it.amount) || it.amount <= 0) {
@@ -213,8 +214,8 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
               <Car className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-lg text-white">Registrar Gasto en Flota AllAtYou</h3>
-              <p className="text-xs text-slate-400">Verifica los repuestos y mano de obra antes de sincronizar</p>
+              <h3 className="font-semibold text-lg text-white">{appI18n.t("ui.RentingSyncModal.record_expense_in_allatyou_fleet")}</h3>
+              <p className="text-xs text-slate-400">{appI18n.t("ui.RentingSyncModal.review_parts_and_labor_before_syncing")}</p>
             </div>
           </div>
           <button 
@@ -239,14 +240,14 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
           {success && (
             <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
-              <span>¡Gasto creado exitosamente en AllAtYou Renting Hub!</span>
+              <span>{appI18n.t("ui.RentingSyncModal.expense_created_in_allatyou_renting_hub")}</span>
             </div>
           )}
 
           {warning && (
             <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm flex items-start gap-3">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
-              <span>{warning} Genera la Nota Débito manualmente en Renting.</span>
+              <span>{warning} {appI18n.t("ui.RentingSyncModal.create_the_debit_note_manually_in_renting")}</span>
             </div>
           )}
 
@@ -256,9 +257,9 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <Car className="w-3.5 h-3.5" />
-                Placa del Vehículo
+                {appI18n.t("ui.RentingSyncModal.vehicle_license_plate")}
                 <span className="text-slate-500 text-[10px] flex items-center gap-0.5 ml-auto">
-                  <Lock className="w-3 h-3" /> Inmutable
+                  <Lock className="w-3 h-3" /> {appI18n.t("ui.RentingSyncModal.read_only")}
                 </span>
               </label>
               <input
@@ -273,7 +274,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
-                Fecha del Gasto (Zona Horaria Bogotá)
+                {appI18n.t("ui.RentingSyncModal.expense_date_bogot_time")}
               </label>
               <input
                 type="date"
@@ -287,7 +288,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
 
           {mostrarOdometro && (
             <label className="block text-xs font-medium text-slate-300">
-              Kilometraje del tablero (km)
+              {appI18n.t("ui.RentingSyncModal.odometer_reading_km")}
               <input
                 type="number"
                 step="any"
@@ -304,13 +305,13 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5" />
-              Descripción General
+              {appI18n.t("ui.RentingSyncModal.general_description")}
             </label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ej: Mantenimiento frenos orden #..."
+              placeholder={appI18n.t("ui.RentingSyncModal.e_g_brake_maintenance_order")}
               required
               className="w-full bg-slate-950/40 border border-slate-700/70 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white transition-all outline-hidden"
             />
@@ -320,7 +321,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-medium text-slate-300">
-                Detalle de Repuestos y Mano de Obra
+                {appI18n.t("ui.RentingSyncModal.parts_and_labor_details")}
               </label>
               <button
                 type="button"
@@ -328,7 +329,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
                 className="text-xs text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1 py-1 px-2.5 rounded-lg hover:bg-amber-400/10 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Agregar Ítem
+                {appI18n.t("ui.RentingSyncModal.add_item")}
               </button>
             </div>
 
@@ -336,8 +337,8 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950/70 text-slate-400 border-b border-slate-800">
                   <tr>
-                    <th className="px-3.5 py-2.5">Concepto / Repuesto</th>
-                    <th className="px-3.5 py-2.5 w-36 text-right">Valor ($ COP)</th>
+                    <th className="px-3.5 py-2.5">{appI18n.t("ui.RentingSyncModal.description_part")}</th>
+                    <th className="px-3.5 py-2.5 w-36 text-right">{appI18n.t("ui.RentingSyncModal.amount_cop")}</th>
                     <th className="w-10 px-2 py-2.5 text-center"></th>
                   </tr>
                 </thead>
@@ -349,7 +350,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
                           type="text"
                           value={it.item}
                           onChange={(e) => handleItemChange(idx, 'item', e.target.value)}
-                          placeholder="Descripción del ítem"
+                          placeholder={appI18n.t("ui.RentingSyncModal.item_description")}
                           required
                           className="w-full bg-transparent border-0 focus:ring-0 text-slate-200 text-xs py-1 px-1.5"
                         />
@@ -371,7 +372,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
                           onClick={() => handleRemoveItem(idx)}
                           disabled={items.length <= 1}
                           className="text-slate-500 hover:text-rose-400 disabled:opacity-30 disabled:hover:text-slate-500 p-1 rounded-md transition-colors"
-                          title="Eliminar ítem"
+                          title={appI18n.t("ui.RentingSyncModal.remove_item")}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -381,7 +382,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
                 </tbody>
                 <tfoot className="bg-slate-950/80 border-t border-slate-800">
                   <tr>
-                    <td className="px-3.5 py-2.5 font-medium text-slate-300">Total a Sincronizar:</td>
+                    <td className="px-3.5 py-2.5 font-medium text-slate-300">{appI18n.t("ui.RentingSyncModal.total_to_sync")}</td>
                     <td className="px-3.5 py-2.5 text-right font-mono font-bold text-sm text-emerald-400">
                       ${totalAmount.toLocaleString('es-CO')}
                     </td>
@@ -395,15 +396,15 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
           {/* Leasing: descuento del fondo de mantenimiento */}
           {leasingLoading && (
             <div className="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800 text-slate-400 text-xs flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Verificando si el vehículo tiene leasing activo...
+              <Loader2 className="w-4 h-4 animate-spin" /> {appI18n.t("ui.RentingSyncModal.checking_whether_the_vehicle_has_an_active_lease")}
             </div>
           )}
 
           {!leasingLoading && leasingCheckError && (
             <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-3">
-              <span>No se pudo verificar si el vehículo tiene leasing. Reintenta antes de crear el gasto.</span>
+              <span>{appI18n.t("ui.RentingSyncModal.could_not_verify_whether_the_vehicle_has_a")}</span>
               <button type="button" onClick={cargarLeasing} className="shrink-0 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 font-medium">
-                Reintentar
+                {appI18n.t("ui.RentingSyncModal.retry")}
               </button>
             </div>
           )}
@@ -414,12 +415,12 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
                 <div className="flex items-center gap-2">
                   <Wallet className="w-4 h-4 text-amber-400" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-300">Vehículo con leasing activo</p>
-                    {leasingInfo?.driver_name && <p className="text-xs text-slate-400">Conductor: {leasingInfo.driver_name}</p>}
+                    <p className="text-sm font-semibold text-amber-300">{appI18n.t("ui.RentingSyncModal.vehicle_with_an_active_lease")}</p>
+                    {leasingInfo?.driver_name && <p className="text-xs text-slate-400">{appI18n.t("ui.RentingSyncModal.driver")} {leasingInfo.driver_name}</p>}
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Fondo Mtto. disponible</p>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">{appI18n.t("ui.RentingSyncModal.available_maintenance_fund")}</p>
                   <p className="font-mono font-bold text-amber-300">${fondoDisponible.toLocaleString('es-CO')}</p>
                 </div>
               </div>
@@ -431,17 +432,17 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
                   onChange={(e) => setApplyToLeasing(e.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-amber-500 text-amber-500 focus:ring-amber-500"
                 />
-                <span className="text-xs text-slate-200">Descontar del Fondo de Mantenimiento y emitir Nota Débito</span>
+                <span className="text-xs text-slate-200">{appI18n.t("ui.RentingSyncModal.deduct_from_the_maintenance_fund_and_issue_a")}</span>
               </label>
 
               {applyToLeasing && (
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="p-2.5 rounded-lg bg-slate-950/50 border border-emerald-500/20 flex justify-between">
-                    <span className="text-slate-400">Cubierto por el fondo</span>
+                    <span className="text-slate-400">{appI18n.t("ui.RentingSyncModal.covered_by_the_fund")}</span>
                     <span className="font-mono font-bold text-emerald-400">${cubiertoFondo.toLocaleString('es-CO')}</span>
                   </div>
                   <div className={`p-2.5 rounded-lg bg-slate-950/50 border flex justify-between ${excedente > 0 ? 'border-rose-500/40' : 'border-slate-800'}`}>
-                    <span className="text-slate-400">Excedente</span>
+                    <span className="text-slate-400">{appI18n.t("ui.RentingSyncModal.shortfall")}</span>
                     <span className={`font-mono font-bold ${excedente > 0 ? 'text-rose-400' : 'text-slate-300'}`}>${excedente.toLocaleString('es-CO')}</span>
                   </div>
                 </div>
@@ -449,27 +450,27 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
 
               {applyToLeasing && excedente > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs text-rose-300">El fondo no alcanza. ¿Cómo se cubre el excedente?</p>
+                  <p className="text-xs text-rose-300">{appI18n.t("ui.RentingSyncModal.the_fund_cannot_cover_the_full_amount_how")}</p>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setExcessMethod('cash')}
                       className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${excessMethod === 'cash' ? 'border-amber-500 bg-amber-500/15 text-amber-200' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}
                     >
-                      Pago en efectivo
+                      {appI18n.t("ui.RentingSyncModal.cash_payment")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setExcessMethod('advance')}
                       className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${excessMethod === 'advance' ? 'border-amber-500 bg-amber-500/15 text-amber-200' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}
                     >
-                      Anticipo operativo
+                      {appI18n.t("ui.RentingSyncModal.operating_advance")}
                     </button>
                   </div>
                   {excessMethod === 'advance' && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] text-slate-400 mb-1"># Cuotas diarias (0% interés)</label>
+                        <label className="block text-[11px] text-slate-400 mb-1">{appI18n.t("ui.RentingSyncModal.daily_installments_0_interest")}</label>
                         <input
                           type="number"
                           min={1}
@@ -480,7 +481,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-400 mb-1">Fecha primer cobro</label>
+                        <label className="block text-[11px] text-slate-400 mb-1">{appI18n.t("ui.RentingSyncModal.first_payment_date")}</label>
                         <input
                           type="date"
                           value={advanceStartDate}
@@ -504,7 +505,7 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
             disabled={loading}
             className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 rounded-xl transition-all"
           >
-            Omitir por ahora
+            {appI18n.t("ui.RentingSyncModal.skip_for_now")}
           </button>
 
           <button
@@ -516,12 +517,12 @@ export const RentingSyncModal: React.FC<RentingSyncModalProps> = ({
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Sincronizando con Renting...</span>
+                <span>{appI18n.t("ui.RentingSyncModal.syncing_with_renting")}</span>
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                <span>Confirmar y Crear Gasto</span>
+                <span>{appI18n.t("ui.RentingSyncModal.confirm_and_create_expense")}</span>
               </>
             )}
           </button>

@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -226,7 +227,7 @@ const Gastos: React.FC = () => {
       const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setForm(f => ({ ...f, comprobante_url: res.data.url }));
     } catch {
-      setError('Error subiendo comprobante.');
+      setError(appI18n.t('ui.Gastos.could_not_upload_the_receipt'));
     } finally {
       setUploading(false);
     }
@@ -618,7 +619,7 @@ const Gastos: React.FC = () => {
                   <p className="font-semibold text-slate-800">{p.nombre}</p>
                   <p className="text-xs text-slate-400">
                     <span className="capitalize">{t(`gastos.frecuencia_${p.frecuencia}`, p.frecuencia)}</span>
-                    {' · '} Estimado: {formatearDinero(p.monto_estimado)}
+                    {' · '} {appI18n.t("ui.Gastos.estimated")} {formatearDinero(p.monto_estimado)}
                     {p.proxima_fecha && ` · Fecha: ${p.proxima_fecha}`}
                   </p>
                 </div>
@@ -827,7 +828,7 @@ const Gastos: React.FC = () => {
                 filtroPreset === '30dias' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              30 Días
+              {appI18n.t("ui.Gastos.30_days")}
             </button>
             <button
               onClick={() => aplicarPreset('este_mes')}
@@ -835,7 +836,7 @@ const Gastos: React.FC = () => {
                 filtroPreset === 'este_mes' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              Este Mes
+              {appI18n.t("ui.Gastos.this_month")}
             </button>
             <button
               onClick={() => aplicarPreset('todos')}
@@ -843,17 +844,17 @@ const Gastos: React.FC = () => {
                 filtroPreset === 'todos' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              Todos
+              {appI18n.t("ui.Gastos.all")}
             </button>
           </div>
           <span className="text-xs text-slate-400 font-medium">
             {filtroPreset === '30dias'
-              ? 'Últimos 30 días'
+              ? appI18n.t('ui.Gastos.last_30_days')
               : filtroPreset === 'este_mes'
-              ? 'Mes en curso'
+              ? appI18n.t('ui.Gastos.current_month')
               : filtroPreset === 'todos'
-              ? 'Todo el historial'
-              : 'Rango personalizado'}
+              ? appI18n.t('ui.Gastos.all_time')
+              : appI18n.t('ui.Gastos.custom_range')}
           </span>
         </div>
 
@@ -897,12 +898,12 @@ const Gastos: React.FC = () => {
               <p className="text-xs font-bold text-red-400 uppercase">{t('gastos.total_periodo')}</p>
               <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">
                 {filtroPreset === '30dias'
-                  ? '30 Días'
+                  ? appI18n.t('ui.Gastos.30_days')
                   : filtroPreset === 'este_mes'
-                  ? 'Este Mes'
+                  ? appI18n.t('ui.Gastos.this_month')
                   : filtroPreset === 'todos'
-                  ? 'Total'
-                  : 'Rango'}
+                  ? appI18n.t('ui.Gastos.total')
+                  : appI18n.t('ui.Gastos.range')}
               </span>
             </div>
             <p className="text-xl font-black text-red-600">{formatearDinero(totalMonto)}</p>
@@ -923,7 +924,7 @@ const Gastos: React.FC = () => {
                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                       checked={gastos.length > 0 && gastos.every(g => seleccionados.has(g.id))}
                       onChange={toggleSeleccionarTodos}
-                      title="Seleccionar todos"
+                      title={appI18n.t("ui.Gastos.select_all")}
                     />
                   </th>
                   <th className="text-left px-5 py-3">{t('gastos.col_fecha')}</th>
@@ -965,13 +966,13 @@ const Gastos: React.FC = () => {
                               navigate(path);
                             }}
                             className="inline-flex items-center gap-1 text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded hover:bg-amber-200 transition"
-                            title="Ver orden de servicio"
+                            title={appI18n.t("ui.Gastos.view_service_order")}
                           >
                             <Car size={11} /> {g.taller_ingresos.taller_vehiculos.placa}
                           </button>
                           {g.item_id && (
                             <span className="inline-flex items-center gap-1 text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">
-                              <Package size={10} /> Ítem vinculado
+                              <Package size={10} /> {appI18n.t("ui.Gastos.linked_item")}
                             </span>
                           )}
                         </div>

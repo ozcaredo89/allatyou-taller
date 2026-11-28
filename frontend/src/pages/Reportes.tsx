@@ -1,3 +1,4 @@
+import appI18n, { displayLocale } from '../i18n';
 import { mostrarCantidadInventario, type CapturaVolumen } from '../utils/volumenInventario';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -1069,7 +1070,7 @@ const Reportes: React.FC = () => {
 
     const html = `
       <!DOCTYPE html>
-      <html lang="es">
+      <html lang="${appI18n.resolvedLanguage}">
       <head>
         <meta charset="UTF-8" />
         <title>${escapeHtml(t('reportes.desglose_ingresos', 'Desglose de Ingresos Facturados'))} - ${escapeHtml(empresaNombre || currentSlug.toUpperCase())}</title>
@@ -1118,7 +1119,7 @@ const Reportes: React.FC = () => {
             <p class="subtitle">${escapeHtml(empresaNombre || currentSlug.toUpperCase())} · ${escapeHtml(periodoTexto)}</p>
           </div>
           <div style="text-align:right">
-            <div class="subtitle">${escapeHtml(t('reportes.generado_el', 'Generado'))}: ${new Date().toLocaleString('es-CO')}</div>
+            <div class="subtitle">${escapeHtml(t('reportes.generado_el', 'Generado'))}: ${new Date().toLocaleString(displayLocale())}</div>
           </div>
         </div>
 
@@ -1340,7 +1341,7 @@ const Reportes: React.FC = () => {
 
     const html = `
       <!DOCTYPE html>
-      <html lang="es">
+      <html lang="${appI18n.resolvedLanguage}">
       <head>
         <meta charset="UTF-8" />
         <title>${escapeHtml(t('reportes.desglose_gastos', 'Desglose de Ítems de Gastos'))} - ${escapeHtml(empresaNombre || currentSlug.toUpperCase())}</title>
@@ -1374,7 +1375,7 @@ const Reportes: React.FC = () => {
             <p class="subtitle">${escapeHtml(empresaNombre || currentSlug.toUpperCase())} · ${escapeHtml(periodoTexto)}</p>
           </div>
           <div style="text-align:right">
-            <div class="subtitle">${escapeHtml(t('reportes.generado_el', 'Generado'))}: ${new Date().toLocaleString('es-CO')}</div>
+            <div class="subtitle">${escapeHtml(t('reportes.generado_el', 'Generado'))}: ${new Date().toLocaleString(displayLocale())}</div>
           </div>
         </div>
         <table>
@@ -1707,13 +1708,13 @@ const Reportes: React.FC = () => {
           onClick={() => setActiveTab('postmortem')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition ${activeTab === 'postmortem' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          <Clock size={16} /> Historial y Tiempos
+          <Clock size={16} /> {appI18n.t("ui.Reportes.history_and_durations")}
         </button>
         <button
           onClick={() => setActiveTab('horas_tecnicos')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition ${activeTab === 'horas_tecnicos' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          <Wrench size={16} /> Horas Mecánicos
+          <Wrench size={16} /> {appI18n.t("ui.Reportes.technician_hours")}
         </button>
       </div>
 
@@ -1722,8 +1723,8 @@ const Reportes: React.FC = () => {
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Horas Trabajadas por Mecánico</h2>
-              <p className="text-sm text-slate-500">Calculado exclusivamente en horario laboral durante las etapas de Diagnóstico y Reparación.</p>
+              <h2 className="text-xl font-bold text-slate-900">{appI18n.t("ui.Reportes.hours_worked_by_technician")}</h2>
+              <p className="text-sm text-slate-500">{appI18n.t("ui.Reportes.calculated_using_business_hours_during_diagnosis_and_repair")}</p>
             </div>
             {renderFiltros()}
           </div>
@@ -1738,8 +1739,8 @@ const Reportes: React.FC = () => {
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Historial y Tiempos de Órdenes</h2>
-              <p className="text-sm text-slate-500">Todas las órdenes del período (activas, entregadas y canceladas), tiempos por etapa, cuellos de botella y cumplimiento de entregas.</p>
+              <h2 className="text-xl font-bold text-slate-900">{appI18n.t("ui.Reportes.order_history_and_durations")}</h2>
+              <p className="text-sm text-slate-500">{appI18n.t("ui.Reportes.all_orders_in_the_period_active_delivered_and")}</p>
             </div>
             {renderFiltros()}
           </div>
@@ -1819,7 +1820,7 @@ const Reportes: React.FC = () => {
                         </span>
                       </div>
                       <p className="text-base sm:text-2xl font-bold text-slate-900 truncate">{formatearDinero(totalPeriodo)}</p>
-                      {!!kpis.totalMostrador && <p className="text-xs text-slate-500">Mostrador {formatearDinero(kpis.totalMostrador)}</p>}
+                      {!!kpis.totalMostrador && <p className="text-xs text-slate-500">{appI18n.t("ui.Reportes.counter_sales_2")} {formatearDinero(kpis.totalMostrador)}</p>}
                     </div>
                   </div>
 
@@ -2526,10 +2527,10 @@ const Reportes: React.FC = () => {
               {/* Vacío general */}
               {!isIngresosLoading && !ingresosError && ventasMostradorFiltradas.length > 0 && (
                 <section className="mb-4 rounded-xl border border-slate-200 p-4">
-                  <h3 className="mb-2 font-semibold">Ventas de mostrador</h3>
+                  <h3 className="mb-2 font-semibold">{appI18n.t("ui.Reportes.counter_sales")}</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm [&_td]:p-2 [&_th]:p-2">
-                      <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Ingreso</th><th>Utilidad</th></tr></thead>
+                      <thead><tr><th>{appI18n.t("ui.Reportes.date")}</th><th>{appI18n.t("ui.Reportes.product")}</th><th>{appI18n.t("ui.Reportes.quantity")}</th><th>{appI18n.t("ui.Reportes.revenue")}</th><th>{appI18n.t("ui.Reportes.profit")}</th></tr></thead>
                       <tbody>{ventasMostradorFiltradas.map(venta => (
                         <tr key={venta.id} className="border-t border-slate-100">
                           <td>{venta.fecha}</td><td>{venta.producto}</td><td>{venta.cantidad}</td>

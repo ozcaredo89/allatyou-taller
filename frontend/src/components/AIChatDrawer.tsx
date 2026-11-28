@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Send, Bot, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -36,7 +37,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
          // Auto-greeting when opened for the first time
          const greetingMessage: Message = {
             role: 'model',
-            parts: [{ text: "¡Hola! Soy el Administrador Virtual de tu taller. ¿En qué puedo ayudarte hoy?" }]
+            parts: [{ text: appI18n.t('ui.AIChatDrawer.hi_i_m_your_workshop_s_virtual_assistant') }]
          };
          setMessages([greetingMessage]);
 
@@ -85,7 +86,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
       console.error('Error enviando mensaje:', error);
       const errorMessage: Message = {
         role: 'model',
-        parts: [{ text: "Lo siento, ha ocurrido un error de conexión." }]
+        parts: [{ text: appI18n.t('ui.AIChatDrawer.a_connection_error_occurred_please_try_again') }]
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -162,7 +163,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
             <div className="p-1.5 bg-indigo-100 rounded-md">
               <Bot size={20} className="text-indigo-600" />
             </div>
-            <h2 className="font-semibold text-lg">Asistente Virtual</h2>
+            <h2 className="font-semibold text-lg">{appI18n.t("ui.AIChatDrawer.virtual_assistant")}</h2>
           </div>
           <button
             onClick={onClose}
@@ -210,7 +211,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Haz una pregunta..."
+              placeholder={appI18n.t("ui.AIChatDrawer.ask_a_question")}
               className="flex-1 px-4 py-2 bg-slate-100 border border-slate-300 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm"
               disabled={isLoading}
             />

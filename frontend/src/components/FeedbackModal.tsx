@@ -1,3 +1,4 @@
+import appI18n from '../i18n';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { X, Lightbulb, Bug, Heart, CheckCircle2, MessageSquarePlus } from 'lucide-react';
@@ -54,7 +55,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose: o
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Enviar sugerencia"
+      aria-label={appI18n.t("ui.FeedbackModal.send_feedback")}
     >
       <div
         className="bg-white text-slate-900 rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full p-6 relative animate-fade-in-up"
@@ -62,7 +63,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose: o
       >
         <button
           onClick={onClose}
-          aria-label="Cerrar"
+          aria-label={appI18n.t("ui.Inventario.close")}
           className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-xl hover:bg-slate-100 transition-colors"
         >
           <X size={20} />
@@ -71,13 +72,13 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose: o
         {estado === 'enviado' ? (
           <div className="text-center py-6">
             <CheckCircle2 size={44} className="text-emerald-500 mx-auto mb-3" />
-            <h3 className="text-lg font-bold">¡Gracias!</h3>
-            <p className="text-sm text-slate-500 mt-1">Leemos cada mensaje para mejorar el sistema.</p>
+            <h3 className="text-lg font-bold">{appI18n.t("ui.FeedbackModal.thank_you")}</h3>
+            <p className="text-sm text-slate-500 mt-1">{appI18n.t("ui.FeedbackModal.we_read_every_message_to_improve_the_app")}</p>
             <button
               onClick={onClose}
               className="mt-5 py-2.5 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors"
             >
-              Cerrar
+              {appI18n.t("ui.Inventario.close")}
             </button>
           </div>
         ) : (
@@ -87,8 +88,8 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose: o
                 <MessageSquarePlus size={24} className="text-indigo-600" />
               </div>
               <div className="pr-6">
-                <h3 className="text-lg font-bold tracking-tight leading-snug">Ayúdanos a mejorar</h3>
-                <p className="text-sm text-slate-500 mt-1">Cuéntanos qué cambiarías, qué falla o qué te gusta.</p>
+                <h3 className="text-lg font-bold tracking-tight leading-snug">{appI18n.t("ui.FeedbackModal.help_us_improve")}</h3>
+                <p className="text-sm text-slate-500 mt-1">{appI18n.t("ui.FeedbackModal.tell_us_what_you_would_change_what_is")}</p>
               </div>
             </div>
 
@@ -119,11 +120,11 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose: o
               autoFocus
               className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
-            <p className="text-xs text-slate-400 mt-1">No incluyas datos de clientes (placas, teléfonos, nombres).</p>
+            <p className="text-xs text-slate-400 mt-1">{appI18n.t("ui.FeedbackModal.avoid_including_customer_details_such_as_license_plates")}</p>
 
             {estado === 'error' && (
               <p className="text-sm text-red-600 mt-2">
-                No pudimos enviar tu mensaje. Intenta de nuevo más tarde.
+                {appI18n.t("ui.FeedbackModal.could_not_send_your_message_try_again_later")}
               </p>
             )}
 
@@ -133,14 +134,14 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose: o
                 onClick={onClose}
                 className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition-colors text-sm"
               >
-                Cancelar
+                {appI18n.t("ui.CRM.cancel")}
               </button>
               <button
                 type="submit"
                 disabled={!texto}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors disabled:opacity-50"
               >
-                Enviar
+                {appI18n.t("ui.FeedbackModal.send")}
               </button>
             </div>
           </form>

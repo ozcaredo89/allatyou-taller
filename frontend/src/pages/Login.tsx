@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -72,7 +73,7 @@ const Login: React.FC = () => {
       const lastId = getLastEmpresaId();
       if (lastId && sorted.some(e => e.id === lastId)) setPickedEmpresaId(lastId);
     } catch (err: any) {
-      setError('No se pudo cargar la lista de empresas.');
+      setError(appI18n.t('ui.Login.could_not_load_the_list_of_workshops'));
     } finally {
       setLoading(false);
     }
@@ -149,7 +150,7 @@ const Login: React.FC = () => {
     e.preventDefault();
     if (!selectedEmpresa) return;
     if (!resetCode.trim() || resetCode.trim().length !== 6) {
-      setError('El código debe ser de 6 dígitos.');
+      setError(appI18n.t('ui.Login.the_code_must_be_6_digits'));
       return;
     }
     if (newPassword.length < 6) {
@@ -253,8 +254,8 @@ const Login: React.FC = () => {
           <div className="p-3 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/30 mb-4">
             <Wrench className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Kiosco AllAtYou</h1>
-          <p className="text-slate-500 text-sm mt-1">Selecciona tu sucursal para operar</p>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">{appI18n.t("ui.Login.allatyou_kiosk")}</h1>
+          <p className="text-slate-500 text-sm mt-1">{appI18n.t("ui.Login.select_your_branch_to_continue")}</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border border-slate-100">
@@ -294,7 +295,7 @@ const Login: React.FC = () => {
                    }}
                  >
                    <label htmlFor="empresa-select" className="block text-sm font-semibold text-slate-600 mb-1.5">
-                     <Building2 size={14} className="inline mr-1.5 -mt-0.5" />Sucursal
+                     <Building2 size={14} className="inline mr-1.5 -mt-0.5" />{appI18n.t("ui.Login.branch_label")}
                    </label>
                    <div className="relative">
                      <select
@@ -304,7 +305,7 @@ const Login: React.FC = () => {
                        disabled={loading}
                        className="block w-full appearance-none px-4 py-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition-shadow disabled:opacity-50"
                      >
-                       <option value="" disabled>Selecciona un taller…</option>
+                       <option value="" disabled>{appI18n.t("ui.Login.select_a_workshop")}</option>
                        {empresas.map(empresa => (
                          <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>
                        ))}
@@ -312,19 +313,19 @@ const Login: React.FC = () => {
                      <ChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
                    </div>
                    {pickedEmpresaId && pickedEmpresaId === getLastEmpresaId() && (
-                     <p className="text-xs text-slate-400 -mt-2">Último acceso en este dispositivo</p>
+                     <p className="text-xs text-slate-400 -mt-2">{appI18n.t("ui.Login.last_used_on_this_device")}</p>
                    )}
                    <button
                      type="submit"
                      disabled={loading || !pickedEmpresaId}
                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
                    >
-                     {loading ? <Loader2 className="animate-spin" size={20} /> : 'Continuar'}
+                     {loading ? <Loader2 className="animate-spin" size={20} /> : appI18n.t("ui.Kiosco.continue")}
                    </button>
                  </form>
                )}
                {empresas.length === 0 && !loading && (
-                 <p className="text-center text-slate-500 text-sm">No hay talleres registrados en el sistema.</p>
+                 <p className="text-center text-slate-500 text-sm">{appI18n.t("ui.Login.there_are_no_registered_workshops")}</p>
                )}
              </div>
           )}
@@ -336,7 +337,7 @@ const Login: React.FC = () => {
                 <button type="button" onClick={clearSelection} className="p-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">
                   <ArrowLeft size={16} />
                 </button>
-                <span className="font-semibold text-slate-700">Volver a sucursales</span>
+                <span className="font-semibold text-slate-700">{appI18n.t("ui.Login.back_to_branches")}</span>
               </div>
 
               <div className="text-center mb-6">
@@ -386,12 +387,12 @@ const Login: React.FC = () => {
                     disabled={loading || otp.length < 4}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
                   >
-                    {loading ? <Loader2 className="animate-spin" size={20} /> : 'Autorizar Ingreso'}
+                    {loading ? <Loader2 className="animate-spin" size={20} /> : appI18n.t('ui.Login.authorize_access')}
                   </button>
 
                   <div className="relative my-2">
                     <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-                    <div className="relative flex justify-center text-xs"><span className="px-2 bg-white text-slate-400">o</span></div>
+                    <div className="relative flex justify-center text-xs"><span className="px-2 bg-white text-slate-400">{appI18n.t("ui.Login.or")}</span></div>
                   </div>
 
                   <button
@@ -477,7 +478,7 @@ const Login: React.FC = () => {
 
                   <div className="relative my-4">
                     <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-                    <div className="relative flex justify-center text-xs"><span className="px-2 bg-white text-slate-400">o</span></div>
+                    <div className="relative flex justify-center text-xs"><span className="px-2 bg-white text-slate-400">{appI18n.t("ui.Login.or")}</span></div>
                   </div>
 
                   <button

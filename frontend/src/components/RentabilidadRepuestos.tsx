@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -65,7 +66,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
             <Clock size={14} className="text-amber-600" />
             <span>{t('gastos.margen_provisional')}</span>
             <span className="text-[10px] text-amber-600 hidden sm:inline" title={t('gastos.margen_provisional_desc')}>
-              (Sujeto a compras pendientes)
+              {appI18n.t("ui.RentabilidadRepuestos.subject_to_pending_purchases")}
             </span>
           </div>
         )}
@@ -77,12 +78,12 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
           {/* Progreso de auditoría */}
           <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-              Repuestos Auditados
+              {appI18n.t("ui.RentabilidadRepuestos.audited_parts")}
             </p>
             <p className="text-base font-extrabold text-slate-800">
               {rentabilidad.repuestosConCostoCount} / {rentabilidad.repuestosTotalCount}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">con costo registrado</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{appI18n.t("ui.RentabilidadRepuestos.with_a_recorded_cost")}</p>
           </div>
 
           {/* Total Venta */}
@@ -93,7 +94,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
             <p className="text-base font-extrabold text-slate-800">
               {formatearDinero(rentabilidad.totalVentaConCosto)}
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Facturado al cliente</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{appI18n.t("ui.RentabilidadRepuestos.billed_to_customer")}</p>
           </div>
 
           {/* Total Costo */}
@@ -104,7 +105,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
             <p className="text-base font-extrabold text-red-700">
               {formatearDinero(rentabilidad.totalCostoConCosto)}
             </p>
-            <p className="text-[11px] text-red-500/80 mt-0.5">Gastos vinculados</p>
+            <p className="text-[11px] text-red-500/80 mt-0.5">{appI18n.t("ui.RentabilidadRepuestos.linked_expenses")}</p>
           </div>
 
           {/* Utilidad y Margen */}
@@ -124,7 +125,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                 {rentabilidad.margenConCostoPct.toFixed(1)}%
               </span>
             </div>
-            <p className="text-[11px] opacity-75 mt-0.5">Margen bruto en repuestos</p>
+            <p className="text-[11px] opacity-75 mt-0.5">{appI18n.t("ui.RentabilidadRepuestos.gross_parts_margin")}</p>
           </div>
         </div>
       )}
@@ -135,11 +136,11 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                <th className="text-left px-4 py-3">Repuesto</th>
+                <th className="text-left px-4 py-3">{appI18n.t("ui.RentabilidadRepuestos.part")}</th>
                 <th className="text-right px-4 py-3">{t('gastos.venta_cliente')}</th>
                 <th className="text-right px-4 py-3">{t('gastos.costo_compra')}</th>
-                <th className="text-right px-4 py-3">Utilidad / Margen</th>
-                {!readOnly && <th className="text-center px-4 py-3">Acciones</th>}
+                <th className="text-right px-4 py-3">{appI18n.t("ui.RentabilidadRepuestos.profit_margin")}</th>
+                {!readOnly && <th className="text-center px-4 py-3">{appI18n.t("ui.RentabilidadRepuestos.actions")}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -149,7 +150,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                     {/* Repuesto */}
                     <td className="px-4 py-3">
                       <p className="font-semibold text-slate-800">{item.descripcion}</p>
-                      <p className="text-xs text-slate-400">Cant: {mostrarCantidadInventario(item)} · Unit: {formatearDinero(item.precio_unitario_captura ?? item.precio_unitario)}{item.unidad_captura && ` / ${item.precio_unitario_captura == null ? 'litro' : item.unidad_captura}`}</p>
+                      <p className="text-xs text-slate-400">{appI18n.t("ui.RentabilidadRepuestos.qty")} {mostrarCantidadInventario(item)} {appI18n.t("ui.RentabilidadRepuestos.unit")} {formatearDinero(item.precio_unitario_captura ?? item.precio_unitario)}{item.unidad_captura && ` / ${item.precio_unitario_captura == null ? 'litro' : item.unidad_captura}`}</p>
                     </td>
 
                     {/* Venta al cliente */}
@@ -178,7 +179,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                             item.utilidad >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                           }`}>
-                            {item.margenPct.toFixed(1)}% margen
+                            {item.margenPct.toFixed(1)}{appI18n.t("ui.RentabilidadRepuestos.margin")}
                           </span>
                         </div>
                       ) : (
@@ -201,9 +202,9 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                                   ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
                                   : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
                               }`}
-                              title={isSaved ? "Registrar costo de compra para este repuesto" : "Guarda la orden primero para registrar o vincular costos a este repuesto"}
+                              title={isSaved ? appI18n.t('ui.RentabilidadRepuestos.record_purchase_cost_for_this_part') : appI18n.t('ui.RentabilidadRepuestos.save_the_order_before_recording_or_linking_costs')}
                             >
-                              <Plus size={13} /> Gasto
+                              <Plus size={13} /> {appI18n.t("ui.RentabilidadRepuestos.expense")}
                             </button>
                             <button
                               type="button"
@@ -214,7 +215,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                                   ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                                   : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
                               }`}
-                              title={isSaved ? "Vincular gasto existente" : "Guarda la orden primero para registrar o vincular costos a este repuesto"}
+                              title={isSaved ? appI18n.t('ui.RentabilidadRepuestos.link_existing_expense') : appI18n.t('ui.RentabilidadRepuestos.save_the_order_before_recording_or_linking_costs')}
                             >
                               <Link size={13} />
                             </button>
@@ -237,7 +238,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                                 <span className="text-slate-400 text-[11px]">{g.fecha}</span>
                                 {g.comprobante_url && (
                                   <a href={g.comprobante_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline text-[11px]">
-                                    Recibo
+                                    {appI18n.t("ui.RentabilidadRepuestos.receipt")}
                                   </a>
                                 )}
                               </div>
@@ -248,7 +249,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                                     type="button"
                                     onClick={() => onDesvincularGastoDeItem ? onDesvincularGastoDeItem(g.id) : onDesvincularGasto?.(g.id)}
                                     className="text-slate-400 hover:text-red-600 transition p-0.5"
-                                    title="Desvincular de este repuesto (permanecerá en la orden como gasto general)"
+                                    title={appI18n.t("ui.RentabilidadRepuestos.unlink_from_this_part_the_expense_stays_on")}
                                   >
                                     <Unlink size={13} />
                                   </button>
@@ -276,12 +277,12 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
               {t('gastos.costo_sin_item')}
             </h4>
             <span className="font-black text-amber-900 text-sm">
-              Total: {formatearDinero(rentabilidad.totalGastosSinItem)}
+              {appI18n.t("ui.RentabilidadRepuestos.total")} {formatearDinero(rentabilidad.totalGastosSinItem)}
             </span>
           </div>
 
           <p className="text-xs text-amber-700/80">
-            Gastos asignados a la orden general (grúas, insumos, repuestos no asignados) que no están vinculados a un repuesto específico.
+            {appI18n.t("ui.RentabilidadRepuestos.general_order_expenses_towing_supplies_unassigned_parts_that")}
           </p>
 
           <div className="space-y-1.5 pt-1">
@@ -299,7 +300,7 @@ export const RentabilidadRepuestos: React.FC<Props> = ({
                       type="button"
                       onClick={() => onDesvincularGastoDeOrden ? onDesvincularGastoDeOrden(g.id) : onDesvincularGasto?.(g.id)}
                       className="text-slate-400 hover:text-red-600 transition"
-                      title="Desvincular gasto de esta orden completamente"
+                      title={appI18n.t("ui.RentabilidadRepuestos.unlink_expense_from_this_order")}
                     >
                       <Unlink size={13} />
                     </button>

@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UserPlus, ShieldCheck, Clock, Loader2, X, Mail, Lock, Wrench, Users, Pencil, Trash2 } from 'lucide-react';
@@ -49,7 +50,7 @@ const Equipo: React.FC = () => {
       const { data } = await api.get('/auth/equipo');
       setMiembros(data);
     } catch {
-      setErrorUsuario('Error cargando equipo.');
+      setErrorUsuario(appI18n.t('ui.Equipo.could_not_load_the_team'));
     } finally {
       setLoadingUsuarios(false);
     }
@@ -78,7 +79,7 @@ const Equipo: React.FC = () => {
       await api.patch(`/auth/equipo/${id}/aprobar`);
       await cargarEquipo();
     } catch {
-      setErrorUsuario('Error aprobando usuario.');
+      setErrorUsuario(appI18n.t('ui.Equipo.could_not_approve_the_user'));
     }
   };
 
@@ -89,7 +90,7 @@ const Equipo: React.FC = () => {
       const { data } = await api.get('/tecnicos');
       setTecnicos(data);
     } catch {
-      setErrorTecnico('Error cargando técnicos.');
+      setErrorTecnico(appI18n.t('ui.Equipo.could_not_load_technicians'));
     } finally {
       setLoadingTecnicos(false);
     }
@@ -123,7 +124,7 @@ const Equipo: React.FC = () => {
       await api.delete('/tecnicos/' + id);
       await cargarTecnicos();
     } catch {
-      setErrorTecnico('Error eliminando técnico.');
+      setErrorTecnico(appI18n.t('ui.Equipo.could_not_remove_the_technician'));
     }
   };
 
@@ -210,7 +211,7 @@ const Equipo: React.FC = () => {
                   ))}
                   {miembros.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center text-slate-400">Sin miembros registrados.</td>
+                      <td colSpan={3} className="px-6 py-8 text-center text-slate-400">{appI18n.t("ui.Equipo.no_team_members_registered")}</td>
                     </tr>
                   )}
                 </tbody>
@@ -356,7 +357,7 @@ const Equipo: React.FC = () => {
                       type="text"
                       required
                       className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
-                      placeholder="Ej. Juan Pérez"
+                      placeholder={appI18n.t("ui.Equipo.e_g_juan_p_rez")}
                       value={nuevoTecnicoNombre}
                       onChange={e => setNuevoTecnicoNombre(e.target.value)}
                     />

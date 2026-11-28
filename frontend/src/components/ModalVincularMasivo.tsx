@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -155,7 +156,7 @@ export const ModalVincularMasivo: React.FC<ModalVincularMasivoProps> = ({
                           <option value="">-- {t('gastos.solo_orden')} --</option>
                           {ordenSeleccionada.items_repuesto.map((item: any) => (
                             <option key={item.id} value={item.id}>
-                              {item.descripcion} (Venta: {formatearDinero(item.total)})
+                              {item.descripcion} {appI18n.t("ui.ModalVincularMasivo.sale")} {formatearDinero(item.total)})
                             </option>
                           ))}
                         </select>

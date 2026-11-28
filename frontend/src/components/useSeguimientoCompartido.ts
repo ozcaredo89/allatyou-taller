@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from 'react';
+import appI18n from '../i18n';
+import { useEffect, useState } from 'react';
 import api from '../services/api';
 import type { Evidencia } from './EvidenciasAvance';
 
@@ -30,7 +31,7 @@ export function useSeguimientoCompartido(ingresoId: string) {
       setPublicaciones(data.publicaciones);
       setEvidencias(data.evidencias || []);
     }).catch(() => {
-      if (!controller.signal.aborted) setError('No se pudo cargar el seguimiento compartido.');
+      if (!controller.signal.aborted) setError(appI18n.t('ui.useSeguimientoCompartido.load_error'));
     }).finally(() => {
       if (!controller.signal.aborted) setCargando(false);
     });
@@ -43,7 +44,7 @@ export function useSeguimientoCompartido(ingresoId: string) {
     try {
       await accion();
     } catch {
-      setError('No se pudo completar la acción. Intenta de nuevo.');
+      setError(appI18n.t('ui.useSeguimientoCompartido.action_error'));
     } finally {
       setOcupado(false);
     }

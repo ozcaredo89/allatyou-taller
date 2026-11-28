@@ -1,3 +1,4 @@
+import appI18n, { displayLocale } from '../i18n';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Smartphone, Monitor, Trash2, Loader2, ShieldCheck, AlertCircle, RefreshCw, Laptop, Tablet, Bot, ToggleLeft, ToggleRight, Users, Zap, Phone, Mail, DollarSign } from 'lucide-react';
@@ -44,9 +45,10 @@ const formatRelative = (dateStr: string, t: (k: string) => string): string => {
   const hours = Math.floor(diff / 3_600_000);
   const days = Math.floor(diff / 86_400_000);
   if (mins < 2) return t('configuracion.ahora');
-  if (mins < 60) return `${t('configuracion.hace')} ${mins} ${t('configuracion.minutos')}`;
-  if (hours < 24) return `${t('configuracion.hace')} ${hours} ${t('configuracion.horas')}`;
-  return `${t('configuracion.hace')} ${days} ${t('configuracion.dias')}`;
+  const relative = new Intl.RelativeTimeFormat(displayLocale(), { numeric: 'always' });
+  if (mins < 60) return relative.format(-mins, 'minute');
+  if (hours < 24) return relative.format(-hours, 'hour');
+  return relative.format(-days, 'day');
 };
 
 // ─── Types: Módulo IA ────────────────────────────────────────────────────
@@ -304,7 +306,7 @@ const Configuracion: React.FC = () => {
                     {t('configuracion.ultimo_uso')}: {formatRelative(dispositivo.last_used_at, t)}
                   </p>
                   <p className="text-slate-300 text-xs mt-0.5">
-                    {t('configuracion.expira')}: {new Date(dispositivo.expires_at).toLocaleString()}
+                    {t('configuracion.expira')}: {new Date(dispositivo.expires_at).toLocaleString(displayLocale())}
                   </p>
                 </div>
 
@@ -349,8 +351,8 @@ const Configuracion: React.FC = () => {
             <Bot className="h-6 w-6 text-violet-600" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-800 tracking-tight">Asistente Virtual Público</h2>
-            <p className="text-slate-500 text-sm">Chatbot de cotizaciones para tu Landing Page</p>
+            <h2 className="text-xl font-black text-slate-800 tracking-tight">{appI18n.t("ui.Configuracion.public_virtual_assistant")}</h2>
+            <p className="text-slate-500 text-sm">{appI18n.t("ui.Configuracion.quotation_chatbot_for_your_landing_page")}</p>
           </div>
         </div>
 
@@ -364,7 +366,7 @@ const Configuracion: React.FC = () => {
                 tabIA === tab ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              {tab === 'config' ? '⚙️ Configuración' : `📋 Prospectos (${leads.filter(l => l.estado === 'nuevo').length})`}
+              {tab === 'config' ? appI18n.t('ui.Configuracion.settings') : `📋 Prospectos (${leads.filter(l => l.estado === 'nuevo').length})`}
             </button>
           ))}
         </div>
@@ -377,11 +379,11 @@ const Configuracion: React.FC = () => {
               <div className="bg-white border border-slate-100 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Zap size={15} className="text-violet-500" />
-                  <span className="text-sm font-semibold text-slate-700">Consumo de hoy ({usage.fecha})</span>
+                  <span className="text-sm font-semibold text-slate-700">{appI18n.t("ui.Configuracion.today_s_usage")}{usage.fecha})</span>
                 </div>
                 <div className="flex items-end justify-between mb-2">
                   <span className="text-2xl font-black text-slate-800">${usage.consumido_usd.toFixed(4)}</span>
-                  <span className="text-sm text-slate-400">de ${usage.presupuesto_diario_usd.toFixed(2)} USD</span>
+                  <span className="text-sm text-slate-400">{appI18n.t("ui.Configuracion.of")}{usage.presupuesto_diario_usd.toFixed(2)} USD</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2.5 mb-2">
                   <div
@@ -393,8 +395,8 @@ const Configuracion: React.FC = () => {
                   />
                 </div>
                 <div className="flex justify-between text-xs text-slate-400">
-                  <span>{usage.porcentaje}% utilizado</span>
-                  <span>{usage.por_proveedor.reduce((a, b) => a + b.requests_count, 0)} conversaciones hoy</span>
+                  <span>{usage.porcentaje}{appI18n.t("ui.Configuracion.used")}</span>
+                  <span>{usage.por_proveedor.reduce((a, b) => a + b.requests_count, 0)} {appI18n.t("ui.Configuracion.conversations_today")}</span>
                 </div>
               </div>
             )}
@@ -406,8 +408,8 @@ const Configuracion: React.FC = () => {
                 {/* Activar / Pausar chatbot */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-slate-800 text-sm">Estado del Chatbot</p>
-                    <p className="text-slate-500 text-xs mt-0.5">{configAI.activo ? 'Visible en tu Landing Page' : 'Oculto — no responde solicitudes'}</p>
+                    <p className="font-semibold text-slate-800 text-sm">{appI18n.t("ui.Configuracion.chatbot_status")}</p>
+                    <p className="text-slate-500 text-xs mt-0.5">{configAI.activo ? appI18n.t('ui.Configuracion.visible') : appI18n.t('ui.Configuracion.hidden')}</p>
                   </div>
                   <button
                     onClick={() => setConfigAI(p => p ? { ...p, activo: !p.activo } : p)}
@@ -418,7 +420,7 @@ const Configuracion: React.FC = () => {
                     }`}
                   >
                     {configAI.activo ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                    {configAI.activo ? 'Activo' : 'Pausado'}
+                    {configAI.activo ? appI18n.t('ui.Configuracion.active') : appI18n.t('ui.Configuracion.paused')}
                   </button>
                 </div>
 
@@ -426,8 +428,8 @@ const Configuracion: React.FC = () => {
 
                 {/* Modo de Precios */}
                 <div>
-                  <p className="font-semibold text-slate-800 text-sm mb-1">Modo de Cotización</p>
-                  <p className="text-slate-500 text-xs mb-3">"Rangos" oculta tus precios exactos para protegerlos de la competencia.</p>
+                  <p className="font-semibold text-slate-800 text-sm mb-1">{appI18n.t("ui.Configuracion.quotation_mode")}</p>
+                  <p className="text-slate-500 text-xs mb-3">{appI18n.t("ui.Configuracion.ranges_hides_exact_prices_from_competitors")}</p>
                   <div className="flex gap-2">
                     {(['rangos', 'exacto'] as const).map(modo => (
                       <button
@@ -439,7 +441,7 @@ const Configuracion: React.FC = () => {
                             : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
                         }`}
                       >
-                        {modo === 'rangos' ? '🔒 Rangos de Seguridad' : '🏷️ Precios Exactos'}
+                        {modo === 'rangos' ? appI18n.t('ui.Configuracion.ranges') : appI18n.t('ui.Configuracion.exact')}
                       </button>
                     ))}
                   </div>
@@ -451,7 +453,7 @@ const Configuracion: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 mb-1.5">
-                      <Phone size={12} /> WhatsApp de contacto
+                      <Phone size={12} /> {appI18n.t("ui.Configuracion.contact_whatsapp_number")}
                     </label>
                     <input
                       type="tel"
@@ -463,7 +465,7 @@ const Configuracion: React.FC = () => {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 mb-1.5">
-                      <Mail size={12} /> Email de notificaciones de leads
+                      <Mail size={12} /> {appI18n.t("ui.Configuracion.lead_notification_email")}
                     </label>
                     <input
                       type="email"
@@ -478,7 +480,7 @@ const Configuracion: React.FC = () => {
                 {/* Presupuesto Diario */}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 mb-1.5">
-                    <DollarSign size={12} /> Tope de gasto diario (USD)
+                    <DollarSign size={12} /> {appI18n.t("ui.Configuracion.daily_spending_cap_usd")}
                   </label>
                   <input
                     type="number"
@@ -489,7 +491,7 @@ const Configuracion: React.FC = () => {
                     onChange={e => setConfigAI(p => p ? { ...p, presupuesto_diario_usd: parseFloat(e.target.value) } : p)}
                     className="w-32 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-violet-400"
                   />
-                  <p className="text-xs text-slate-400 mt-1">El chatbot se pausa automáticamente si supera este monto en el día.</p>
+                  <p className="text-xs text-slate-400 mt-1">{appI18n.t("ui.Configuracion.the_chatbot_pauses_automatically_if_it_exceeds_this")}</p>
                 </div>
 
                 {/* Guardar */}
@@ -499,12 +501,12 @@ const Configuracion: React.FC = () => {
                   className="w-full py-2.5 bg-violet-600 text-white font-bold rounded-xl text-sm hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {savingAI ? <Loader2 size={16} className="animate-spin" /> : null}
-                  {savingAI ? 'Guardando...' : '💾 Guardar Configuración'}
+                  {savingAI ? appI18n.t('ui.Configuracion.saving') : appI18n.t('ui.Configuracion.save')}
                 </button>
               </div>
             ) : (
               <div className="text-center py-10 text-slate-400 text-sm bg-white border border-dashed border-slate-200 rounded-2xl">
-                No se pudo cargar la configuración del Asistente Virtual.
+                {appI18n.t("ui.Configuracion.could_not_load_virtual_assistant_settings")}
               </div>
             )}
           </div>
@@ -520,8 +522,8 @@ const Configuracion: React.FC = () => {
             ) : leads.length === 0 ? (
               <div className="text-center py-20 bg-white border border-dashed border-slate-200 rounded-2xl">
                 <Users className="mx-auto text-slate-300 mb-3" size={40} />
-                <p className="text-slate-500 font-medium">Aún no hay prospectos</p>
-                <p className="text-slate-400 text-sm mt-1">Los clientes que dejen sus datos en el chatbot aparecerán aquí.</p>
+                <p className="text-slate-500 font-medium">{appI18n.t("ui.Configuracion.no_leads_yet")}</p>
+                <p className="text-slate-400 text-sm mt-1">{appI18n.t("ui.Configuracion.customers_who_leave_their_details_in_the_chatbot")}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -541,7 +543,7 @@ const Configuracion: React.FC = () => {
                       {lead.motivo_consulta && (
                         <p className="text-slate-400 text-xs mt-0.5 truncate">{lead.motivo_consulta}</p>
                       )}
-                      <p className="text-slate-300 text-xs mt-0.5">{new Date(lead.created_at).toLocaleString('es-CO')}</p>
+                      <p className="text-slate-300 text-xs mt-0.5">{new Date(lead.created_at).toLocaleString(displayLocale())}</p>
                     </div>
                     <div className="flex flex-col gap-2 shrink-0">
                       {/* Botón de contacto por WhatsApp */}

@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Check, Loader2, Upload, AlertCircle, Plus, Link, Package } from 'lucide-react';
@@ -122,7 +123,7 @@ export const ModalVincularGasto: React.FC<Props> = ({
       const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setForm(f => ({ ...f, comprobante_url: res.data.url }));
     } catch {
-      setError('Error subiendo comprobante.');
+      setError(appI18n.t('ui.ModalVincularGasto.could_not_upload_the_receipt'));
     } finally {
       setUploading(false);
     }
@@ -210,11 +211,11 @@ export const ModalVincularGasto: React.FC<Props> = ({
           <div>
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Package size={20} className="text-indigo-600" />
-              {itemId ? 'Costo de Compra del Repuesto' : 'Gasto para la Orden'}
+              {itemId ? appI18n.t('ui.ModalVincularGasto.part_purchase_cost') : appI18n.t('ui.ModalVincularGasto.order_expense')}
             </h2>
             {itemDescripcion && (
               <p className="text-xs text-slate-500 mt-0.5">
-                Ítem: <strong className="text-slate-700">{itemDescripcion}</strong>
+                {appI18n.t("ui.ModalVincularGasto.item")} <strong className="text-slate-700">{itemDescripcion}</strong>
               </p>
             )}
           </div>
@@ -231,7 +232,7 @@ export const ModalVincularGasto: React.FC<Props> = ({
               tab === 'nuevo' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            <Plus size={14} /> Registrar nuevo gasto
+            <Plus size={14} /> {appI18n.t("ui.ModalVincularGasto.record_new_expense")}
           </button>
           <button
             onClick={() => {
@@ -243,7 +244,7 @@ export const ModalVincularGasto: React.FC<Props> = ({
               tab === 'existente' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            <Link size={14} /> Vincular gasto existente
+            <Link size={14} /> {appI18n.t("ui.ModalVincularGasto.link_existing_expense")}
           </button>
         </div>
 
@@ -397,7 +398,7 @@ export const ModalVincularGasto: React.FC<Props> = ({
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <p className="text-xs text-slate-500">
-                    Selecciona un gasto previamente registrado para vincularlo a este ítem:
+                    {appI18n.t("ui.ModalVincularGasto.select_an_existing_expense_to_link_to_this")}
                   </p>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
@@ -407,7 +408,7 @@ export const ModalVincularGasto: React.FC<Props> = ({
                         soloRepuestos ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
                     >
-                      Repuestos ({repuestosCount})
+                      {appI18n.t("ui.ModalVincularGasto.parts")}{repuestosCount})
                     </button>
                     <button
                       type="button"
@@ -416,7 +417,7 @@ export const ModalVincularGasto: React.FC<Props> = ({
                         !soloRepuestos ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
                     >
-                      Todos ({gastosSinVincular.length})
+                      {appI18n.t("ui.ModalVincularGasto.all")}{gastosSinVincular.length})
                     </button>
                   </div>
                 </div>
@@ -458,7 +459,7 @@ export const ModalVincularGasto: React.FC<Props> = ({
                             disabled={saving}
                             className="mt-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50"
                           >
-                            Vincular
+                            {appI18n.t("ui.ModalVincularGasto.link")}
                           </button>
                         </div>
                       </div>
@@ -466,13 +467,13 @@ export const ModalVincularGasto: React.FC<Props> = ({
                   </div>
                 ) : soloRepuestos && gastosSinVincular.length > 0 ? (
                   <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4">
-                    <p className="text-xs text-slate-500 mb-2">No hay gastos disponibles con la categoría "Repuestos".</p>
+                    <p className="text-xs text-slate-500 mb-2">{appI18n.t("ui.ModalVincularGasto.no_expenses_are_available_in_the_parts_category")}</p>
                     <button
                       type="button"
                       onClick={() => setSoloRepuestos(false)}
                       className="text-xs text-indigo-600 font-bold hover:underline"
                     >
-                      Ver gastos de otras categorías ({gastosSinVincular.length} disponibles)
+                      {appI18n.t("ui.ModalVincularGasto.view_expenses_from_other_categories")}{gastosSinVincular.length} {appI18n.t("ui.ModalVincularGasto.available")}
                     </button>
                   </div>
                 ) : (

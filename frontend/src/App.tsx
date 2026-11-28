@@ -1,3 +1,4 @@
+import appI18n from "./i18n";
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import SeguimientoCliente from './pages/SeguimientoCliente';
 import { Wrench, PlusCircle, LayoutDashboard, LogOut, History, Globe, BarChart3, Users, Coins, Target, Sparkles, ChevronDown, ShieldCheck, UserCircle2, Receipt, Package, Menu, X, MessageSquarePlus } from 'lucide-react';
@@ -63,7 +64,7 @@ const ProfileMenu = () => {
             ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/20'
             : 'border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-600'
         }`}
-        title="Perfil y configuración"
+        title={appI18n.t("ui.App.profile_and_settings")}
       >
         {/* Avatar circle */}
         <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-black ${
@@ -137,7 +138,7 @@ const ProfileMenu = () => {
             >
               <Globe size={16} className="shrink-0" />
               <span>
-                {i18n.language === 'es' ? 'Switch to English' : 'Cambiar a Español'}
+                {i18n.language === 'es' ? appI18n.t('ui.App.switch_to_english') : appI18n.t('ui.App.cambiar_a_espa_ol')}
               </span>
               <span className="ml-auto text-xs font-bold bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">
                 {i18n.language.toUpperCase()}
@@ -245,7 +246,7 @@ const Navbar = () => {
     },
     {
       to: `/${slug}/inventario`,
-      label: 'Inventario',
+      label: appI18n.t('ui.App.inventory'),
       icon: Package,
       active: location.pathname.includes('/inventario'),
     },
@@ -264,7 +265,7 @@ const Navbar = () => {
                 type="button"
                 onClick={() => setMobileOpen(prev => !prev)}
                 className="lg:hidden p-2 -ml-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-                aria-label={mobileOpen ? 'Cerrar menú' : 'Abrir menú'}
+                aria-label={mobileOpen ? appI18n.t('ui.App.close_menu') : appI18n.t('ui.App.open_menu')}
                 aria-expanded={mobileOpen}
               >
                 {mobileOpen ? <X size={22} /> : <Menu size={22} />}
@@ -316,7 +317,7 @@ const Navbar = () => {
 
       {/* Drawer lateral móvil/tablet (< lg) */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex" role="dialog" aria-modal="true" aria-label="Menú de navegación">
+        <div className="fixed inset-0 z-50 lg:hidden flex" role="dialog" aria-modal="true" aria-label={appI18n.t("ui.App.navigation_menu")}>
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-xs"
@@ -338,7 +339,7 @@ const Navbar = () => {
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-                aria-label="Cerrar menú"
+                aria-label={appI18n.t("ui.App.close_menu")}
               >
                 <X size={20} />
               </button>
@@ -409,7 +410,7 @@ const ProtectedLayout = () => {
       <button
         onClick={() => setIsDrawerOpen(true)}
         className="fixed bottom-6 right-6 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all z-40 group"
-        title="Abrir Asistente Virtual"
+        title={appI18n.t("ui.App.open_virtual_assistant")}
       >
         <Sparkles size={24} className="group-hover:animate-pulse" />
       </button>
@@ -426,6 +427,9 @@ const ProtectedLayout = () => {
 };
 
 function App() {
+  // Refresh route elements and their localized labels on language changes.
+  useTranslation();
+
   return (
     <AuthProvider>
       <BrowserRouter>

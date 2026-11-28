@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Camera, Save, AlertCircle, Loader2, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon, Settings, Eye, EyeOff, Plus, X, XCircle, FileEdit, Gauge, Fuel, CalendarClock } from 'lucide-react';
@@ -254,7 +255,7 @@ const Diagnostico: React.FC = () => {
       await api.put(`/ingresos/${id}`, payload);
       navigate(`/${slug}`);
     } catch (err: any) {
-      setError('Error al finalizar el diagnóstico.');
+      setError(appI18n.t('ui.Diagnostico.could_not_complete_the_diagnosis'));
       setSaving(false);
     }
   };
@@ -313,7 +314,7 @@ const Diagnostico: React.FC = () => {
       setConfigOriginal(configDiagnostico);
       setIsEditMode(false);
     } catch (err: any) {
-      setError("Error guardando la configuración de diagnóstico.");
+      setError(appI18n.t('ui.Diagnostico.could_not_save_diagnosis_settings'));
     } finally {
       setSavingConfig(false);
     }
@@ -380,7 +381,7 @@ const Diagnostico: React.FC = () => {
           </p>
           {ingreso.observaciones_recepcion && (
             <p className="text-xs text-slate-500 italic">
-              Obs: "{ingreso.observaciones_recepcion}"
+              {appI18n.t("ui.Diagnostico.notes")}{ingreso.observaciones_recepcion}"
             </p>
           )}
         </div>
@@ -408,7 +409,7 @@ const Diagnostico: React.FC = () => {
             <Settings size={20} className="text-indigo-400" />
             {isEditMode ? t('diagnostico.modo_personalizacion') : t('diagnostico.sistemas_evaluacion')}
           </h2>
-          {isEditMode && <p className="text-slate-400 text-sm mt-0.5">Oculta sistemas que no uses, añade fallas comunes personalizadas por sistema.</p>}
+          {isEditMode && <p className="text-slate-400 text-sm mt-0.5">{appI18n.t("ui.Diagnostico.hide_unused_systems_and_add_custom_common_faults")}</p>}
         </div>
         <div>
           {!isEditMode ? (
@@ -458,7 +459,7 @@ const Diagnostico: React.FC = () => {
                     <button
                       onClick={() => toggleVisibility(sys.key)}
                       className={`p-1.5 rounded-lg transition ${isVisible ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
-                      title={isVisible ? 'Ocultar sistema' : 'Mostrar sistema'}
+                      title={isVisible ? appI18n.t('ui.Diagnostico.hide_system') : appI18n.t('ui.Diagnostico.show_system')}
                     >
                       {isVisible ? <Eye size={18} /> : <EyeOff size={18} />}
                     </button>
@@ -525,7 +526,7 @@ const Diagnostico: React.FC = () => {
                           onKeyDown={e => e.key === 'Enter' && addFallaPersonalizada(sys.key)}
                           autoFocus
                         />
-                        <button onClick={() => addFallaPersonalizada(sys.key)} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">Add</button>
+                        <button onClick={() => addFallaPersonalizada(sys.key)} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">{appI18n.t("ui.Diagnostico.add")}</button>
                       </div>
                     )}
 
@@ -542,13 +543,13 @@ const Diagnostico: React.FC = () => {
                                 isSelected ? 'bg-indigo-50 text-indigo-800 border-indigo-300 font-medium' : 'bg-white text-slate-600 hover:bg-slate-50'
                               } ${isEditMode && isCustom ? 'rounded-r-none border-r-0' : ''}`}
                             >
-                              {falla}
+                              {isCustom ? falla : t(`diagnostico.fallas_catalogo.${falla}`, { defaultValue: falla })}
                             </span>
                             {isEditMode && isCustom && (
                               <button
                                 onClick={() => removeFallaPersonalizada(sys.key, falla)}
                                 className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white border border-red-200 rounded-r-lg px-2 flex items-center justify-center transition-colors"
-                                title="Eliminar falla personalizada"
+                                title={appI18n.t("ui.Diagnostico.remove_custom_fault")}
                               >
                                 <X size={14} />
                               </button>
@@ -578,7 +579,7 @@ const Diagnostico: React.FC = () => {
                           <div className="flex gap-2 overflow-x-auto pb-2 mb-2 snap-x">
                             {item.fotos.map((foto: string, idx: number) => (
                               <div key={idx} className="relative group shrink-0 snap-start">
-                                <img src={foto} alt={`Foto ${sys.label}`} className="h-20 w-20 object-cover rounded-xl border border-slate-200" />
+                                <img src={foto} alt={t('diagnostico.foto_sistema', { system: t(`diagnostico.sistemas.${sys.key}`) })} className="h-20 w-20 object-cover rounded-xl border border-slate-200" />
                                 <button onClick={() => removePhoto(sys.key, idx)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600">
                                   <XCircle size={14} />
                                 </button>
@@ -614,8 +615,8 @@ const Diagnostico: React.FC = () => {
                 <CalendarClock size={20} />
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 text-base">Fecha y hora estimada de salida</h3>
-                <p className="text-xs text-slate-500">Define cuándo debería estar listo el vehículo para medir cumplimiento y alertas de demora.</p>
+                <h3 className="font-bold text-slate-800 text-base">{appI18n.t("ui.Diagnostico.estimated_delivery_date_and_time")}</h3>
+                <p className="text-xs text-slate-500">{appI18n.t("ui.Diagnostico.set_when_the_vehicle_should_be_ready_to")}</p>
               </div>
             </div>
           </div>
@@ -626,28 +627,28 @@ const Diagnostico: React.FC = () => {
               onClick={() => setPresetEntrega(0, 17)}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
             >
-              Hoy 5:00 PM
+              {appI18n.t("ui.Diagnostico.today_at_5_00_pm")}
             </button>
             <button
               type="button"
               onClick={() => setPresetEntrega(1, 12)}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
             >
-              Mañana 12:00 PM
+              {appI18n.t("ui.Diagnostico.tomorrow_at_noon")}
             </button>
             <button
               type="button"
               onClick={() => setPresetEntrega(1, 17)}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
             >
-              Mañana 5:00 PM
+              {appI18n.t("ui.Diagnostico.tomorrow_at_5_00_pm")}
             </button>
             <button
               type="button"
               onClick={() => setPresetEntrega(2, 17)}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
             >
-              En 2 días 5:00 PM
+              {appI18n.t("ui.Diagnostico.in_two_days_at_5_00_pm")}
             </button>
             {fechaEntregaEstimada && (
               <button
@@ -655,7 +656,7 @@ const Diagnostico: React.FC = () => {
                 onClick={() => setFechaEntregaEstimada('')}
                 className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-red-600 transition-colors"
               >
-                Limpiar
+                {appI18n.t("ui.Diagnostico.clear")}
               </button>
             )}
           </div>
