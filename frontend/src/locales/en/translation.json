@@ -1212,7 +1212,8 @@
       "liters": "Liters",
       "gallons": "Gallons",
       "l_in_inventory": "L in inventory",
-      "container": "/ container"
+      "container": "/ container",
+      "unlink_expense": "Unlink expense"
     },
     "Configuracion": {
       "customers_who_leave_their_details_in_the_chatbot": "Customers who leave their details in the chatbot will appear here.",

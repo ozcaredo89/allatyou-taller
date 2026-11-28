@@ -107,6 +107,7 @@ const Checkout: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [ultimoAceite, setUltimoAceite] = useState<SugerenciaAceite | null>(null);
   const [mostrarWhatsApp, setMostrarWhatsApp] = useState(false);
+  const [expenseDialog, setExpenseDialog] = useState<{ titleKey: string; action?: () => Promise<void> }>();
   const [nuevoTipo, setNuevoTipo] = useState<'repuesto' | 'mano_obra'>('repuesto');
   const [nuevoDesc, setNuevoDesc] = useState('');
   const [nuevoCant, setNuevoCant] = useState(1);
@@ -284,24 +285,32 @@ const Checkout: React.FC = () => {
     setModalGastoOpen(true);
   };
 
-  const handleDesvincularGastoDeItem = async (gastoId: string) => {
-    if (!window.confirm(appI18n.t('ui.Checkout.unlink_this_expense_from_the_part_it_will'))) return;
-    try {
-      await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: id, item_id: null });
-      await cargarGastos();
-    } catch (err) {
-      console.error('[handleDesvincularGastoDeItem] Error:', err);
-    }
+  const handleDesvincularGastoDeItem = (gastoId: string) => {
+    setExpenseDialog({
+      titleKey: 'ui.Checkout.unlink_this_expense_from_the_part_it_will',
+      action: async () => {
+        try {
+          await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: id, item_id: null });
+          await cargarGastos();
+        } catch (err) {
+          console.error('[handleDesvincularGastoDeItem] Error:', err);
+        }
+      },
+    });
   };
 
-  const handleDesvincularGastoDeOrden = async (gastoId: string) => {
-    if (!window.confirm(appI18n.t('ui.Checkout.unlink_this_expense_from_the_order'))) return;
-    try {
-      await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: null, item_id: null });
-      await cargarGastos();
-    } catch (err) {
-      console.error('[handleDesvincularGastoDeOrden] Error:', err);
-    }
+  const handleDesvincularGastoDeOrden = (gastoId: string) => {
+    setExpenseDialog({
+      titleKey: 'ui.Checkout.unlink_this_expense_from_the_order',
+      action: async () => {
+        try {
+          await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: null, item_id: null });
+          await cargarGastos();
+        } catch (err) {
+          console.error('[handleDesvincularGastoDeOrden] Error:', err);
+        }
+      },
+    });
   };
 
   const cargarIngreso = async () => {
@@ -767,6 +776,20 @@ const Checkout: React.FC = () => {
         onClose={() => setMostrarWhatsApp(false)} onConfirm={() => { setMostrarWhatsApp(false); void handleNotificarCliente(); }}>
         <pre className="max-h-[52vh] overflow-y-auto whitespace-pre-wrap rounded-lg bg-emerald-50 p-3 font-sans text-sm">{mostrarWhatsApp ? mensajeCotizacion() : ''}</pre>
       </ModalConfirmacion>
+      {expenseDialog && (
+        <ModalConfirmacion
+          isOpen
+          tipo={expenseDialog.action ? 'warning' : 'info'}
+          title={appI18n.t(expenseDialog.titleKey)}
+          confirmText={appI18n.t(expenseDialog.action ? 'ui.Checkout.unlink_expense' : 'ui.ModalConfirmacion.close_dialog')}
+          cancelText={appI18n.t('ui.CRM.cancel')}
+          onClose={() => setExpenseDialog(undefined)}
+          onConfirm={() => {
+            setExpenseDialog(undefined);
+            void expenseDialog.action?.();
+          }}
+        />
+      )}
       {/* Botones Header */}
       <div className="flex justify-between items-center print:hidden">
         <button onClick={() => navigate(`/${slug}`)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
@@ -1290,7 +1313,7 @@ const Checkout: React.FC = () => {
                                 type="button"
                                 onClick={() => {
                                   if (gastos.some(g => g.item_id === item.id)) {
-                                    window.alert(appI18n.t('ui.Checkout.this_item_has_a_linked_purchase_cost_unlink'));
+                                    setExpenseDialog({ titleKey: 'ui.Checkout.this_item_has_a_linked_purchase_cost_unlink' });
                                     return;
                                   }
                                   setItems(prev => prev.map(i => (i.id === item.id ? { ...i, tipo: 'mano_obra' } : i)));

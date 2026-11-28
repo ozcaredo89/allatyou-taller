@@ -1212,7 +1212,8 @@
       "liters": "Litros",
       "gallons": "Galones",
       "l_in_inventory": "L de inventario",
-      "container": "/ tarro"
+      "container": "/ tarro",
+      "unlink_expense": "Desvincular gasto"
     },
     "Configuracion": {
       "customers_who_leave_their_details_in_the_chatbot": "Los clientes que dejen sus datos en el chatbot aparecerán aquí.",

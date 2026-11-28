@@ -20,8 +20,8 @@ interface Props {
   savedItemIds?: Set<string>;
   onOpenModalGasto?: (itemId?: string, itemDescripcion?: string, tab?: 'nuevo' | 'existente') => void;
   onDesvincularGasto?: (gastoId: string) => Promise<void>;
-  onDesvincularGastoDeItem?: (gastoId: string) => Promise<void>;
-  onDesvincularGastoDeOrden?: (gastoId: string) => Promise<void>;
+  onDesvincularGastoDeItem?: (gastoId: string) => void | Promise<void>;
+  onDesvincularGastoDeOrden?: (gastoId: string) => void | Promise<void>;
 }
 
 const formatearDinero = (monto: number) =>
