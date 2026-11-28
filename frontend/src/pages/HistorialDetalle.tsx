@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, XCircle, Receipt, Wrench, Edit, FileEdit, Gauge, Fuel, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -68,7 +69,7 @@ const HistorialDetalle: React.FC = () => {
         {!isCancelado && ingreso?.aplica_renting && (
           ingreso.renting_sync_at ? (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
-              <CheckCircle2 size={13} className="text-emerald-700" /> Renting Sincronizado
+              <CheckCircle2 size={13} className="text-emerald-700" /> {appI18n.t("ui.HistorialDetalle.renting_synced")}
             </span>
           ) : (
             <button
@@ -76,7 +77,7 @@ const HistorialDetalle: React.FC = () => {
               onClick={() => setShowRentingModal(true)}
               className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
             >
-              <AlertCircle size={13} className="text-amber-700" /> Gasto Renting Pendiente (Crear Gasto)
+              <AlertCircle size={13} className="text-amber-700" /> {appI18n.t("ui.HistorialDetalle.renting_expense_pending_create_expense")}
             </button>
           )
         )}
@@ -93,7 +94,7 @@ const HistorialDetalle: React.FC = () => {
               onClick={() => navigate(`/${slug}/checkout/${ingreso.id}?edit=true`)}
               className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition"
             >
-              <Edit size={16} /> Editar Orden
+              <Edit size={16} /> {appI18n.t("ui.HistorialDetalle.edit_order")}
             </button>
           )}
         </div>
@@ -113,8 +114,8 @@ const HistorialDetalle: React.FC = () => {
         <div>
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{t('card.cliente').replace(':', '')}</p>
           <p className="font-bold text-slate-800 text-lg">{cliente?.nombre_completo}</p>
-          <p className="text-slate-500 text-sm">Doc: {cliente?.documento}</p>
-          <p className="text-slate-500 text-sm">Tel: {cliente?.telefono}</p>
+          <p className="text-slate-500 text-sm">{appI18n.t("ui.HistorialDetalle.id")} {cliente?.documento}</p>
+          <p className="text-slate-500 text-sm">{appI18n.t("ui.HistorialDetalle.phone")} {cliente?.telefono}</p>
         </div>
         <div className="text-right">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{t('checkout.vehiculo')}</p>
@@ -141,7 +142,7 @@ const HistorialDetalle: React.FC = () => {
               <p className="text-xs font-bold text-slate-500 uppercase">{t('editar_ingreso.motivo_titulo', 'Motivo de Entrada')}</p>
               <p className="font-semibold text-slate-800 text-sm mt-0.5">{ingreso.motivo_visita || t('editar_ingreso.no_especificado', 'No especificado')}</p>
               {ingreso.observaciones_recepcion && (
-                <p className="text-xs text-slate-500 italic mt-1">Obs: "{ingreso.observaciones_recepcion}"</p>
+                <p className="text-xs text-slate-500 italic mt-1">{appI18n.t("ui.HistorialDetalle.notes")}{ingreso.observaciones_recepcion}"</p>
               )}
             </div>
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 flex flex-col justify-center space-y-2">
@@ -170,7 +171,7 @@ const HistorialDetalle: React.FC = () => {
                   <span className="font-semibold text-slate-700 capitalize w-32 shrink-0">{t(`diagnostico.sistemas.${key}`) || key.replace(/_/g, ' ')}</span>
                   <div>
                     <span className={`text-xs font-bold uppercase ${val.estado === 'danado' ? 'text-red-600' : val.estado === 'revisar' ? 'text-amber-600' : 'text-emerald-600'}`}>{t(`estado.${val.estado}`) || val.estado?.replace('_', ' ')}</span>
-                    {val.fallas_comunes?.length > 0 && <p className="text-slate-500 text-xs mt-0.5">{val.fallas_comunes.join(' · ')}</p>}
+                    {val.fallas_comunes?.length > 0 && <p className="text-slate-500 text-xs mt-0.5">{val.fallas_comunes.map((falla: string) => t(`diagnostico.fallas_catalogo.${falla}`, { defaultValue: falla })).join(' · ')}</p>}
                     {val.notas && <p className="text-slate-600 mt-0.5 italic">"{val.notas}"</p>}
                   </div>
                 </div>
@@ -204,7 +205,7 @@ const HistorialDetalle: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-2 text-right text-slate-600">{mostrarCantidadInventario(item)}</td>
-                  <td className="py-2 text-right text-slate-600">${(item.precio_unitario_captura ?? item.precio_unitario).toLocaleString('es-CO')}{item.unidad_captura ? ` / ${item.precio_unitario_captura == null ? 'litro' : item.unidad_captura}` : item.contenido_aceite_litros ? ' / tarro' : ''}</td>
+                  <td className="py-2 text-right text-slate-600">${(item.precio_unitario_captura ?? item.precio_unitario).toLocaleString('es-CO')}{item.unidad_captura ? ` / ${item.precio_unitario_captura == null ? 'litro' : item.unidad_captura}` : item.contenido_aceite_litros ? appI18n.t("ui.HistorialDetalle.container") : ''}</td>
                   <td className="py-2 text-right font-bold text-slate-800">${item.total.toLocaleString('es-CO')}</td>
                 </tr>
               ))}

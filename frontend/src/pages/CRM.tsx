@@ -1,3 +1,4 @@
+import appI18n, { displayLocale } from '../i18n';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Target, Search, Phone, Loader2, MessageCircle,
@@ -117,7 +118,7 @@ const categoriaBadgeColor: Record<string, string> = {
 };
 
 function formatFecha(iso: string) {
-  return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString(displayLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export const OPCIONES_MOTIVO_DESCARTE = [
@@ -572,16 +573,16 @@ const CRM: React.FC = () => {
             <div className="p-2 bg-indigo-100 rounded-xl">
               <Target className="text-indigo-600 w-7 h-7" />
             </div>
-            CRM de Retención
+            {appI18n.t("ui.CRM.customer_retention_crm")}
           </h1>
-          <p className="text-slate-500 mt-1 ml-1">Reseñas de Google y Mantenimiento Predictivo</p>
+          <p className="text-slate-500 mt-1 ml-1">{appI18n.t("ui.CRM.google_reviews_and_predictive_maintenance")}</p>
         </div>
         <button
           onClick={() => setShowConfigModal(true)}
           className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm hover:shadow transition-all"
         >
           <Settings2 size={16} />
-          Configurar CRM
+          {appI18n.t("ui.CRM.configure_crm")}
         </button>
       </div>
 
@@ -590,11 +591,11 @@ const CRM: React.FC = () => {
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm">
           <AlertTriangle size={18} className="shrink-0" />
           <span>
-            No tienes configurado tu enlace de reseñas de Google.{' '}
+            {appI18n.t("ui.CRM.you_haven_t_set_up_your_google_review")}{' '}
             <button onClick={() => setShowConfigModal(true)} className="underline font-semibold">
-              Configurarlo ahora
+              {appI18n.t("ui.CRM.set_it_up_now")}
             </button>{' '}
-            para que el mensaje incluya el enlace directo.
+            {appI18n.t("ui.CRM.to_include_the_direct_link_in_the_message")}
           </span>
         </div>
       )}
@@ -610,7 +611,7 @@ const CRM: React.FC = () => {
           }`}
         >
           <Star size={16} />
-          Reseñas Google
+          {appI18n.t("ui.CRM.google_reviews")}
         </button>
         <button
           onClick={() => { setTab('retencion'); setSearchTerm(''); }}
@@ -621,7 +622,7 @@ const CRM: React.FC = () => {
           }`}
         >
           <RefreshCw size={16} />
-          Mantenimiento Predictivo
+          {appI18n.t("ui.CRM.predictive_maintenance")}
         </button>
       </div>
 
@@ -630,7 +631,7 @@ const CRM: React.FC = () => {
         <Search className="text-slate-400 ml-2" size={20} />
         <input
           type="text"
-          placeholder="Buscar por placa o cliente..."
+          placeholder={appI18n.t("ui.CRM.search_by_plate_or_customer")}
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
           className="w-full px-3 py-1 outline-none text-sm"
@@ -682,7 +683,7 @@ const CRM: React.FC = () => {
         onConfirm={handleConfirmarDescarte}
         loading={modalLoading}
         tipo="danger"
-        title="¿Descartar solicitud de reseña?"
+        title={appI18n.t("ui.CRM.discard_review_request_2")}
         description="Esta orden se retirará de las reseñas pendientes porque no se va a solicitar."
         confirmText="Sí, descartar"
         cancelText="Volver"
@@ -692,7 +693,7 @@ const CRM: React.FC = () => {
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cliente</p>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{appI18n.t("ui.CRM.customer")}</p>
                   <p className="text-sm font-bold text-slate-800">
                     {ingresoADescartar.taller_vehiculos.taller_clientes.nombre_completo}
                   </p>
@@ -710,7 +711,7 @@ const CRM: React.FC = () => {
                   {ingresoADescartar.taller_vehiculos.marca} {ingresoADescartar.taller_vehiculos.linea}
                 </span>
                 <span className="text-slate-400">
-                  Entregado {formatFecha(ingresoADescartar.updated_at)}
+                  {appI18n.t("ui.CRM.delivered_2")} {formatFecha(ingresoADescartar.updated_at)}
                 </span>
               </div>
             </div>
@@ -718,7 +719,7 @@ const CRM: React.FC = () => {
             {/* Selector de motivo y nota */}
             <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
               <label className="block text-xs font-bold text-slate-700">
-                ¿Por qué descartas este card? <span className="text-slate-400 font-normal">(opcional)</span>
+                {appI18n.t("ui.CRM.why_are_you_discarding_this_card")} <span className="text-slate-400 font-normal">{appI18n.t("ui.CRM.optional")}</span>
               </label>
 
               {/* Chips rápidos */}
@@ -746,7 +747,7 @@ const CRM: React.FC = () => {
               <textarea
                 value={motivoDescarte}
                 onChange={e => setMotivoDescarte(e.target.value)}
-                placeholder="Escribe o personaliza el motivo (ej: no tiene WhatsApp, teléfono fijo, etc.)..."
+                placeholder={appI18n.t("ui.CRM.enter_a_reason_e_g_no_whatsapp_or")}
                 rows={2}
                 maxLength={250}
                 className="w-full text-xs p-2.5 border border-slate-200 rounded-xl outline-indigo-500 bg-slate-50/60 focus:bg-white resize-none text-slate-800 placeholder:text-slate-400 transition"
@@ -754,7 +755,7 @@ const CRM: React.FC = () => {
             </div>
 
             <p className="text-[11px] text-slate-500 bg-amber-50/80 border border-amber-200/60 rounded-xl p-2.5">
-              💡 <strong>Nota:</strong> No se enviará ningún mensaje. La nota quedará registrada en el card para tu control y podrás restaurar la orden en cualquier momento desde <em>"Ver descartadas"</em>.
+              💡 <strong>{appI18n.t("ui.CRM.note")}</strong> {appI18n.t("ui.CRM.no_message_will_be_sent_the_note_is_2")} <em>{appI18n.t("ui.CRM.view_discarded")}</em>.
             </p>
           </div>
         )}
@@ -781,7 +782,7 @@ const CRM: React.FC = () => {
           {/* Resumen de órdenes seleccionadas */}
           <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 space-y-2">
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Órdenes seleccionadas ({selectedIds.size}):
+              {appI18n.t("ui.CRM.selected_orders")}{selectedIds.size}):
             </p>
             <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
               {resenas
@@ -805,7 +806,7 @@ const CRM: React.FC = () => {
           {/* Selector de motivo y nota para el lote */}
           <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
             <label className="block text-xs font-bold text-slate-700">
-              ¿Por qué descartas estas órdenes? <span className="text-slate-400 font-normal">(opcional)</span>
+              {appI18n.t("ui.CRM.why_are_you_discarding_these_orders")} <span className="text-slate-400 font-normal">{appI18n.t("ui.CRM.optional")}</span>
             </label>
 
             {/* Chips rápidos */}
@@ -833,7 +834,7 @@ const CRM: React.FC = () => {
             <textarea
               value={bulkMotivoDescarte}
               onChange={e => setBulkMotivoDescarte(e.target.value)}
-              placeholder="Escribe o personaliza el motivo para todo el lote (ej: depuración masiva, sin contacto)..."
+              placeholder={appI18n.t("ui.CRM.enter_a_reason_for_the_batch_e_g")}
               rows={2}
               maxLength={250}
               className="w-full text-xs p-2.5 border border-slate-200 rounded-xl outline-indigo-500 bg-slate-50/60 focus:bg-white resize-none text-slate-800 placeholder:text-slate-400 transition"
@@ -841,7 +842,7 @@ const CRM: React.FC = () => {
           </div>
 
           <p className="text-[11px] text-slate-500 bg-amber-50/80 border border-amber-200/60 rounded-xl p-2.5">
-            💡 <strong>Nota:</strong> No se enviará ningún mensaje. La nota quedará registrada en cada orden descartada y podrás restaurar cualquiera de ellas individualmente desde <em>"Ver descartadas"</em>.
+            💡 <strong>{appI18n.t("ui.CRM.note")}</strong> {appI18n.t("ui.CRM.no_message_will_be_sent_the_note_is")} <em>{appI18n.t("ui.CRM.view_discarded")}</em>.
           </p>
         </div>
       </ModalConfirmacion>
@@ -854,11 +855,11 @@ const CRM: React.FC = () => {
         loading={modalLoading}
         tipo="warning"
         icon={<BellOff size={24} className="text-amber-600" />}
-        title="¿Dar de baja de WhatsApp?"
+        title={appI18n.t("ui.CRM.opt_out_of_whatsapp")}
         description={
           clienteANoContactar ? (
             <span>
-              Se excluirá a <strong>{clienteANoContactar.nombre}</strong> de los envíos de WhatsApp en ambas pestañas (Reseñas y Mantenimiento Predictivo) en cumplimiento de la <strong>Ley 1581 de Protección de Datos</strong>.
+              {appI18n.t("ui.CRM.exclude")} <strong>{clienteANoContactar.nombre}</strong> {appI18n.t("ui.CRM.from_whatsapp_messages_in_both_tabs_reviews_and")} <strong>{appI18n.t("ui.CRM.data_protection_law_1581")}</strong>.
             </span>
           ) : undefined
         }
@@ -907,7 +908,7 @@ const ResenasKpiCards: React.FC<{ stats: ResenasStats | null; loading: boolean }
       {/* 1. Pedidas Hoy */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Pedidas Hoy</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{appI18n.t("ui.CRM.requested_today")}</span>
           <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600">
             <MessageCircle size={16} />
           </div>
@@ -917,12 +918,12 @@ const ResenasKpiCards: React.FC<{ stats: ResenasStats | null; loading: boolean }
             <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{hoy}</span>
             {confirmadasHoy > 0 && (
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
-                {confirmadasHoy} confirmada{confirmadasHoy > 1 ? 's' : ''}
+                {appI18n.t("ui.CRM.confirmed_count", { count: confirmadasHoy })}
               </span>
             )}
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
-            {ayer > 0 ? `${ayer} enviada${ayer > 1 ? 's' : ''} ayer` : '0 enviadas ayer'}
+            {appI18n.t("ui.CRM.sent_yesterday", { count: ayer })}
           </p>
         </div>
       </div>
@@ -930,7 +931,7 @@ const ResenasKpiCards: React.FC<{ stats: ResenasStats | null; loading: boolean }
       {/* 2. Esta Semana */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Esta Semana</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{appI18n.t("ui.CRM.this_week")}</span>
           <div className="p-2 bg-blue-50 border border-blue-100 rounded-xl text-blue-600">
             <Calendar size={16} />
           </div>
@@ -938,16 +939,16 @@ const ResenasKpiCards: React.FC<{ stats: ResenasStats | null; loading: boolean }
         <div className="mt-2">
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{estaSemana}</span>
-            <span className="text-[11px] font-medium text-slate-400">solicitadas</span>
+            <span className="text-[11px] font-medium text-slate-400">{appI18n.t("ui.CRM.requested")}</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Semana en curso (Lun-Dom)</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">{appI18n.t("ui.CRM.current_week_mon_sun")}</p>
         </div>
       </div>
 
       {/* 3. Este Mes */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Este Mes</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{appI18n.t("ui.CRM.this_month")}</span>
           <div className="p-2 bg-purple-50 border border-purple-100 rounded-xl text-purple-600">
             <TrendingUp size={16} />
           </div>
@@ -955,16 +956,16 @@ const ResenasKpiCards: React.FC<{ stats: ResenasStats | null; loading: boolean }
         <div className="mt-2">
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{esteMes}</span>
-            <span className="text-[11px] font-medium text-slate-400">enviadas</span>
+            <span className="text-[11px] font-medium text-slate-400">{appI18n.t("ui.CRM.sent_2")}</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Total acumulado del mes</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">{appI18n.t("ui.CRM.month_to_date_total")}</p>
         </div>
       </div>
 
       {/* 4. Tasa de Confirmación */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Efectividad</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{appI18n.t("ui.CRM.success_rate")}</span>
           <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-600">
             <CheckCircle2 size={16} />
           </div>
@@ -972,10 +973,10 @@ const ResenasKpiCards: React.FC<{ stats: ResenasStats | null; loading: boolean }
         <div className="mt-2">
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-extrabold text-emerald-600 tracking-tight">{tasaConfirmacion}%</span>
-            <span className="text-[11px] font-medium text-slate-400">éxito</span>
+            <span className="text-[11px] font-medium text-slate-400">{appI18n.t("ui.CRM.success")}</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
-            {stats?.confirmadasTotal ?? 0} de {stats?.totalSolicitadas ?? 0} confirmadas
+            {stats?.confirmadasTotal ?? 0} {appI18n.t("ui.CRM.of")} {stats?.totalSolicitadas ?? 0} {appI18n.t("ui.CRM.confirmed_2")}
           </p>
         </div>
       </div>
@@ -998,20 +999,20 @@ const ResenasHistorialDiario: React.FC<{ stats: ResenasStats | null; loading: bo
             <BarChart3 size={18} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Historial de Reseñas por Día</h3>
-            <p className="text-xs text-slate-500">Seguimiento de solicitudes en los últimos 14 días (Zona horaria Colombia)</p>
+            <h3 className="text-sm font-bold text-slate-900">{appI18n.t("ui.CRM.daily_review_history")}</h3>
+            <p className="text-xs text-slate-500">{appI18n.t("ui.CRM.requests_over_the_last_14_days_colombia_time")}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Promedio diario</span>
-            <span className="text-sm font-extrabold text-slate-800">{promedioDiario} / día</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">{appI18n.t("ui.CRM.daily_average")}</span>
+            <span className="text-sm font-extrabold text-slate-800">{promedioDiario} {appI18n.t("ui.CRM.day")}</span>
           </div>
           <div className="h-7 w-px bg-slate-200" />
           <div className="text-right">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total 14 días</span>
-            <span className="text-sm font-extrabold text-indigo-600">{totalPeriodo} solicitadas</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">{appI18n.t("ui.CRM.14_day_total")}</span>
+            <span className="text-sm font-extrabold text-indigo-600">{totalPeriodo} {appI18n.t("ui.CRM.requested")}</span>
           </div>
         </div>
       </div>
@@ -1032,9 +1033,9 @@ const ResenasHistorialDiario: React.FC<{ stats: ResenasStats | null; loading: bo
               >
                 {/* Tooltip flotante en hover */}
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none absolute -top-11 z-20 bg-slate-900 text-white text-[10px] rounded-lg py-1 px-2 shadow-lg whitespace-nowrap text-center">
-                  <div className="font-semibold">{dia.diaSemana} {dia.fecha.slice(5)}</div>
+                  <div className="font-semibold">{new Date(dia.fecha).toLocaleDateString(displayLocale(), { timeZone: 'UTC', weekday: 'short' })} {dia.fecha.slice(5)}</div>
                   <div className="text-slate-300">
-                    {dia.total} enviada{dia.total !== 1 ? 's' : ''} · {dia.confirmadas} conf.
+                    {appI18n.t("ui.CRM.sent_count", { count: dia.total })} · {dia.confirmadas} {appI18n.t("ui.CRM.conf")}
                   </div>
                 </div>
 
@@ -1079,7 +1080,7 @@ const ResenasHistorialDiario: React.FC<{ stats: ResenasStats | null; loading: bo
                         : 'text-slate-500 font-medium'
                     }`}
                   >
-                    {dia.diaSemana}
+                    {new Date(dia.fecha).toLocaleDateString(displayLocale(), { timeZone: 'UTC', weekday: 'short' })}
                   </span>
                   <span
                     className={`text-[9px] block ${
@@ -1088,7 +1089,7 @@ const ResenasHistorialDiario: React.FC<{ stats: ResenasStats | null; loading: bo
                         : 'text-slate-400'
                     }`}
                   >
-                    {dia.esHoy ? 'Hoy' : dia.fecha.split('-')[2]}
+                    {dia.esHoy ? appI18n.t('ui.CRM.today') : dia.fecha.split('-')[2]}
                   </span>
                 </div>
               </div>
@@ -1102,20 +1103,20 @@ const ResenasHistorialDiario: React.FC<{ stats: ResenasStats | null; loading: bo
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-indigo-500 inline-block" />
-            <span className="text-[11px] font-medium text-slate-600">Enviadas por WhatsApp</span>
+            <span className="text-[11px] font-medium text-slate-600">{appI18n.t("ui.CRM.sent_via_whatsapp")}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" />
-            <span className="text-[11px] font-medium text-slate-600">Confirmadas</span>
+            <span className="text-[11px] font-medium text-slate-600">{appI18n.t("ui.CRM.confirmed")}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-slate-200 inline-block" />
-            <span className="text-[11px] font-medium text-slate-400">Sin envíos</span>
+            <span className="text-[11px] font-medium text-slate-400">{appI18n.t("ui.CRM.none_sent")}</span>
           </div>
         </div>
 
         <p className="text-[11px] text-slate-400 italic">
-          💡 Enviar 2 a 5 reseñas por día de forma constante impulsa el ranking de tu taller en Google Maps.
+          {appI18n.t("ui.CRM.sending_2_to_5_review_requests_daily_helps")}
         </p>
       </div>
     </div>
@@ -1188,7 +1189,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
   const grupos = [
     {
       key: 'pendientes',
-      label: 'Pendientes de enviar',
+      label: appI18n.t('crm.grupo_pendientes'),
       items: pendientes,
       color: 'text-slate-800',
       badgeBg: 'bg-slate-100 text-slate-700',
@@ -1197,7 +1198,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
     },
     {
       key: 'intentados',
-      label: 'Enviado — pendiente de confirmar',
+      label: appI18n.t('crm.grupo_intentados'),
       items: intentados,
       color: 'text-amber-800',
       badgeBg: 'bg-amber-100 text-amber-800',
@@ -1206,7 +1207,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
     },
     {
       key: 'confirmados',
-      label: 'Confirmados ✅',
+      label: appI18n.t('crm.grupo_confirmados'),
       items: confirmados,
       color: 'text-emerald-800',
       badgeBg: 'bg-emerald-100 text-emerald-800',
@@ -1215,7 +1216,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
     },
     {
       key: 'descartados',
-      label: 'Descartadas',
+      label: appI18n.t('ui.CRM.discarded_reviews'),
       items: descartados,
       color: 'text-slate-500',
       badgeBg: 'bg-slate-100 text-slate-600',
@@ -1231,8 +1232,8 @@ const TabResenas: React.FC<TabResenasProps> = ({
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-500">
           <Star className="mx-auto text-slate-300 w-16 h-16 mb-4" />
-          <p className="text-lg font-medium">No hay clientes pendientes de reseña.</p>
-          <p className="text-sm mt-1">Las órdenes entregadas en los últimos 60 días aparecerán aquí.</p>
+          <p className="text-lg font-medium">{appI18n.t("ui.CRM.no_customers_are_awaiting_a_review_request")}</p>
+          <p className="text-sm mt-1">{appI18n.t("ui.CRM.orders_delivered_in_the_last_60_days_will")}</p>
         </div>
 
         <ResenasHistorialDiario stats={stats} loading={loadingStats} />
@@ -1257,14 +1258,14 @@ const TabResenas: React.FC<TabResenasProps> = ({
                 className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
               />
               <span>
-                {todosElegiblesSeleccionados ? 'Deseleccionar todas' : 'Seleccionar todas las activas'}
+                {todosElegiblesSeleccionados ? appI18n.t('ui.CRM.deselect_all') : appI18n.t('ui.CRM.select_all')}
                 <span className="text-slate-400 font-normal ml-1">({elegibles.length})</span>
               </span>
             </label>
 
             {selectedCount > 0 && (
               <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-lg border border-indigo-200/60">
-                {selectedCount} seleccionada{selectedCount !== 1 ? 's' : ''}
+                {appI18n.t("ui.CRM.selected_count", { count: selectedCount })}
               </span>
             )}
           </div>
@@ -1276,7 +1277,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
                 onClick={onClearSelection}
                 className="text-xs text-slate-500 hover:text-slate-700 font-medium px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                Limpiar
+                {appI18n.t("ui.CRM.clear")}
               </button>
               <button
                 type="button"
@@ -1284,7 +1285,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
                 className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Trash2 size={13} />
-                Descartar ({selectedCount})
+                {appI18n.t("ui.CRM.discard_2")}{selectedCount})
               </button>
             </div>
           )}
@@ -1313,7 +1314,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors">
-                <span>{grupo.isColapsado ? 'Expandir' : 'Colapsar'}</span>
+                <span>{grupo.isColapsado ? appI18n.t('ui.CRM.expand') : appI18n.t('ui.CRM.collapse')}</span>
                 {grupo.isColapsado ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
               </div>
             </button>
@@ -1338,7 +1339,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
                 </div>
               ) : (
                 <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 text-center text-xs text-slate-400 mt-2">
-                  No hay órdenes en esta sección actualmente.
+                  {appI18n.t("ui.CRM.there_are_no_orders_in_this_section")}
                 </div>
               )
             )}
@@ -1355,7 +1356,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
           <div className="flex items-center gap-2 text-sm font-medium">
             <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse" />
             <span>
-              <strong className="text-white">{selectedCount}</strong> orden{selectedCount !== 1 ? 'es' : ''} seleccionada{selectedCount !== 1 ? 's' : ''}
+              <strong className="text-white">{appI18n.t("ui.CRM.selected_count", { count: selectedCount })}</strong>
             </span>
           </div>
           <div className="h-4 w-px bg-slate-700" />
@@ -1365,7 +1366,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
               onClick={onClearSelection}
               className="text-xs text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
             >
-              Cancelar
+              {appI18n.t("ui.CRM.cancel")}
             </button>
             <button
               type="button"
@@ -1373,7 +1374,7 @@ const TabResenas: React.FC<TabResenasProps> = ({
               className="bg-red-600 hover:bg-red-500 text-white font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs shadow-md transition-colors cursor-pointer"
             >
               <Trash2 size={13} />
-              Descartar seleccionadas
+              {appI18n.t("ui.CRM.discard_selected")}
             </button>
           </div>
         </div>
@@ -1405,11 +1406,11 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
   const servicioDetectado = detectarResumenServicio(ingreso);
 
   const estadoConfig = {
-    pendiente: { icon: <Clock size={14} />, label: 'Pendiente', cls: 'bg-slate-100 text-slate-600' },
-    intentado: { icon: <Clock size={14} />, label: 'Enviado (confirmar)', cls: 'bg-amber-100 text-amber-700' },
-    confirmado: { icon: <CheckCircle2 size={14} />, label: 'Confirmado', cls: 'bg-emerald-100 text-emerald-700' },
-    descartado: { icon: <X size={14} />, label: 'Descartado', cls: 'bg-slate-100 text-slate-500' },
-  }[estado] || { icon: <Clock size={14} />, label: 'Pendiente', cls: 'bg-slate-100 text-slate-600' };
+    pendiente: { icon: <Clock size={14} />, label: appI18n.t('crm.estado_pendiente'), cls: 'bg-slate-100 text-slate-600' },
+    intentado: { icon: <Clock size={14} />, label: appI18n.t('crm.estado_intentado'), cls: 'bg-amber-100 text-amber-700' },
+    confirmado: { icon: <CheckCircle2 size={14} />, label: appI18n.t('crm.estado_confirmado'), cls: 'bg-emerald-100 text-emerald-700' },
+    descartado: { icon: <X size={14} />, label: appI18n.t('ui.CRM.discarded_review'), cls: 'bg-slate-100 text-slate-500' },
+  }[estado] || { icon: <Clock size={14} />, label: appI18n.t('crm.estado_pendiente'), cls: 'bg-slate-100 text-slate-600' };
 
   const diasDesdeEntrega = Math.floor(
     (Date.now() - new Date(ingreso.updated_at).getTime()) / 86_400_000
@@ -1434,7 +1435,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
               checked={!!isSelected}
               onChange={() => onToggleSelect(ingreso.id)}
               className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer shrink-0"
-              title="Seleccionar para descartar"
+              title={appI18n.t("ui.CRM.select_to_discard")}
             />
           )}
           <div>
@@ -1452,7 +1453,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
             <button
               onClick={() => onDescartar(ingreso)}
               disabled={updating}
-              title="Borrar / descartar reseña (no se va a hacer)"
+              title={appI18n.t("ui.CRM.discard_review_request")}
               className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-colors cursor-pointer"
             >
               <Trash2 size={15} />
@@ -1468,7 +1469,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
           <span className="font-black text-slate-800 text-sm tracking-widest">{vehiculo.placa}</span>
         </div>
         <p className="text-xs text-slate-400 mt-1">
-          Entregado hace {diasDesdeEntrega === 0 ? 'hoy' : `${diasDesdeEntrega} día${diasDesdeEntrega !== 1 ? 's' : ''}`}
+          {diasDesdeEntrega === 0 ? appI18n.t("ui.CRM.delivered_today") : appI18n.t("ui.CRM.delivery_age", { count: diasDesdeEntrega })}
         </p>
         {servicioDetectado && (
           <p className="text-[11px] text-indigo-700 bg-indigo-50/80 border border-indigo-100 rounded-lg px-2 py-1 mt-2 font-medium truncate" title={servicioDetectado}>
@@ -1486,22 +1487,22 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
             className="w-full bg-[#25D366] hover:bg-[#20bd59] disabled:opacity-50 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm"
           >
             {updating ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
-            Pedir reseña por WhatsApp
+            {appI18n.t("ui.CRM.request_review_via_whatsapp")}
           </button>
           <div className="flex items-center justify-between pt-1 px-1">
             <button
               onClick={() => onDescartar(ingreso)}
               disabled={updating}
               className="text-xs text-slate-400 hover:text-red-600 flex items-center gap-1 py-1 transition-colors"
-              title="Borrar card porque no se va a pedir reseña"
+              title={appI18n.t("ui.CRM.discard_this_review_request")}
             >
-              <Trash2 size={12} /> Descartar
+              <Trash2 size={12} /> {appI18n.t("ui.CRM.discard")}
             </button>
             <button
               onClick={() => onNoContactar(cliente.id, [ingreso.id], cliente.nombre_completo)}
               className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 py-1 transition-colors"
             >
-              <BellOff size={12} /> No contactar más
+              <BellOff size={12} /> {appI18n.t("ui.CRM.do_not_contact")}
             </button>
           </div>
         </div>
@@ -1510,7 +1511,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
       {estado === 'intentado' && (
         <div className="space-y-2">
           <p className="text-xs text-amber-600 text-center mb-2">
-            ¿Confirmás que el mensaje salió?
+            {appI18n.t("ui.CRM.was_the_message_sent")}
           </p>
           <div className="flex gap-2">
             <button
@@ -1519,14 +1520,14 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
               className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold py-2 rounded-xl flex items-center justify-center gap-1 text-sm transition-colors"
             >
               {updating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              Sí, enviado
+              {appI18n.t("ui.CRM.yes_sent")}
             </button>
             <button
               onClick={() => onDeshacer(ingreso)}
               disabled={updating}
               className="flex-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-bold py-2 rounded-xl flex items-center justify-center gap-1 text-sm transition-colors"
             >
-              <Undo2 size={14} /> Deshacer
+              <Undo2 size={14} /> {appI18n.t("ui.CRM.undo")}
             </button>
           </div>
           <div className="flex items-center justify-between pt-1 px-1">
@@ -1535,14 +1536,14 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
               disabled={updating}
               className="text-xs text-slate-400 hover:text-red-600 flex items-center gap-1 py-1 transition-colors"
             >
-              <Trash2 size={12} /> Descartar
+              <Trash2 size={12} /> {appI18n.t("ui.CRM.discard")}
             </button>
             <button
               onClick={() => onAbrir(ingreso)}
               disabled={updating || !cliente.telefono}
               className="text-xs text-[#25D366] hover:underline flex items-center gap-1 py-1"
             >
-              <MessageCircle size={12} /> Reintentar WhatsApp
+              <MessageCircle size={12} /> {appI18n.t("ui.CRM.retry_whatsapp")}
             </button>
           </div>
         </div>
@@ -1551,7 +1552,7 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
       {estado === 'confirmado' && (
         <div className="text-center">
           <p className="text-emerald-600 text-sm font-semibold flex items-center justify-center gap-1">
-            <CheckCircle2 size={16} /> Reseña solicitada
+            <CheckCircle2 size={16} /> {appI18n.t("ui.CRM.review_requested")}
           </p>
           {ingreso.resena_solicitada_at && (
             <p className="text-xs text-slate-400 mt-1">{formatFecha(ingreso.resena_solicitada_at)}</p>
@@ -1561,13 +1562,13 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
               onClick={() => onDeshacer(ingreso)}
               className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1"
             >
-              <Undo2 size={11} /> Deshacer
+              <Undo2 size={11} /> {appI18n.t("ui.CRM.undo")}
             </button>
             <button
               onClick={() => onDescartar(ingreso)}
               className="text-xs text-slate-400 hover:text-red-600 flex items-center gap-1"
             >
-              <Trash2 size={11} /> Descartar
+              <Trash2 size={11} /> {appI18n.t("ui.CRM.discard")}
             </button>
           </div>
         </div>
@@ -1575,34 +1576,34 @@ const TarjetaResena: React.FC<TarjetaResenaProps> = ({
 
       {estado === 'descartado' && (
         <div className="space-y-2 pt-1 text-center">
-          <p className="text-xs text-slate-400">Reseña descartada (no se solicitará)</p>
+          <p className="text-xs text-slate-400">{appI18n.t("ui.CRM.review_request_discarded")}</p>
           {ingreso.resena_descarte_motivo ? (
             <div className="bg-amber-50/80 border border-amber-200/60 rounded-xl p-2.5 my-1.5 text-left">
               <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
-                <AlertCircle size={12} /> Motivo del descarte:
+                <AlertCircle size={12} /> {appI18n.t("ui.CRM.reason_for_discarding")}
               </p>
               <p className="text-xs text-amber-900 mt-0.5 font-medium leading-snug">
                 {ingreso.resena_descarte_motivo}
               </p>
             </div>
           ) : (
-            <p className="text-[11px] text-slate-400 italic">Sin motivo especificado</p>
+            <p className="text-[11px] text-slate-400 italic">{appI18n.t("ui.CRM.no_reason_provided")}</p>
           )}
           <div className="flex gap-2 pt-1">
             <button
               onClick={() => onDescartar(ingreso)}
               disabled={updating}
               className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold py-1.5 rounded-xl flex items-center justify-center gap-1 text-xs transition-colors cursor-pointer"
-              title="Cambiar la nota de descarte"
+              title={appI18n.t("ui.CRM.change_discard_note")}
             >
-              Editar nota
+              {appI18n.t("ui.CRM.edit_note")}
             </button>
             <button
               onClick={() => onDeshacer(ingreso)}
               disabled={updating}
               className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-1.5 rounded-xl flex items-center justify-center gap-1 text-xs transition-colors cursor-pointer"
             >
-              <Undo2 size={13} /> Restaurar
+              <Undo2 size={13} /> {appI18n.t("ui.CRM.restore")}
             </button>
           </div>
         </div>
@@ -1631,9 +1632,9 @@ const TabRetencion: React.FC<TabRetencionProps> = ({
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-500">
         <Target className="mx-auto text-slate-300 w-16 h-16 mb-4" />
-        <p className="text-lg font-medium">No hay mantenimientos próximos sugeridos.</p>
+        <p className="text-lg font-medium">{appI18n.t("ui.CRM.no_upcoming_maintenance_suggestions")}</p>
         <p className="text-sm mt-1">
-          Los vehículos aparecerán aquí cuando se acerque la fecha de su próximo servicio.
+          {appI18n.t("ui.CRM.vehicles_will_appear_here_when_their_next_service")}
         </p>
       </div>
     );
@@ -1646,7 +1647,7 @@ const TabRetencion: React.FC<TabRetencionProps> = ({
     <div className="space-y-8">
       {vencidos.length > 0 && (
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider mb-4 text-red-600">⚠️ Vencidos — Contactar cuanto antes</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider mb-4 text-red-600">{appI18n.t("ui.CRM.overdue_contact_as_soon_as_possible")}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {vencidos.map(p => (
               <TarjetaRetencion
@@ -1663,7 +1664,7 @@ const TabRetencion: React.FC<TabRetencionProps> = ({
       )}
       {proximos.length > 0 && (
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider mb-4 text-amber-600">🔔 Próximos a vencer</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider mb-4 text-amber-600">{appI18n.t("ui.CRM.due_soon")}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {proximos.map(p => (
               <TarjetaRetencion
@@ -1726,12 +1727,12 @@ const TarjetaRetencion: React.FC<TarjetaRetencionProps> = ({
                 {categoriaLabel[s.categoria] || s.categoria}
               </span>
               {s.is_vencido
-                ? <span className="text-xs font-bold text-red-600">VENCIDO</span>
-                : <span className="text-xs font-semibold text-amber-600">Próximo</span>
+                ? <span className="text-xs font-bold text-red-600">{appI18n.t("ui.CRM.overdue")}</span>
+                : <span className="text-xs font-semibold text-amber-600">{appI18n.t("ui.CRM.upcoming")}</span>
               }
             </div>
             <div className="flex justify-between text-xs text-slate-500 mt-1">
-              <span>Sugerido: <strong className={s.is_vencido ? 'text-red-600' : 'text-amber-600'}>{formatFecha(s.fecha_sugerida)}</strong></span>
+              <span>{appI18n.t("ui.CRM.suggested")} <strong className={s.is_vencido ? 'text-red-600' : 'text-amber-600'}>{formatFecha(s.fecha_sugerida)}</strong></span>
               <span>~{s.kilometraje_sugerido.toLocaleString('es-CO')} km</span>
             </div>
           </div>
@@ -1742,8 +1743,8 @@ const TarjetaRetencion: React.FC<TarjetaRetencionProps> = ({
             className="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1 w-full justify-center py-1"
           >
             {expanded
-              ? <><ChevronUp size={14} /> Ver menos</>
-              : <><ChevronDown size={14} /> Ver {prospecto.servicios.length - 1} servicio{prospecto.servicios.length > 2 ? 's' : ''} más</>
+              ? <><ChevronUp size={14} /> {appI18n.t("ui.CRM.view_less")}</>
+              : <><ChevronDown size={14} /> {appI18n.t("ui.CRM.more_services", { count: prospecto.servicios.length - 1 })}</>
             }
           </button>
         )}
@@ -1756,13 +1757,13 @@ const TarjetaRetencion: React.FC<TarjetaRetencionProps> = ({
         className="w-full bg-[#25D366] hover:bg-[#20bd59] disabled:opacity-50 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm"
       >
         <MessageCircle size={16} />
-        Enviar recordatorio ({prospecto.servicios.length} servicio{prospecto.servicios.length !== 1 ? 's' : ''})
+        {appI18n.t("ui.CRM.reminder_services", { count: prospecto.servicios.length })}
       </button>
       <button
         onClick={() => onNoContactar(prospecto.cliente_id, [], prospecto.cliente_nombre)}
         className="w-full text-xs text-slate-400 hover:text-red-500 flex items-center justify-center gap-1 py-2 mt-1 transition-colors"
       >
-        <BellOff size={12} /> No contactar más
+        <BellOff size={12} /> {appI18n.t("ui.CRM.do_not_contact")}
       </button>
     </div>
   );
@@ -1784,10 +1785,10 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
   googleUrl, onChangeGoogleUrl, intervalos, onChangeIntervalos, loading, onGuardar, onCerrar,
 }) => {
   const categorias = [
-    { key: 'aceite', label: '🛢️ Cambio de Aceite' },
-    { key: 'frenos', label: '🔴 Frenos' },
-    { key: 'aire', label: '❄️ Aire Acondicionado' },
-    { key: 'general', label: '🔧 Mantenimiento General' },
+    { key: 'aceite', label: appI18n.t('crm.config_aceite') },
+    { key: 'frenos', label: appI18n.t('crm.config_frenos') },
+    { key: 'aire', label: appI18n.t('crm.config_aire') },
+    { key: 'general', label: appI18n.t('crm.config_general') },
   ] as const;
 
   return (
@@ -1796,7 +1797,7 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
         <div className="flex justify-between items-center p-6 border-b border-slate-100">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <Settings2 size={20} className="text-indigo-600" />
-            Configuración del CRM
+            {appI18n.t("ui.CRM.crm_settings")}
           </h2>
           <button onClick={onCerrar} className="text-slate-400 hover:text-slate-700 transition-colors">
             <X size={22} />
@@ -1807,7 +1808,7 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
           {/* Google Review URL */}
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">
-              🌟 Enlace de Reseñas de Google
+              {appI18n.t("ui.CRM.google_review_link")}
             </label>
             <input
               type="url"
@@ -1817,14 +1818,14 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
               className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
             />
             <p className="text-xs text-slate-400 mt-1">
-              Encuéntalo en Google Business → "Pedir reseñas". Se incluye automáticamente en el mensaje de WhatsApp.
+              {appI18n.t("ui.CRM.find_it_in_google_business_ask_for_reviews")}
             </p>
           </div>
 
           {/* Intervalos por categoría */}
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-3">
-              ⏱️ Intervalos de Mantenimiento Preventivo
+              {appI18n.t("ui.CRM.preventive_maintenance_intervals")}
             </label>
             <div className="space-y-3">
               {categorias.map(({ key, label }) => (
@@ -1832,7 +1833,7 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
                   <p className="text-sm font-semibold text-slate-700 mb-3">{label}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-slate-500 mb-1">Meses</label>
+                      <label className="block text-xs text-slate-500 mb-1">{appI18n.t("ui.CRM.months")}</label>
                       <input
                         type="number"
                         min={1}
@@ -1846,7 +1847,7 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-500 mb-1">Kilómetros</label>
+                      <label className="block text-xs text-slate-500 mb-1">{appI18n.t("ui.CRM.kilometers")}</label>
                       <input
                         type="number"
                         min={100}
@@ -1867,10 +1868,9 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
 
           {/* Ley 1581 */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700">
-            <p className="font-semibold mb-1">📋 Ley 1581 de 2012 – Habeas Data</p>
+            <p className="font-semibold mb-1">{appI18n.t("ui.CRM.law_1581_of_2012_habeas_data")}</p>
             <p>
-              Puedes dar de baja a cualquier cliente desde cada tarjeta con el botón "No contactar más".
-              Esos clientes quedan excluidos automáticamente de ambas pestañas del CRM.
+              {appI18n.t("ui.CRM.use_do_not_contact_on_a_customer_s")}
             </p>
           </div>
         </div>
@@ -1880,7 +1880,7 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
             onClick={onCerrar}
             className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl transition-colors"
           >
-            Cancelar
+            {appI18n.t("ui.CRM.cancel")}
           </button>
           <button
             onClick={onGuardar}
@@ -1888,7 +1888,7 @@ const ModalConfig: React.FC<ModalConfigProps> = ({
             className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Guardar cambios
+            {appI18n.t("ui.CRM.save_changes")}
           </button>
         </div>
       </div>

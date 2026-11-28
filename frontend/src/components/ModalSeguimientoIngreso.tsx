@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useRef, useState } from 'react';
 import { X, Clock, CalendarClock, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
@@ -95,7 +96,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
       }
       onSuccess(submitter?.getAttribute('value') === 'bitacora');
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'No se pudo guardar el seguimiento.');
+      setError(err?.response?.data?.error || appI18n.t('ui.ModalSeguimientoIngreso.save_error'));
       setSaving(false);
       setProgreso(undefined);
     }
@@ -110,11 +111,11 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
               <Clock size={18} />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-base">Actualizar Estado del Vehículo</h3>
+              <h3 className="font-bold text-slate-900 text-base">{appI18n.t("ui.ModalSeguimientoIngreso.update_vehicle_status")}</h3>
               <p className="text-xs text-slate-500">
-                Placa: <strong>{ingreso.taller_vehiculos?.placa || 'S/P'}</strong>
+                {appI18n.t("ui.ModalSeguimientoIngreso.plate")} <strong>{ingreso.taller_vehiculos?.placa || 'S/P'}</strong>
                 {ingreso.horas_sin_actualizacion !== undefined && (
-                  <> · Sin reporte hace <strong>{ingreso.horas_sin_actualizacion}h</strong></>
+                  <> {appI18n.t("ui.ModalSeguimientoIngreso.no_update_for")} <strong>{ingreso.horas_sin_actualizacion}h</strong></>
                 )}
               </p>
             </div>
@@ -134,7 +135,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
-              ¿Cómo va el vehículo?
+              {appI18n.t("ui.ModalSeguimientoIngreso.how_is_the_vehicle_coming_along")}
             </label>
             <div className="flex flex-wrap gap-2">
               {OPCIONES_AVANCE.map((opcion) => (
@@ -148,7 +149,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  {opcion}
+                  {appI18n.t(`ui.ModalSeguimientoIngreso.progress.${opcion}`, { defaultValue: opcion })}
                 </button>
               ))}
             </div>
@@ -156,13 +157,13 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-              Nota rápida (opcional)
+              {appI18n.t("ui.ModalSeguimientoIngreso.quick_note_optional")}
             </label>
             <NotaPorVoz
               rows={3}
               value={nota}
               onChange={setNota}
-              placeholder="Ej: Repuesto llega mañana 10 AM, o esperando confirmación del cliente..."
+              placeholder={appI18n.t("ui.ModalSeguimientoIngreso.e_g_the_part_arrives_tomorrow_at_10")}
               className="w-full border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
               contexto={{
                 tipo: `Nota de seguimiento del vehículo (${estadoAvance})`,
@@ -182,8 +183,8 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
               <CalendarClock size={16} className="text-indigo-500" />
               <span>
                 {ingreso.fecha_entrega_estimada
-                  ? 'Reprogramar fecha/hora estimada de salida'
-                  : 'Definir fecha/hora estimada de salida'}
+                  ? appI18n.t('ui.ModalSeguimientoIngreso.reschedule')
+                  : appI18n.t('ui.ModalSeguimientoIngreso.schedule')}
               </span>
             </label>
 
@@ -191,7 +192,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
               <div className="mt-3 space-y-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Nueva fecha y hora estimada
+                    {appI18n.t("ui.ModalSeguimientoIngreso.new_estimated_date_and_time")}
                   </label>
                   <input
                     type="datetime-local"
@@ -204,13 +205,13 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
                 {ingreso.fecha_entrega_estimada && (
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">
-                      Motivo de reprogramación
+                      {appI18n.t("ui.ModalSeguimientoIngreso.reason_for_rescheduling")}
                     </label>
                     <input
                       type="text"
                       value={motivoReprogramacion}
                       onChange={(e) => setMotivoReprogramacion(e.target.value)}
-                      placeholder="Ej: Demora de proveedor de repuestos"
+                      placeholder={appI18n.t("ui.ModalSeguimientoIngreso.e_g_parts_supplier_delay")}
                       className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
                     />
                   </div>
@@ -221,7 +222,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
 
           <fieldset disabled={saving} className="space-y-2">
             <label className="block text-sm font-medium text-slate-700">
-              Fotos y videos del avance
+              {appI18n.t("ui.ModalSeguimientoIngreso.progress_photos_and_videos")}
               <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,.mov"
                 className="mt-1 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-indigo-800"
                 onChange={e => {
@@ -229,14 +230,14 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
                   e.target.value = '';
                 }} />
             </label>
-            <p className="text-xs text-slate-600">Hasta 4 archivos de 25 MB cada uno. Máximo 2 videos de 20 segundos.</p>
+            <p className="text-xs text-slate-600">{appI18n.t("ui.ModalSeguimientoIngreso.up_to_4_files_of_25_mb_each")}</p>
             {evidencias.length > 0 && (
               <ul className="space-y-1">
                 {evidencias.map((archivo, indice) => (
                   <li key={indice} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 text-sm">
                     <span className="min-w-0 truncate">{archivo.name}</span>
                     <button type="button" className="shrink-0 text-indigo-800" aria-label={`Quitar ${archivo.name}`}
-                      onClick={() => setEvidencias(prev => prev.filter((_, i) => i !== indice))}>Quitar</button>
+                      onClick={() => setEvidencias(prev => prev.filter((_, i) => i !== indice))}>{appI18n.t("ui.ModalSeguimientoIngreso.remove")}</button>
                   </li>
                 ))}
               </ul>
@@ -244,7 +245,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
           </fieldset>
           {saving && evidencias.length > 0 && (
             <p role="status" className="text-sm text-indigo-800">
-              {progreso === 100 ? 'Comprimiendo y guardando evidencias…' : `Subiendo evidencias${progreso === undefined ? '' : ` (${progreso} %)`}…`}
+              {progreso === 100 ? appI18n.t("ui.ModalSeguimientoIngreso.compressing_and_saving_attachments") : `Subiendo evidencias${progreso === undefined ? '' : ` (${progreso} %)`}…`}
             </p>
           )}
           <div className="flex flex-wrap justify-end gap-2 pt-2">
@@ -254,7 +255,7 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
               disabled={saving}
               className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
             >
-              Cancelar
+              {appI18n.t("ui.ModalSeguimientoIngreso.cancel")}
             </button>
             <button
               type="submit"
@@ -262,11 +263,11 @@ const ModalSeguimientoIngreso: React.FC<ModalSeguimientoIngresoProps> = ({
               className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm flex items-center gap-1.5 disabled:opacity-50"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-              Guardar seguimiento
+              {appI18n.t("ui.ModalSeguimientoIngreso.save_update")}
             </button>
             <button type="submit" value="bitacora" disabled={saving}
               className="rounded-xl bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-800 disabled:opacity-50">
-              Guardar y abrir bitácora
+              {appI18n.t("ui.ModalSeguimientoIngreso.save_and_open_activity_log")}
             </button>
           </div>
         </form>

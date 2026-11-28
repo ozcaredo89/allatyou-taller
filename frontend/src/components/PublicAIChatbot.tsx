@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Turnstile } from '@marsidev/react-turnstile';
 import { generarLinkWhatsApp } from '../utils/whatsapp';
@@ -154,11 +155,11 @@ const ModalLead: React.FC<{
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.acepta_terminos) {
-      setError('Debes aceptar el tratamiento de datos para continuar.');
+      setError(appI18n.t('ui.PublicAIChatbot.consent_to_data_processing_is_required_to_continue'));
       return;
     }
     if (!form.telefono.trim()) {
-      setError('El número de teléfono es obligatorio.');
+      setError(appI18n.t('ui.PublicAIChatbot.a_phone_number_is_required'));
       return;
     }
     setError('');
@@ -172,25 +173,25 @@ const ModalLead: React.FC<{
         <div className="ai-modal-header" style={{ background: primaryColor }}>
           <span style={{ fontSize: 24 }}>📅</span>
           <div>
-            <h3 style={{ margin: 0, fontSize: 16 }}>Agendar cita</h3>
+            <h3 style={{ margin: 0, fontSize: 16 }}>{appI18n.t("ui.PublicAIChatbot.book_an_appointment_2")}</h3>
             <p style={{ margin: 0, fontSize: 12, opacity: 0.9 }}>{workshopName}</p>
           </div>
         </div>
         <form onSubmit={handleSubmit} className="ai-modal-form">
           <div className="ai-form-group">
-            <label>Tu nombre</label>
+            <label>{appI18n.t("ui.PublicAIChatbot.your_name")}</label>
             <input
               type="text"
-              placeholder="Ej: Juan García"
+              placeholder={appI18n.t("ui.PublicAIChatbot.e_g_juan_garc_a")}
               value={form.nombre}
               onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
             />
           </div>
           <div className="ai-form-group">
-            <label>Teléfono / WhatsApp <span className="ai-required">*</span></label>
+            <label>{appI18n.t("ui.PublicAIChatbot.phone_whatsapp")} <span className="ai-required">*</span></label>
             <input
               type="tel"
-              placeholder="Ej: 3001234567"
+              placeholder={appI18n.t("ui.PublicAIChatbot.e_g_3001234567")}
               value={form.telefono}
               onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))}
               required
@@ -198,19 +199,19 @@ const ModalLead: React.FC<{
           </div>
           <div className="ai-form-row">
             <div className="ai-form-group">
-              <label>Marca del vehículo</label>
+              <label>{appI18n.t("ui.PublicAIChatbot.vehicle_make")}</label>
               <input
                 type="text"
-                placeholder="Ej: Chevrolet"
+                placeholder={appI18n.t("ui.PublicAIChatbot.e_g_chevrolet")}
                 value={form.vehiculo_marca}
                 onChange={e => setForm(p => ({ ...p, vehiculo_marca: e.target.value }))}
               />
             </div>
             <div className="ai-form-group">
-              <label>Línea / Modelo</label>
+              <label>{appI18n.t("ui.PublicAIChatbot.model_line")}</label>
               <input
                 type="text"
-                placeholder="Ej: Spark 2019"
+                placeholder={appI18n.t("ui.PublicAIChatbot.e_g_spark_2019")}
                 value={form.vehiculo_linea}
                 onChange={e => setForm(p => ({ ...p, vehiculo_linea: e.target.value }))}
               />
@@ -226,9 +227,9 @@ const ModalLead: React.FC<{
               required
             />
             <span>
-              Autorizo el tratamiento de mis datos personales conforme a la{' '}
-              <strong>Ley 1581 de 2012</strong> y la política de privacidad de{' '}
-              {workshopName} para ser contactado sobre este servicio.{' '}
+              {appI18n.t("ui.PublicAIChatbot.i_consent_to_the_use_of_my_personal")}{' '}
+              <strong>{appI18n.t("ui.PublicAIChatbot.law_1581_of_2012")}</strong> {appI18n.t("ui.PublicAIChatbot.and_the_privacy_policy_of")}{' '}
+              {workshopName} {appI18n.t("ui.PublicAIChatbot.so_i_can_be_contacted_about_this_service")}{' '}
               <span className="ai-required">*</span>
             </span>
           </label>
@@ -241,7 +242,7 @@ const ModalLead: React.FC<{
             style={{ background: primaryColor }}
             disabled={loading || !form.acepta_terminos}
           >
-            {loading ? 'Enviando...' : '📞 Solicitar que me contacten'}
+            {loading ? appI18n.t('ui.PublicAIChatbot.sending') : appI18n.t('ui.PublicAIChatbot.request_a_callback')}
           </button>
         </form>
       </div>
@@ -362,8 +363,8 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
           role: 'model',
           parts: [{
             text: fallback || err.message?.includes('servicio')
-              ? `Lo siento, el asistente no está disponible en este momento. 😔\n\n${telefonoTaller ? `Contáctanos directamente al **${telefonoTaller}** y con gusto te atendemos.` : 'Por favor contáctanos directamente para cotizar.'}`
-              : '⚠️ Error de conexión. Por favor intenta de nuevo en un momento.',
+              ? `Lo siento, el asistente no está disponible en este momento. 😔\n\n${telefonoTaller ? `Contáctanos directamente al **${telefonoTaller}** y con gusto te atendemos.` : appI18n.t('ui.PublicAIChatbot.contact_us_directly_for_a_quote')}`
+              : appI18n.t('ui.PublicAIChatbot.connection_error_please_try_again_in_a_moment'),
           }],
           timestamp: new Date(),
         },
@@ -850,11 +851,11 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
         <div className="ai-chatbot-header" style={{ background: primaryColor }}>
           <div className="ai-header-icon">🔧</div>
           <div className="ai-header-text">
-            <h4>Asesor Virtual — {workshopName}</h4>
-            <p>Cotizaciones orientativas • En línea</p>
+            <h4>{appI18n.t("ui.PublicAIChatbot.virtual_advisor")} {workshopName}</h4>
+            <p>{appI18n.t("ui.PublicAIChatbot.estimated_quotes_online")}</p>
           </div>
-          <div className="ai-header-online" title="En línea" />
-          <button className="ai-header-close" onClick={() => setAbierto(false)} aria-label="Cerrar chat">✕</button>
+          <div className="ai-header-online" title={appI18n.t("ui.PublicAIChatbot.online")} />
+          <button className="ai-header-close" onClick={() => setAbierto(false)} aria-label={appI18n.t("ui.PublicAIChatbot.close_chat")}>✕</button>
         </div>
 
         {/* Área de mensajes */}
@@ -879,7 +880,7 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
               style={{ background: primaryColor, color: 'white' }}
               onClick={() => setShowLead(true)}
             >
-              📅 Agendar cita
+              {appI18n.t("ui.PublicAIChatbot.book_an_appointment")}
             </button>
             {whatsappUrl && (
               <a
@@ -887,7 +888,7 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="ai-btn-wa"
-                aria-label="Contactar por WhatsApp"
+                aria-label={appI18n.t("ui.PublicAIChatbot.contact_via_whatsapp")}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
@@ -903,21 +904,21 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
               type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="Describe el problema de tu vehículo..."
+              placeholder={appI18n.t("ui.PublicAIChatbot.describe_your_vehicle_s_issue")}
               disabled={cargando}
-              aria-label="Escribe tu mensaje"
+              aria-label={appI18n.t("ui.PublicAIChatbot.type_your_message")}
               maxLength={500}
             />
             <button
               type="submit"
               disabled={!input.trim() || cargando}
               style={{ background: primaryColor }}
-              aria-label="Enviar mensaje"
+              aria-label={appI18n.t("ui.PublicAIChatbot.send_message")}
             >
               ➤
             </button>
           </form>
-          <p className="ai-powered">Cotizaciones orientativas · {workshopName} · Powered by IA</p>
+          <p className="ai-powered">{appI18n.t("ui.PublicAIChatbot.estimated_quotes")} {workshopName} {appI18n.t("ui.PublicAIChatbot.powered_by_ai")}</p>
         </div>
       </div>
 
@@ -926,7 +927,7 @@ export const PublicAIChatbot: React.FC<PublicAIChatbotProps> = ({
         className="ai-chatbot-fab"
         style={{ background: primaryColor }}
         onClick={() => setAbierto(prev => !prev)}
-        aria-label={abierto ? 'Cerrar asistente virtual' : 'Abrir asistente virtual'}
+        aria-label={abierto ? appI18n.t('ui.PublicAIChatbot.close_virtual_assistant') : appI18n.t('ui.PublicAIChatbot.open_virtual_assistant')}
         title={`Cotiza con ${workshopName}`}
       >
         {abierto ? '✕' : '💬'}

@@ -1,3 +1,4 @@
+import appI18n from '../i18n';
 import React, { useEffect, useRef, useState } from 'react';
 import { Gauge, Loader2, CheckSquare } from 'lucide-react';
 import { parseKilometraje } from '../services/rentingOdometer';
@@ -18,9 +19,9 @@ export const CampoKilometrajeEntrega: React.FC<CampoProps> = ({ value, onChange,
   return (
     <div className="bg-sky-50 border border-sky-200 rounded-xl p-3.5">
       <label htmlFor="kilometraje-entrega" className="flex items-center gap-2 text-sm font-bold text-sky-950">
-        <Gauge size={16} className="text-sky-600" /> Kilometraje del tablero
+        <Gauge size={16} className="text-sky-600" /> {appI18n.t("ui.KilometrajeEntrega.odometer_reading")}
       </label>
-      <p className="text-xs text-sky-800 mt-0.5 mb-2">La orden incluye cambio de aceite. Se registra en Renting.</p>
+      <p className="text-xs text-sky-800 mt-0.5 mb-2">{appI18n.t("ui.KilometrajeEntrega.this_order_includes_an_oil_change_the_reading")}</p>
       <div className="relative">
         <input
           ref={ref}
@@ -28,7 +29,7 @@ export const CampoKilometrajeEntrega: React.FC<CampoProps> = ({ value, onChange,
           type="text"
           inputMode="numeric"
           autoComplete="off"
-          placeholder="Ej: 85400"
+          placeholder={appI18n.t("ui.KilometrajeEntrega.e_g_85400")}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter?.(); } }}
@@ -46,8 +47,8 @@ export const KilometrajeRecepcionInfo: React.FC<{ km: number }> = ({ km }) => (
   <div className="bg-sky-50 border border-sky-200 rounded-xl p-3.5 flex items-start gap-2">
     <Gauge size={16} className="text-sky-600 shrink-0 mt-0.5" />
     <p className="text-sm text-sky-950">
-      Kilometraje: <strong>{km.toLocaleString('es-CO')} km</strong>
-      <span className="block text-xs text-sky-800">Registrado en la recepción. Se reporta a Renting por el cambio de aceite.</span>
+      {appI18n.t("ui.KilometrajeEntrega.odometer_reading_2")} <strong>{km.toLocaleString('es-CO')} km</strong>
+      <span className="block text-xs text-sky-800">{appI18n.t("ui.KilometrajeEntrega.recorded_at_check_in_the_reading_is_reported")}</span>
     </p>
   </div>
 );
@@ -83,7 +84,7 @@ export const ModalKilometrajeEntrega: React.FC<ModalProps> = ({ placa, loading, 
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
         <div className="flex items-center gap-3 text-emerald-600">
           <CheckSquare size={28} />
-          <h2 className="text-xl font-bold text-slate-900">Entregar vehículo{placa ? ` ${placa}` : ''}</h2>
+          <h2 className="text-xl font-bold text-slate-900">{appI18n.t("ui.KilometrajeEntrega.deliver_vehicle")}{placa ? ` ${placa}` : ''}</h2>
         </div>
         <CampoKilometrajeEntrega
           value={lectura}
@@ -94,11 +95,11 @@ export const ModalKilometrajeEntrega: React.FC<ModalProps> = ({ placa, loading, 
         />
         <div className="flex gap-3 justify-end">
           <button type="button" onClick={onCancel} disabled={loading} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition cursor-pointer disabled:opacity-50">
-            Cancelar
+            {appI18n.t("ui.CRM.cancel")}
           </button>
           <button type="button" onClick={confirmar} disabled={loading} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-2 cursor-pointer">
             {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckSquare size={16} />}
-            Entregar
+            {appI18n.t("ui.Dashboard.deliver")}
           </button>
         </div>
       </div>

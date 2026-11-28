@@ -1,3 +1,4 @@
+import appI18n, { displayLocale } from '../i18n';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   DollarSign, Wrench, CalendarDays, ChevronDown, Loader2, AlertCircle,
@@ -38,7 +39,7 @@ const formatCOP = (val: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  new Date(iso).toLocaleDateString(displayLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 
 /** Fecha de hoy en zona America/Bogota como YYYY-MM-DD (evita desfase UTC). */
 const bogotaToday = (): string =>
@@ -89,7 +90,7 @@ const ModalLiquidar: React.FC<ModalLiquidarProps> = ({
   const tecnicoId = filasSeleccionadas[0]?.tecnico_id;
 
   const handleConfirmar = async () => {
-    if (!fechaPago) { setError('La fecha de pago es obligatoria.'); return; }
+    if (!fechaPago) { setError(appI18n.t('ui.ReporteLiquidaciones.payment_date_is_required')); return; }
     setProcesando(true);
     setError('');
     try {
@@ -539,7 +540,7 @@ const ReporteLiquidaciones: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-violet-600 text-white rounded-2xl p-6 shadow-lg shadow-violet-200">
             <p className="text-sm font-medium text-violet-200">
-              {tab === 'pendiente' ? t('liquidaciones.kpi_total_pagar') : 'Total Liquidado'}
+              {tab === 'pendiente' ? t('liquidaciones.kpi_total_pagar') : appI18n.t('ui.ReporteLiquidaciones.total_paid')}
             </p>
             <p className="text-3xl font-bold mt-2 tracking-tight">{formatCOP(totalComisiones)}</p>
             <p className="text-xs text-violet-300 mt-1 flex items-center gap-1"><DollarSign size={12} /> {t('liquidaciones.kpi_total_pagar_desc')}</p>
@@ -759,7 +760,7 @@ const ReporteLiquidaciones: React.FC = () => {
                           <button
                             onClick={() => startEdit(fila)}
                             className="inline-flex items-center gap-2 font-semibold text-violet-700 hover:text-violet-900 hover:bg-violet-50 px-3 py-1.5 rounded-lg transition-all group"
-                            title="Clic para editar el porcentaje"
+                            title={appI18n.t("ui.ReporteLiquidaciones.click_to_edit_the_percentage")}
                           >
                             <span className="text-violet-500 font-bold text-base">
                               {fila.porcentaje_aplicado % 1 === 0

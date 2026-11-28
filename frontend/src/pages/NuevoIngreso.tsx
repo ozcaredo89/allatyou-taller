@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useEffect } from 'react';
 import { UserSearch, CarFront, FileEdit, Check, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import api from '../services/api';
@@ -196,7 +197,7 @@ const NuevoIngreso: React.FC = () => {
 
   const guardarEdicionCliente = async () => {
     if (!editCliente.documento?.trim() || !editCliente.nombre_completo?.trim()) {
-      setError('El documento y el nombre completo no pueden quedar en blanco.');
+      setError(appI18n.t('ui.NuevoIngreso.id_and_full_name_are_required'));
       return;
     }
 
@@ -229,7 +230,7 @@ const NuevoIngreso: React.FC = () => {
             setDocumento(updatedVehiculo.taller_clientes.documento);
             setIsEditingCliente(false);
           } catch (reassignErr: any) {
-            setError('Error al reasignar el vehículo al cliente.');
+            setError(appI18n.t('ui.NuevoIngreso.could_not_reassign_the_vehicle_to_the_customer'));
           } finally {
             setEditingLoading(false);
           }
@@ -367,7 +368,7 @@ const NuevoIngreso: React.FC = () => {
                   className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[120px] justify-center"
                 >
                   {isSearchingVehiculo
-                    ? <><Loader2 size={16} className="animate-spin" /> Buscando...</>
+                    ? <><Loader2 size={16} className="animate-spin" /> {appI18n.t("ui.NuevoIngreso.searching")}</>
                     : t('nuevo_ingreso.btn_search')
                   }
                 </button>
@@ -385,7 +386,7 @@ const NuevoIngreso: React.FC = () => {
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <button onClick={resetAll} className="text-sm font-medium text-emerald-700 hover:text-emerald-900 underline">{t('nuevo_ingreso.btn_new_search')}</button>
-                  <button onClick={iniciarEdicionVehiculo} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title="Editar vehículo">
+                  <button onClick={iniciarEdicionVehiculo} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title={appI18n.t("ui.NuevoIngreso.edit_vehicle")}>
                     <FileEdit size={18} />
                   </button>
                 </div>
@@ -393,35 +394,35 @@ const NuevoIngreso: React.FC = () => {
             ) : (
               <div className="bg-white border border-blue-200 p-4 rounded-xl space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-blue-900">Editar Información del Vehículo</h3>
+                  <h3 className="font-bold text-blue-900">{appI18n.t("ui.NuevoIngreso.edit_vehicle_information")}</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                   <div className="lg:col-span-1">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Placa</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.license_plate")}</label>
                     <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.placa} onChange={e => setEditVehiculo({...editVehiculo, placa: e.target.value.toUpperCase()})} />
                   </div>
                   <div className="lg:col-span-1">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Marca</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.make")}</label>
                     <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.marca} onChange={e => setEditVehiculo({...editVehiculo, marca: e.target.value})} />
                   </div>
                   <div className="lg:col-span-1">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Línea</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.model_line")}</label>
                     <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.linea} onChange={e => setEditVehiculo({...editVehiculo, linea: e.target.value})} />
                   </div>
                   <div className="lg:col-span-1">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Modelo</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.model_year")}</label>
                     <input type="number" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.modelo_anio || ''} onChange={e => setEditVehiculo({...editVehiculo, modelo_anio: e.target.value ? Number(e.target.value) : null})} />
                   </div>
                   <div className="lg:col-span-1">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Color</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.color")}</label>
                     <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={editVehiculo.color} onChange={e => setEditVehiculo({...editVehiculo, color: e.target.value})} />
                   </div>
                 </div>
                 <div className="flex gap-2 justify-end mt-4">
-                  <button onClick={() => setIsEditingVehiculo(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  <button onClick={() => setIsEditingVehiculo(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">{appI18n.t("ui.NuevoIngreso.cancel")}</button>
                   <button onClick={guardarEdicionVehiculo} disabled={editingLoading} className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 flex gap-2 items-center">
                     {editingLoading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                    Guardar Cambios
+                    {appI18n.t("ui.NuevoIngreso.save_changes")}
                   </button>
                 </div>
               </div>
@@ -434,11 +435,11 @@ const NuevoIngreso: React.FC = () => {
                     <div className="p-2 bg-slate-200 rounded-full"><UserSearch size={18} className="text-slate-600" /></div>
                     <div>
                       <p className="font-semibold text-slate-800">{cliente.nombre_completo}</p>
-                      <p className="text-xs text-slate-500">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
+                      <p className="text-xs text-slate-500">{appI18n.t("ui.NuevoIngreso.id_2")} {cliente.documento} {appI18n.t("ui.NuevoIngreso.phone_2")} {cliente.telefono}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <button onClick={iniciarEdicionCliente} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title="Editar cliente">
+                    <button onClick={iniciarEdicionCliente} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title={appI18n.t("ui.NuevoIngreso.edit_customer")}>
                       <FileEdit size={18} />
                     </button>
                   </div>
@@ -446,31 +447,31 @@ const NuevoIngreso: React.FC = () => {
               ) : (
                 <div className="bg-white border border-indigo-200 p-4 rounded-xl space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-bold text-indigo-900">Editar Información del Cliente</h3>
+                    <h3 className="font-bold text-indigo-900">{appI18n.t("ui.NuevoIngreso.edit_customer_information")}</h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Documento</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.id")}</label>
                       <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.documento} onChange={e => setEditCliente({...editCliente, documento: e.target.value})} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Nombre Completo</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.full_name")}</label>
                       <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.nombre_completo} onChange={e => setEditCliente({...editCliente, nombre_completo: e.target.value})} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Teléfono</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.phone")}</label>
                       <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.telefono} onChange={e => setEditCliente({...editCliente, telefono: e.target.value})} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.email")}</label>
                       <input type="email" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.email} onChange={e => setEditCliente({...editCliente, email: e.target.value})} />
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end mt-4">
-                    <button onClick={() => setIsEditingCliente(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+                    <button onClick={() => setIsEditingCliente(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">{appI18n.t("ui.NuevoIngreso.cancel")}</button>
                     <button onClick={guardarEdicionCliente} disabled={editingLoading} className="px-4 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex gap-2 items-center">
                       {editingLoading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                      Guardar Cambios
+                      {appI18n.t("ui.NuevoIngreso.save_changes")}
                     </button>
                   </div>
                 </div>
@@ -482,7 +483,7 @@ const NuevoIngreso: React.FC = () => {
           <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
             <div className="flex justify-between items-center bg-blue-50 border border-blue-200 p-3 rounded-xl">
               <div>
-                <p className="text-sm text-blue-800 font-medium">Placa: <span className="font-bold text-lg tracking-widest">{placa}</span></p>
+                <p className="text-sm text-blue-800 font-medium">{appI18n.t("ui.NuevoIngreso.plate")} <span className="font-bold text-lg tracking-widest">{placa}</span></p>
                 <p className="text-xs text-blue-600">{t('nuevo_ingreso.not_found')}</p>
               </div>
               <button onClick={resetAll} className="text-xs font-medium text-blue-700 hover:text-blue-900 underline">{t('nuevo_ingreso.btn_change_placa')}</button>
@@ -557,7 +558,7 @@ const NuevoIngreso: React.FC = () => {
                         className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[110px] justify-center"
                       >
                         {isSearchingCliente
-                          ? <><Loader2 size={14} className="animate-spin" /> Validando...</>
+                          ? <><Loader2 size={14} className="animate-spin" /> {appI18n.t("ui.NuevoIngreso.validating")}</>
                           : t('nuevo_ingreso.btn_search')
                         }
                       </button>
@@ -569,11 +570,11 @@ const NuevoIngreso: React.FC = () => {
                   <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between group">
                     <div>
                       <p className="font-semibold text-emerald-900">{cliente.nombre_completo}</p>
-                      <p className="text-sm text-emerald-700">Doc: {cliente.documento} | Tel: {cliente.telefono}</p>
+                      <p className="text-sm text-emerald-700">{appI18n.t("ui.NuevoIngreso.id_2")} {cliente.documento} {appI18n.t("ui.NuevoIngreso.phone_2")} {cliente.telefono}</p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <button onClick={() => { setCliente(null); setHasSearchedDocumento(false); }} className="text-sm font-medium text-emerald-700 underline">{t('nuevo_ingreso.btn_change_doc')}</button>
-                      <button onClick={iniciarEdicionCliente} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title="Editar cliente">
+                      <button onClick={iniciarEdicionCliente} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title={appI18n.t("ui.NuevoIngreso.edit_customer")}>
                         <FileEdit size={18} />
                       </button>
                     </div>
@@ -581,31 +582,31 @@ const NuevoIngreso: React.FC = () => {
                 ) : (
                   <div className="bg-white border border-indigo-200 p-4 rounded-xl space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2">
                     <div className="flex justify-between items-center mb-2">
-                      <h3 className="font-bold text-indigo-900">Editar Información del Cliente</h3>
+                      <h3 className="font-bold text-indigo-900">{appI18n.t("ui.NuevoIngreso.edit_customer_information")}</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Documento</label>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.id")}</label>
                         <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.documento} onChange={e => setEditCliente({...editCliente, documento: e.target.value})} />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Nombre Completo</label>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.full_name")}</label>
                         <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.nombre_completo} onChange={e => setEditCliente({...editCliente, nombre_completo: e.target.value})} />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Teléfono</label>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.phone")}</label>
                         <input type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.telefono} onChange={e => setEditCliente({...editCliente, telefono: e.target.value})} />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">{appI18n.t("ui.NuevoIngreso.email")}</label>
                         <input type="email" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={editCliente.email} onChange={e => setEditCliente({...editCliente, email: e.target.value})} />
                       </div>
                     </div>
                     <div className="flex gap-2 justify-end mt-4">
-                      <button onClick={() => setIsEditingCliente(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+                      <button onClick={() => setIsEditingCliente(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">{appI18n.t("ui.NuevoIngreso.cancel")}</button>
                       <button onClick={guardarEdicionCliente} disabled={editingLoading} className="px-4 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex gap-2 items-center">
                         {editingLoading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                        Guardar Cambios
+                        {appI18n.t("ui.NuevoIngreso.save_changes")}
                       </button>
                     </div>
                   </div>

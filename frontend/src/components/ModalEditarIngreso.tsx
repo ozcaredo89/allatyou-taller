@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useEffect } from 'react';
 import { 
   X, 
@@ -251,7 +252,7 @@ export const ModalEditarIngreso: React.FC<Props> = ({ ingresoId, onClose, onSucc
           {loading ? (
             <div className="py-16 flex flex-col items-center justify-center gap-3 text-slate-400">
               <Loader2 className="animate-spin text-indigo-600 w-8 h-8" />
-              <p className="text-sm">Cargando datos del ingreso...</p>
+              <p className="text-sm">{appI18n.t("ui.ModalEditarIngreso.loading_visit_details")}</p>
             </div>
           ) : (
             <form id="form-editar-ingreso" onSubmit={handleSubmit} className="space-y-5">
@@ -272,7 +273,7 @@ export const ModalEditarIngreso: React.FC<Props> = ({ ingresoId, onClose, onSucc
                   required
                 />
                 <p className="text-xs text-slate-500">
-                  Modifica este campo si hubo una equivocación al registrar la visita (por ejemplo, corrección de diagnóstico o servicio inicial).
+                  {appI18n.t("ui.ModalEditarIngreso.edit_this_field_to_correct_a_mistake_in")}
                 </p>
               </div>
 
@@ -403,12 +404,12 @@ export const ModalEditarIngreso: React.FC<Props> = ({ ingresoId, onClose, onSucc
                 {showVehicleClient && (
                   <div className="p-4 space-y-4 bg-white border-t border-slate-200">
                     <p className="text-xs text-slate-500">
-                      Si hubo un error de digitación en la placa, marca o datos del propietario, puedes ajustarlos directamente aquí.
+                      {appI18n.t("ui.ModalEditarIngreso.you_can_correct_typos_in_the_license_plate")}
                     </p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Placa</label>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">{appI18n.t("ui.ModalEditarIngreso.license_plate")}</label>
                         <input
                           type="text"
                           value={placa}
@@ -417,7 +418,7 @@ export const ModalEditarIngreso: React.FC<Props> = ({ ingresoId, onClose, onSucc
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Marca</label>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">{appI18n.t("ui.ModalEditarIngreso.make")}</label>
                         <input
                           type="text"
                           value={marca}
@@ -426,7 +427,7 @@ export const ModalEditarIngreso: React.FC<Props> = ({ ingresoId, onClose, onSucc
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Línea</label>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">{appI18n.t("ui.ModalEditarIngreso.model_line")}</label>
                         <input
                           type="text"
                           value={linea}
@@ -435,17 +436,17 @@ export const ModalEditarIngreso: React.FC<Props> = ({ ingresoId, onClose, onSucc
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Modelo / Año</label>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">{appI18n.t("ui.ModalEditarIngreso.model_year")}</label>
                         <input
                           type="number"
                           value={modeloAnio}
                           onChange={(e) => setModeloAnio(e.target.value)}
-                          placeholder="Ej: 2018"
+                          placeholder={appI18n.t("ui.ModalEditarIngreso.e_g_2018")}
                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Color</label>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">{appI18n.t("ui.ModalEditarIngreso.color")}</label>
                         <input
                           type="text"
                           value={color}
@@ -459,7 +460,7 @@ export const ModalEditarIngreso: React.FC<Props> = ({ ingresoId, onClose, onSucc
                       <div>
                         <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
                           <User size={12} className="text-slate-400" />
-                          Nombre del Cliente
+                          {appI18n.t("ui.ModalEditarIngreso.customer_name")}
                         </label>
                         <input
                           type="text"
@@ -471,7 +472,7 @@ export const ModalEditarIngreso: React.FC<Props> = ({ ingresoId, onClose, onSucc
                       <div>
                         <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
                           <Phone size={12} className="text-slate-400" />
-                          Teléfono
+                          {appI18n.t("ui.ModalEditarIngreso.phone")}
                         </label>
                         <input
                           type="text"

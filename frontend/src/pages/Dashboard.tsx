@@ -1,3 +1,4 @@
+import appI18n, { displayLocale } from '../i18n';
 import { mostrarCantidadInventario } from '../utils/volumenInventario';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Car, CalendarDays, CalendarClock, BellRing, Key, FileText, CheckCircle2, Wrench, Receipt, XCircle, Loader2, AlertTriangle, History, MessageCircle, FileSearch, RotateCcw, Eye, FilePenLine, CheckSquare, Search, Phone, X, Activity, FileEdit, Clock } from 'lucide-react';
@@ -446,17 +447,16 @@ const Dashboard: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-900">{t('checkout.btn_entregar')}</h2>
               </div>
               <p className="text-slate-600 mb-4">
-                ¿Confirmas que deseas registrar la entrega del vehículo <strong>{entregarTarget.taller_vehiculos?.placa}</strong>?
-                La orden pasará al historial de vehículos entregados.
+                {appI18n.t("ui.Dashboard.confirm_delivery_of_vehicle")} <strong>{entregarTarget.taller_vehiculos?.placa}</strong>{appI18n.t("ui.Dashboard.the_order_will_move_to_the_delivered_vehicle")}
               </p>
 
               {faltaTecnicoMO && (
                 <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 mb-5 text-xs text-amber-900 flex items-start gap-2.5">
                   <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="font-bold block text-amber-950">Atención: Mano de obra sin técnico</strong>
+                    <strong className="font-bold block text-amber-950">{appI18n.t("ui.Dashboard.attention_labor_without_an_assigned_technician")}</strong>
                     <p className="mt-1 leading-relaxed">
-                      Esta orden incluye mano de obra facturada pero no tiene ningún técnico asignado. Si la entregas ahora, no se generará liquidación de comisiones para este servicio.
+                      {appI18n.t("ui.Dashboard.this_order_includes_billed_labor_without_an_assigned")}
                     </p>
                     <button
                       type="button"
@@ -467,7 +467,7 @@ const Dashboard: React.FC = () => {
                       }}
                       className="mt-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white border border-indigo-200 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 shadow-xs transition cursor-pointer"
                     >
-                      <Wrench size={13} /> Asignar técnico antes de entregar
+                      <Wrench size={13} /> {appI18n.t("ui.Dashboard.assign_a_technician_before_delivery")}
                     </button>
                   </div>
                 </div>
@@ -524,26 +524,26 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-indigo-100 rounded-full"><FileSearch size={20} className="text-indigo-600" /></div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-lg">Diagnóstico</h3>
-                  <p className="text-slate-500 text-sm">Placa: <strong>{ingresoVerDiag.taller_vehiculos?.placa}</strong></p>
+                  <h3 className="font-bold text-slate-900 text-lg">{appI18n.t("ui.Dashboard.diagnosis")}</h3>
+                  <p className="text-slate-500 text-sm">{appI18n.t("ui.Dashboard.plate")} <strong>{ingresoVerDiag.taller_vehiculos?.placa}</strong></p>
                 </div>
               </div>
               <button onClick={() => setIngresoVerDiag(null)} className="text-slate-400 hover:text-slate-700 transition"><XCircle size={22} /></button>
             </div>
             <div className="bg-slate-50 rounded-xl p-4 space-y-3">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Motivo de visita</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{appI18n.t("ui.Dashboard.reason_for_visit")}</p>
                 <p className="text-slate-800 text-sm leading-relaxed">{ingresoVerDiag.motivo_visita || '—'}</p>
               </div>
               {ingresoVerDiag.diagnostico_mecanico && Object.keys(ingresoVerDiag.diagnostico_mecanico).length > 0 ? (
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Diagnóstico mecánico</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{appI18n.t("ui.Dashboard.mechanical_diagnosis")}</p>
                   <div className="space-y-2">
                     {Object.entries(ingresoVerDiag.diagnostico_mecanico).map(([sistema, detalle]: [string, any]) => (
                       detalle?.estado && detalle.estado !== 'buen_estado' ? (
                         <div key={sistema} className="bg-white border border-slate-200 rounded-lg p-3">
-                          <p className="font-semibold text-slate-800 capitalize text-sm">{sistema.replace(/_/g, ' ')}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">Estado: <span className="font-medium text-amber-600">{detalle.estado?.replace(/_/g, ' ')}</span></p>
+                          <p className="font-semibold text-slate-800 capitalize text-sm">{t(`diagnostico.sistemas.${sistema}`, { defaultValue: sistema.replace(/_/g, ' ') })}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{appI18n.t("ui.Dashboard.status")} <span className="font-medium text-amber-600">{t(`estado.${detalle.estado}`, { defaultValue: detalle.estado.replace(/_/g, ' ') })}</span></p>
                           {detalle.notas && <p className="text-xs text-slate-600 mt-1">"{detalle.notas}"</p>}
                         </div>
                       ) : null
@@ -551,10 +551,10 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-slate-400 italic">Sin diagnóstico mecánico registrado.</p>
+                <p className="text-sm text-slate-400 italic">{appI18n.t("ui.Dashboard.no_mechanical_diagnosis_recorded")}</p>
               )}
             </div>
-            <button onClick={() => setIngresoVerDiag(null)} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition text-sm">Cerrar</button>
+            <button onClick={() => setIngresoVerDiag(null)} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition text-sm">{appI18n.t("ui.Dashboard.close")}</button>
           </div>
         </div>
       )}
@@ -567,8 +567,8 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-emerald-100 rounded-full"><Receipt size={20} className="text-emerald-600" /></div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-lg">Orden de Servicio</h3>
-                  <p className="text-slate-500 text-sm">Placa: <strong>{ingresoVerOrden.taller_vehiculos?.placa}</strong></p>
+                  <h3 className="font-bold text-slate-900 text-lg">{appI18n.t("ui.Dashboard.service_order")}</h3>
+                  <p className="text-slate-500 text-sm">{appI18n.t("ui.Dashboard.plate")} <strong>{ingresoVerOrden.taller_vehiculos?.placa}</strong></p>
                 </div>
               </div>
               <button onClick={() => setIngresoVerOrden(null)} className="text-slate-400 hover:text-slate-700 transition"><XCircle size={22} /></button>
@@ -577,34 +577,34 @@ const Dashboard: React.FC = () => {
             <div className="bg-slate-50 rounded-xl p-4 space-y-3">
               {ingresoVerOrden.items_factura && ingresoVerOrden.items_factura.length > 0 ? (
                 <>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Servicios y Repuestos</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{appI18n.t("ui.Dashboard.services_and_parts")}</p>
                   <div className="space-y-2">
                     {ingresoVerOrden.items_factura.map((item: any) => (
                       <div key={item.id} className="bg-white border border-slate-200 rounded-lg px-3 py-2 flex justify-between items-center">
                         <div>
                           <p className="font-medium text-slate-800 text-sm">{item.descripcion}</p>
-                          <p className="text-xs text-slate-500">{item.tipo === 'repuesto' ? 'Repuesto' : 'Mano de obra'} · Cant: {mostrarCantidadInventario(item)}</p>
+                          <p className="text-xs text-slate-500">{item.tipo === 'repuesto' ? appI18n.t("ui.Dashboard.part") : appI18n.t("ui.Dashboard.labor")} {appI18n.t("ui.Dashboard.qty")} {mostrarCantidadInventario(item)}</p>
                         </div>
                         <p className="font-bold text-slate-800 text-sm">${item.total.toLocaleString('es-CO')}</p>
                       </div>
                     ))}
                   </div>
                   <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
-                    <span className="font-bold text-slate-700">Total</span>
+                    <span className="font-bold text-slate-700">{appI18n.t("ui.Dashboard.total")}</span>
                     <span className="text-xl font-black text-indigo-700">${calcularTotales(ingresoVerOrden)}</span>
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-slate-400 italic text-center py-2">No se han registrado ítems en la orden.</p>
+                <p className="text-sm text-slate-400 italic text-center py-2">{appI18n.t("ui.Dashboard.no_items_have_been_added_to_the_order")}</p>
               )}
               {ingresoVerOrden.notas_factura && (
                 <div className="border-t border-slate-100 pt-3">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Notas</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{appI18n.t("ui.Dashboard.notes")}</p>
                   <p className="text-sm text-slate-600 italic">"{ingresoVerOrden.notas_factura}"</p>
                 </div>
               )}
             </div>
-            <button onClick={() => setIngresoVerOrden(null)} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition text-sm">Cerrar</button>
+            <button onClick={() => setIngresoVerOrden(null)} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition text-sm">{appI18n.t("ui.Dashboard.close")}</button>
           </div>
         </div>
       )}
@@ -616,18 +616,18 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-100 rounded-full"><RotateCcw size={20} className="text-amber-600" /></div>
               <div>
-                <h3 className="font-bold text-slate-900 text-lg">¿Rediagnosticar?</h3>
-                <p className="text-slate-500 text-sm">Placa: <strong>{rediagTarget.taller_vehiculos?.placa}</strong></p>
+                <h3 className="font-bold text-slate-900 text-lg">{appI18n.t("ui.Dashboard.diagnose_again_2")}</h3>
+                <p className="text-slate-500 text-sm">{appI18n.t("ui.Dashboard.plate")} <strong>{rediagTarget.taller_vehiculos?.placa}</strong></p>
               </div>
             </div>
             <p className="text-slate-600 text-sm leading-relaxed">
-              El vehículo volverá al estado de <strong>Diagnóstico</strong>. El tiempo de reparación actual se guardará y el cronómetro de diagnóstico se reanudará.
+              {appI18n.t("ui.Dashboard.the_vehicle_will_return_to")} <strong>{appI18n.t("ui.Dashboard.diagnosis")}</strong>{appI18n.t("ui.Dashboard.the_current_repair_time_will_be_saved_and")}
             </p>
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setRediagTarget(null)} className="px-5 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition">Cancelar</button>
+              <button onClick={() => setRediagTarget(null)} className="px-5 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition">{appI18n.t("ui.Dashboard.cancel")}</button>
               <button onClick={confirmarRediagnosticar} disabled={rediagnosticando} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-2">
                 {rediagnosticando ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
-                Sí, rediagnosticar
+                {appI18n.t("ui.Dashboard.yes_diagnose_again")}
               </button>
             </div>
           </div>
@@ -637,9 +637,9 @@ const Dashboard: React.FC = () => {
       {avisoInventario && <p role="status" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{avisoInventario}</p>}
       {mostradorHoy && mostradorHoy.ventas > 0 && (
         <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
-          <span className="font-semibold">Mostrador hoy</span>
-          {' · Ingresos '}{mostradorHoy.ingreso.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
-          {' · Utilidad '}{mostradorHoy.utilidad.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+          <span className="font-semibold">{appI18n.t("ui.Dashboard.counter_sales_today")}</span>
+          {appI18n.t('ui.Dashboard.revenue')}{mostradorHoy.ingreso.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+          {appI18n.t('ui.Dashboard.profit')}{mostradorHoy.utilidad.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
         </div>
       )}
 
@@ -664,7 +664,7 @@ const Dashboard: React.FC = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 <span>
                   {t('dashboard.actualizado', 'Actualizado')}{' '}
-                  {lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {lastSyncedAt.toLocaleTimeString(displayLocale(), { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </span>
             )}
@@ -689,7 +689,7 @@ const Dashboard: React.FC = () => {
             <input 
               ref={searchInputRef}
               type="text" 
-              placeholder="Buscar placa o cliente (Presiona '/')..." 
+              placeholder={appI18n.t("ui.Dashboard.search_by_plate_or_customer_press")}
               value={searchTerm}
               onFocus={() => {
                 registerUserActivity();
@@ -705,7 +705,7 @@ const Dashboard: React.FC = () => {
               <button 
                 onClick={() => setSearchTerm('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Limpiar búsqueda"
+                title={appI18n.t("ui.Dashboard.clear_search")}
               >
                 <X size={16} />
               </button>
@@ -798,7 +798,7 @@ const Dashboard: React.FC = () => {
                   }`}
                 >
                   <BellRing size={14} />
-                  <span>Demorados / Pendientes de reporte</span>
+                  <span>{appI18n.t("ui.Dashboard.overdue_awaiting_updates")}</span>
                   <span
                     className={`px-1.5 py-0.5 rounded-full text-[11px] font-extrabold ${
                       soloAlertasDemora ? 'bg-white/25 text-white' : totalAlertas > 0 ? 'bg-amber-200 text-amber-900' : 'bg-slate-200 text-slate-600'
@@ -812,7 +812,7 @@ const Dashboard: React.FC = () => {
 
             <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
               <Clock size={13} className="text-slate-400" />
-              <span className="hidden sm:inline">Recordar reporte cada:</span>
+              <span className="hidden sm:inline">{appI18n.t("ui.Dashboard.remind_me_to_update_every")}</span>
               {([4, 6, 10] as const).map((h) => (
                 <button
                   key={h}
@@ -858,9 +858,9 @@ const Dashboard: React.FC = () => {
               <AlertTriangle className="text-red-600 w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-bold text-red-900">¡Atención! Vehículos Duplicados Detectados</h3>
+              <h3 className="text-lg font-bold text-red-900">{appI18n.t("ui.Dashboard.duplicate_vehicles_detected")}</h3>
               <p className="text-red-700 text-sm mt-1 mb-4">
-                Los siguientes vehículos tienen más de un ingreso activo en el taller. Por favor gestione la salida correspondiente o cancele el ingreso incorrecto para limpiar el tablero.
+                {appI18n.t("ui.Dashboard.the_following_vehicles_have_more_than_one_active")}
               </p>
               
               <div className="space-y-4">
@@ -870,7 +870,7 @@ const Dashboard: React.FC = () => {
                       <div className="bg-slate-100 p-2 rounded-lg"><Car size={20} className="text-slate-600" /></div>
                       <div>
                         <p className="font-bold text-slate-900 text-lg tracking-widest">{grupo[0].taller_vehiculos?.placa}</p>
-                        <p className="text-xs text-slate-500">{grupo.length} ingresos activos</p>
+                        <p className="text-xs text-slate-500">{grupo.length} {appI18n.t("ui.Dashboard.active_visits")}</p>
                       </div>
                     </div>
                     
@@ -879,24 +879,24 @@ const Dashboard: React.FC = () => {
                         <div key={ing.id} className="flex items-center justify-between gap-4 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg">
                           <div>
                             <p className="text-xs font-semibold text-slate-700 uppercase">{t(`estado.${ing.estado}`)}</p>
-                            <p className="text-[10px] text-slate-500">{new Date(ing.fecha_ingreso).toLocaleString('es-CO')}</p>
+                            <p className="text-[10px] text-slate-500">{new Date(ing.fecha_ingreso).toLocaleString(displayLocale())}</p>
                           </div>
                           <div className="flex gap-2">
                             {/* Botón rápido según estado para gestionar la salida */}
                             {['recepcion', 'diagnostico'].includes(ing.estado) && (
-                              <button onClick={() => navigate(`/${slug}/diagnostico/${ing.id}`)} className="px-3 py-1 bg-indigo-600 text-white text-xs font-medium rounded-md hover:bg-indigo-700 transition">Diagnosticar</button>
+                              <button onClick={() => navigate(`/${slug}/diagnostico/${ing.id}`)} className="px-3 py-1 bg-indigo-600 text-white text-xs font-medium rounded-md hover:bg-indigo-700 transition">{appI18n.t("ui.Dashboard.diagnose")}</button>
                             )}
                             {['cotizacion', 'esperando_aprobacion'].includes(ing.estado) && (
-                              <button onClick={() => navigate(`/${slug}/checkout/${ing.id}`)} className="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded-md hover:bg-orange-600 transition">Generar Orden</button>
+                              <button onClick={() => navigate(`/${slug}/checkout/${ing.id}`)} className="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded-md hover:bg-orange-600 transition">{appI18n.t("ui.Dashboard.create_order")}</button>
                             )}
                             {ing.estado === 'en_reparacion' && (
-                              <button onClick={() => setEntregarTarget(ing)} className="px-3 py-1 bg-emerald-600 text-white text-xs font-medium rounded-md hover:bg-emerald-700 transition">Entregar</button>
+                              <button onClick={() => setEntregarTarget(ing)} className="px-3 py-1 bg-emerald-600 text-white text-xs font-medium rounded-md hover:bg-emerald-700 transition">{appI18n.t("ui.Dashboard.deliver")}</button>
                             )}
                             <button onClick={() => setIngresoParaEditar(ing)} className="px-2 py-1 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-medium rounded-md transition" title={t('card.btn_editar_ingreso', 'Editar Entrada')}>
                               <FileEdit size={13} />
                             </button>
-                            <button onClick={() => setCancelTarget(ing)} className="px-3 py-1 border border-red-200 text-red-600 hover:bg-red-50 text-xs font-medium rounded-md transition" title="Cancelar Ingreso">
-                              Cancelar
+                            <button onClick={() => setCancelTarget(ing)} className="px-3 py-1 border border-red-200 text-red-600 hover:bg-red-50 text-xs font-medium rounded-md transition" title={appI18n.t("ui.Dashboard.cancel_visit")}>
+                              {appI18n.t("ui.Dashboard.cancel")}
                             </button>
                           </div>
                         </div>
@@ -949,8 +949,8 @@ const Dashboard: React.FC = () => {
               </h3>
               <p className="text-slate-500 mt-2 mb-4">
                 {searchTerm
-                  ? 'Intenta con otro término de búsqueda.'
-                  : 'No hay vehículos actualmente en esta etapa del proceso.'}
+                  ? appI18n.t('ui.Dashboard.search_again')
+                  : appI18n.t('ui.Dashboard.empty_stage')}
               </p>
               <button
                 onClick={() => {
@@ -1034,7 +1034,7 @@ const Dashboard: React.FC = () => {
                       <CalendarDays size={15} className="text-slate-400 shrink-0" />
                       <span>
                         <span className="font-medium text-slate-900 mr-1">{t('card.ingreso')}</span>
-                        {new Date(ingreso.fecha_ingreso).toLocaleDateString()}
+                        {new Date(ingreso.fecha_ingreso).toLocaleDateString(displayLocale())}
                       </span>
                     </div>
 
@@ -1052,20 +1052,20 @@ const Dashboard: React.FC = () => {
                         >
                           <CalendarClock size={13} />
                           <span>
-                            Salida est.:{' '}
-                            {new Date(ingreso.fecha_entrega_estimada).toLocaleString('es-CO', {
+                            {appI18n.t("ui.Dashboard.est_delivery")}{' '}
+                            {new Date(ingreso.fecha_entrega_estimada).toLocaleString(displayLocale(), {
                               day: '2-digit',
                               month: 'short',
                               hour: '2-digit',
                               minute: '2-digit'
                             })}
                           </span>
-                          {ingreso.estado_demora === 'vencido' && <span className="font-extrabold">· Vencido</span>}
-                          {ingreso.estado_demora === 'en_riesgo' && <span className="font-extrabold">· En riesgo</span>}
+                          {ingreso.estado_demora === 'vencido' && <span className="font-extrabold">{appI18n.t("ui.Dashboard.overdue")}</span>}
+                          {ingreso.estado_demora === 'en_riesgo' && <span className="font-extrabold">{appI18n.t("ui.Dashboard.at_risk")}</span>}
                         </div>
                       ) : (
                         <span className="text-xs text-slate-400 italic flex items-center gap-1">
-                          <CalendarClock size={12} /> Sin fecha estimada
+                          <CalendarClock size={12} /> {appI18n.t("ui.Dashboard.no_estimated_date")}
                         </span>
                       )}
 
@@ -1077,13 +1077,13 @@ const Dashboard: React.FC = () => {
                             ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 animate-pulse'
                             : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200'
                         }`}
-                        title="Registrar actualización de avance o reprogramar salida"
+                        title={appI18n.t("ui.Dashboard.record_a_progress_update_or_reschedule_delivery")}
                       >
                         <BellRing size={12} />
                         <span>
                           {ingreso.requiere_actualizacion
                             ? `Reportar avance (${ingreso.horas_sin_actualizacion}h)`
-                            : 'Reportar avance'}
+                            : appI18n.t('ui.Dashboard.report_progress')}
                         </span>
                       </button>
                     </div>
@@ -1099,7 +1099,7 @@ const Dashboard: React.FC = () => {
                       Array.isArray(ingreso.items_factura) && ingreso.items_factura.some((i: any) => i.tipo === 'mano_obra') ? (
                         <div className="flex items-center gap-2 bg-amber-50 text-amber-800 text-xs px-2.5 py-1.5 rounded-lg border border-amber-200">
                           <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-                          <span><strong>Sin técnico:</strong> Tiene mano de obra para liquidar</span>
+                          <span><strong>{appI18n.t("ui.Dashboard.no_technician")}</strong> {appI18n.t("ui.Dashboard.labor_pending_commission")}</span>
                         </div>
                       ) : null
                     )}
@@ -1132,11 +1132,11 @@ const Dashboard: React.FC = () => {
                   {/* Botones de Diagnóstico extra: Ver diagnóstico (solo en_reparacion) + Rediagnosticar */}
                   {ingreso.estado === 'en_reparacion' && (
                     <>
-                      <button onClick={() => setIngresoVerDiag(ingreso)} className="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium py-2 px-3 rounded-lg transition text-sm" title="Ver diagnóstico">
-                        <FileSearch size={15} /> Ver diagnóstico
+                      <button onClick={() => setIngresoVerDiag(ingreso)} className="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium py-2 px-3 rounded-lg transition text-sm" title={appI18n.t("ui.Dashboard.view_diagnosis")}>
+                        <FileSearch size={15} /> {appI18n.t("ui.Dashboard.view_diagnosis")}
                       </button>
-                      <button onClick={() => setRediagTarget(ingreso)} className="flex-1 flex items-center justify-center gap-1.5 border border-amber-200 text-amber-700 hover:bg-amber-50 font-medium py-2 px-3 rounded-lg transition text-sm" title="Rediagnosticar">
-                        <RotateCcw size={15} /> Rediagnosticar
+                      <button onClick={() => setRediagTarget(ingreso)} className="flex-1 flex items-center justify-center gap-1.5 border border-amber-200 text-amber-700 hover:bg-amber-50 font-medium py-2 px-3 rounded-lg transition text-sm" title={appI18n.t("ui.Dashboard.diagnose_again")}>
+                        <RotateCcw size={15} /> {appI18n.t("ui.Dashboard.diagnose_again")}
                       </button>
                     </>
                   )}
@@ -1145,10 +1145,10 @@ const Dashboard: React.FC = () => {
                   {tieneOrden && (
                     <>
                       <button onClick={() => setIngresoVerOrden(ingreso)} className="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium py-2 px-3 rounded-lg transition text-sm">
-                        <Eye size={15} /> Visualizar Orden
+                        <Eye size={15} /> {appI18n.t("ui.Dashboard.view_order")}
                       </button>
                       <button onClick={() => navigate(`/${slug}/checkout/${ingreso.id}?edit=true`)} className="flex-1 flex items-center justify-center gap-1.5 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-medium py-2 px-3 rounded-lg transition text-sm">
-                        <FilePenLine size={15} /> Editar Orden
+                        <FilePenLine size={15} /> {appI18n.t("ui.Dashboard.edit_order")}
                       </button>
                     </>
                   )}
@@ -1191,7 +1191,7 @@ const Dashboard: React.FC = () => {
                     </button>
                   ) : ['cotizacion', 'en_reparacion', 'esperando_aprobacion'].includes(ingreso.estado) && !tieneOrden ? (
                     <button onClick={() => navigate(`/${slug}/checkout/${ingreso.id}`)} className="flex-1 flex justify-center items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">
-                      <FilePenLine size={15} /> Generar Orden de Servicio
+                      <FilePenLine size={15} /> {appI18n.t("ui.Dashboard.create_service_order")}
                     </button>
                   ) : ingreso.estado === 'en_reparacion' && tieneOrden ? (
                     <button onClick={() => setEntregarTarget(ingreso)} className="flex-1 flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">

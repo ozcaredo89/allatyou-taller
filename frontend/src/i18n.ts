@@ -13,11 +13,31 @@ const resources = {
   }
 };
 
+const languagePreference = 'taller_language';
+
+function getInitialLanguage() {
+  try {
+    return localStorage.getItem(languagePreference) === 'en' ? 'en' : 'es';
+  } catch {
+    return 'es';
+  }
+}
+
+i18n.on('languageChanged', (language) => {
+  if (typeof document !== 'undefined') document.documentElement.lang = language;
+  try {
+    localStorage.setItem(languagePreference, language);
+  } catch {
+    // The language still works when browser storage is unavailable.
+  }
+});
+
 i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: "es", // idioma por defecto
+    lng: getInitialLanguage(),
+    supportedLngs: ['es', 'en'],
     fallbackLng: "es",
     interpolation: {
       escapeValue: false // no es necesario para react ya que escapa por defecto
@@ -25,3 +45,7 @@ i18n
   });
 
 export default i18n;
+
+export function displayLocale() {
+  return i18n.resolvedLanguage === 'en' ? 'en-US' : 'es-CO';
+}

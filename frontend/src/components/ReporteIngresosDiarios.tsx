@@ -1,3 +1,4 @@
+import appI18n, { displayLocale } from "../i18n";
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -10,8 +11,6 @@ interface ReporteIngresosDiariosProps {
 }
 
 interface DiaSemanaItem {
-  dia: string;
-  diaCorto: string;
   dow: number;
   totalIngresos: number;
   diasEnRango: number;
@@ -20,8 +19,6 @@ interface DiaSemanaItem {
 
 interface FechaItem {
   fecha: string;
-  label: string;
-  diaSemana: string;
   cantidad: number;
   ingresos?: IngresoDia[];
 }
@@ -82,7 +79,7 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
         setDiaIdx(ultimo);
       } catch (err: any) {
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
-        setError(err?.response?.data?.error || 'No se pudo cargar el reporte de ingresos diarios.');
+        setError(err?.response?.data?.error || appI18n.t('ui.ReporteIngresosDiarios.could_not_load_the_daily_check_in_report'));
       } finally {
         setLoading(false);
       }
@@ -96,7 +93,7 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center justify-center text-slate-500">
         <Loader2 size={28} className="animate-spin text-indigo-600 mb-2" />
-        <p className="text-sm font-medium">Analizando ingresos de vehículos por día...</p>
+        <p className="text-sm font-medium">{appI18n.t("ui.ReporteIngresosDiarios.analyzing_daily_vehicle_check_ins")}</p>
       </div>
     );
   }
@@ -113,6 +110,10 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
   if (!data) return null;
 
   const { resumen, porDiaSemana, porFecha } = data;
+  const weekday = new Intl.DateTimeFormat(displayLocale(), { weekday: 'long', timeZone: 'UTC' });
+  const shortWeekday = new Intl.DateTimeFormat(displayLocale(), { weekday: 'short', timeZone: 'UTC' });
+  const shortDate = new Intl.DateTimeFormat(displayLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const weekdayDate = (day: number) => new Date(Date.UTC(2024, 0, 7 + day));
   const dowFuerte = resumen.diaMasFuerte?.dow;
   const dowFlojo = resumen.diaMasFlojo?.dow;
   const diaSel: FechaItem | undefined = porFecha[diaIdx];
@@ -123,45 +124,45 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
       {/* KPIs de Demanda */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vehículos Ingresados</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{appI18n.t("ui.ReporteIngresosDiarios.vehicles_checked_in")}</p>
           <p className="text-2xl font-extrabold text-indigo-700 mt-1 flex items-center gap-2">
             <Car size={20} className="text-indigo-500" />
             {resumen.totalIngresos}
           </p>
-          <p className="text-xs text-slate-500 mt-1">En {resumen.totalDias} días analizados</p>
+          <p className="text-xs text-slate-500 mt-1">{appI18n.t("ui.ReporteIngresosDiarios.across")} {resumen.totalDias} {appI18n.t("ui.ReporteIngresosDiarios.days_analyzed")}</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Promedio Diario</p>
-          <p className="text-2xl font-extrabold text-slate-900 mt-1">{resumen.promedioDiario} carros/día</p>
-          <p className="text-xs text-slate-500 mt-1">Basado en fecha de recepción</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{appI18n.t("ui.ReporteIngresosDiarios.daily_average")}</p>
+          <p className="text-2xl font-extrabold text-slate-900 mt-1">{resumen.promedioDiario} {appI18n.t("ui.ReporteIngresosDiarios.vehicles_day")}</p>
+          <p className="text-xs text-slate-500 mt-1">{appI18n.t("ui.ReporteIngresosDiarios.based_on_check_in_date")}</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-emerald-200 bg-emerald-50/30 p-5 shadow-sm">
           <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
-            <TrendingUp size={13} /> Día Más Fuerte
+            <TrendingUp size={13} /> {appI18n.t("ui.ReporteIngresosDiarios.busiest_day")}
           </p>
           <p className="text-2xl font-extrabold text-emerald-800 mt-1">
-            {resumen.diaMasFuerte ? resumen.diaMasFuerte.dia : '—'}
+            {resumen.diaMasFuerte ? weekday.format(weekdayDate(resumen.diaMasFuerte.dow)) : '—'}
           </p>
           <p className="text-xs text-emerald-700/80 mt-1">
             {resumen.diaMasFuerte
-              ? `Prom. ${resumen.diaMasFuerte.promedioPorDia}/día (${resumen.diaMasFuerte.totalIngresos} total)`
-              : 'Sin datos en el rango'}
+              ? appI18n.t('ui.ReporteIngresosDiarios.average_detail', { average: resumen.diaMasFuerte.promedioPorDia, total: resumen.diaMasFuerte.totalIngresos })
+              : appI18n.t('ui.ReporteIngresosDiarios.no_data_for_this_date_range')}
           </p>
         </div>
 
         <div className="bg-white rounded-2xl border border-amber-200 bg-amber-50/30 p-5 shadow-sm">
           <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1">
-            <TrendingDown size={13} /> Día Más Flojo (Oportunidad)
+            <TrendingDown size={13} /> {appI18n.t("ui.ReporteIngresosDiarios.quietest_day_opportunity")}
           </p>
           <p className="text-2xl font-extrabold text-amber-800 mt-1">
-            {resumen.diaMasFlojo ? resumen.diaMasFlojo.dia : '—'}
+            {resumen.diaMasFlojo ? weekday.format(weekdayDate(resumen.diaMasFlojo.dow)) : '—'}
           </p>
           <p className="text-xs text-amber-700/80 mt-1">
             {resumen.diaMasFlojo
-              ? `Prom. ${resumen.diaMasFlojo.promedioPorDia}/día (${resumen.diaMasFlojo.totalIngresos} total)`
-              : 'Sin datos en el rango'}
+              ? appI18n.t('ui.ReporteIngresosDiarios.average_detail', { average: resumen.diaMasFlojo.promedioPorDia, total: resumen.diaMasFlojo.totalIngresos })
+              : appI18n.t('ui.ReporteIngresosDiarios.no_data_for_this_date_range')}
           </p>
         </div>
       </div>
@@ -174,9 +175,9 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
             <div>
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                 <CalendarDays size={17} className="text-indigo-600" />
-                Patrón por Día de la Semana
+                {appI18n.t("ui.ReporteIngresosDiarios.pattern_by_day_of_the_week")}
               </h3>
-              <p className="text-xs text-slate-500">Identifica días pico (verde) y días valle para ofertas (ámbar).</p>
+              <p className="text-xs text-slate-500">{appI18n.t("ui.ReporteIngresosDiarios.identify_busy_days_green_and_quiet_days_for")}</p>
             </div>
             <div className="flex bg-slate-100 p-0.5 rounded-lg text-xs">
               <button
@@ -186,7 +187,7 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
                   metricaSemana === 'promedioPorDia' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
                 }`}
               >
-                Promedio
+                {appI18n.t("ui.ReporteIngresosDiarios.average")}
               </button>
               <button
                 type="button"
@@ -195,7 +196,7 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
                   metricaSemana === 'totalIngresos' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
                 }`}
               >
-                Total
+                {appI18n.t("ui.ReporteIngresosDiarios.total")}
               </button>
             </div>
           </div>
@@ -203,14 +204,14 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                <XAxis dataKey="diaCorto" tick={{ fontSize: 12, fill: '#475569' }} />
+                <XAxis dataKey="dow" tickFormatter={(day: number) => shortWeekday.format(weekdayDate(day))} tick={{ fontSize: 12, fill: '#475569' }} />
                 <YAxis allowDecimals={metricaSemana === 'promedioPorDia'} tick={{ fontSize: 12, fill: '#64748b' }} />
                 <Tooltip
                   formatter={(value: any) => [
-                    `${value} ${metricaSemana === 'promedioPorDia' ? 'carros/día' : 'carros'}`,
-                    metricaSemana === 'promedioPorDia' ? 'Promedio' : 'Total'
+                    metricaSemana === 'promedioPorDia' ? `${value} ${appI18n.t('ui.ReporteIngresosDiarios.vehicles_day')}` : appI18n.t('ui.ReporteIngresosDiarios.vehicle_count', { count: Number(value) }),
+                    appI18n.t(metricaSemana === 'promedioPorDia' ? 'ui.ReporteIngresosDiarios.average' : 'ui.ReporteIngresosDiarios.total')
                   ]}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.dia || ''}
+                  labelFormatter={day => typeof day === 'number' ? weekday.format(weekdayDate(day)) : ''}
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
                 />
                 <Bar dataKey={metricaSemana} radius={[6, 6, 0, 0]}>
@@ -220,7 +221,7 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
                       if (entry.dow === dowFuerte) fill = '#10b981';
                       else if (entry.dow === dowFlojo) fill = '#f59e0b';
                     }
-                    return <Cell key={entry.diaCorto} fill={fill} />;
+                    return <Cell key={entry.dow} fill={fill} />;
                   })}
                 </Bar>
               </BarChart>
@@ -233,9 +234,9 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
           <div className="mb-4">
             <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
               <TrendingUp size={17} className="text-indigo-600" />
-              Ingresos Día a Día
+              {appI18n.t("ui.ReporteIngresosDiarios.daily_check_ins")}
             </h3>
-            <p className="text-xs text-slate-500">Toca un día para ver las placas recibidas y abrir cada servicio.</p>
+            <p className="text-xs text-slate-500">{appI18n.t("ui.ReporteIngresosDiarios.select_a_day_to_see_vehicle_check_ins")}</p>
           </div>
 
           <div className="h-64 w-full">
@@ -249,14 +250,13 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
                   if (state?.activeTooltipIndex != null && Number.isInteger(idx) && porFecha[idx]) setDiaIdx(idx);
                 }}
               >
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#475569' }} interval="preserveStartEnd" />
+                <XAxis dataKey="fecha" tickFormatter={(date: string) => shortDate.format(new Date(date))} tick={{ fontSize: 11, fill: '#475569' }} interval="preserveStartEnd" />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                 <Tooltip
-                  formatter={(value: any) => [`${value} vehículos`, 'Ingresos']}
-                  labelFormatter={(_, payload) => {
-                    const p = payload?.[0]?.payload;
-                    return p ? `${p.diaSemana} ${p.fecha}` : '';
-                  }}
+                  formatter={(value: any) => [appI18n.t('ui.ReporteIngresosDiarios.vehicle_count', { count: Number(value) }), appI18n.t('ui.ReporteIngresosDiarios.check_ins')]}
+                  labelFormatter={date => typeof date === 'string'
+                    ? `${shortWeekday.format(new Date(date))} ${shortDate.format(new Date(date))}`
+                    : ''}
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
                 />
                 <Bar dataKey="cantidad" radius={[4, 4, 0, 0]}>
@@ -276,22 +276,22 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
                   type="button"
                   onClick={() => setDiaIdx((i) => Math.max(0, i - 1))}
                   disabled={diaIdx <= 0}
-                  aria-label="Día anterior"
+                  aria-label={appI18n.t("ui.ReporteIngresosDiarios.previous_day")}
                   className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <div className="text-center min-w-0">
-                  <p className="text-sm font-bold text-slate-900">{diaSel.diaSemana} {diaSel.label}</p>
+                  <p className="text-sm font-bold text-slate-900">{shortWeekday.format(new Date(diaSel.fecha))} {shortDate.format(new Date(diaSel.fecha))}</p>
                   <p className="text-xs text-slate-500">
-                    {diaSel.cantidad === 1 ? '1 vehículo' : `${diaSel.cantidad} vehículos`}
+                    {diaSel.cantidad === 1 ? appI18n.t("ui.ReporteIngresosDiarios.1_vehicle") : `${diaSel.cantidad} vehículos`}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setDiaIdx((i) => Math.min(porFecha.length - 1, i + 1))}
                   disabled={diaIdx >= porFecha.length - 1}
-                  aria-label="Día siguiente"
+                  aria-label={appI18n.t("ui.ReporteIngresosDiarios.next_day")}
                   className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
                 >
                   <ChevronRight size={20} />
@@ -299,7 +299,7 @@ const ReporteIngresosDiarios: React.FC<ReporteIngresosDiariosProps> = ({ startDa
               </div>
 
               {ingresosDia.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-4">Sin vehículos recibidos este día.</p>
+                <p className="text-xs text-slate-500 text-center py-4">{appI18n.t("ui.ReporteIngresosDiarios.no_vehicles_checked_in_on_this_day")}</p>
               ) : (
                 <ul className="mt-2 divide-y divide-slate-100 max-h-72 overflow-y-auto">
                   {ingresosDia.map((ing) => {

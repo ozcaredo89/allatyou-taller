@@ -1,3 +1,4 @@
+import appI18n from '../i18n';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Loader2, CheckSquare, Square, Wrench } from 'lucide-react';
@@ -31,7 +32,7 @@ const ModalAsignarTecnicos: React.FC<Props> = ({ ingresoId, tecnicosAsignadosIds
         const { data } = await api.get('/tecnicos');
         setTecnicos(data.filter((t: Tecnico) => t.estado === 'activo'));
       } catch (err) {
-        setError('Error al cargar técnicos.');
+        setError(appI18n.t('ui.ModalAsignarTecnicos.could_not_load_technicians'));
       } finally {
         setLoading(false);
       }

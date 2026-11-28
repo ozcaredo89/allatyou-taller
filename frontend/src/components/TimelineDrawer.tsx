@@ -1,3 +1,4 @@
+import appI18n, { displayLocale } from '../i18n';
 import { mostrarCantidadInventario } from '../utils/volumenInventario';
 import React, { useEffect, useState } from 'react';
 import {
@@ -54,7 +55,7 @@ const defaultConfig = { icon: <Clock size={16} />, color: 'text-slate-500', bg: 
 // ─── Formateador de fecha ─────────────────────────────────────────────────────
 const fmtFecha = (iso: string) => {
   const d = new Date(iso);
-  return new Intl.DateTimeFormat('es-CO', {
+  return new Intl.DateTimeFormat(displayLocale(), {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(d);
@@ -74,7 +75,7 @@ const renderMetadata = (evento: Evento) => {
     if (sistemasConFallas.length === 0) {
       return (
         <div className="mt-2 text-xs bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 w-fit">
-          <CheckCircle2 size={14} /> Inspección superada sin novedades
+          <CheckCircle2 size={14} /> {appI18n.t("ui.TimelineDrawer.inspection_passed_with_no_issues")}
         </div>
       );
     }
@@ -83,9 +84,9 @@ const renderMetadata = (evento: Evento) => {
       <div className="mt-2 space-y-1.5">
         {sistemasConFallas.map(([sistema, detalle]: [string, any]) => (
           <div key={sistema} className="text-xs bg-slate-50 border border-slate-100 rounded-lg p-2">
-            <span className="font-semibold text-slate-700 capitalize">{sistema.replace(/_/g, ' ')}:</span>{' '}
+            <span className="font-semibold text-slate-700 capitalize">{appI18n.t(`diagnostico.sistemas.${sistema}`, { defaultValue: sistema.replace(/_/g, ' ') })}:</span>{' '}
             <span className={detalle.estado !== 'buen_estado' ? 'text-amber-600 font-medium' : 'text-slate-600'}>
-              {detalle.estado?.replace(/_/g, ' ')}
+              {detalle.estado && appI18n.t(`estado.${detalle.estado}`, { defaultValue: detalle.estado.replace(/_/g, ' ') })}
             </span>
             {detalle.notas && <p className="text-slate-500 mt-0.5 italic">"{detalle.notas}"</p>}
           </div>
@@ -147,7 +148,14 @@ const EventoCard: React.FC<{ evento: Evento; isLast: boolean }> = ({ evento, isL
   const [expandido, setExpandido] = useState(false);
   const cfg = EVENTO_CONFIG[evento.tipo_evento] || defaultConfig;
 
-  const descLarga = evento.descripcion && evento.descripcion.length > 100;
+  const progress = evento.metadata?.estado_avance;
+  const title = typeof progress === 'string'
+    ? appI18n.t(evento.tipo_evento === 'reprogramacion' ? 'ui.TimelineDrawer.reschedule' : 'ui.TimelineDrawer.progress', {
+      status: appI18n.t(`ui.ModalSeguimientoIngreso.progress.${progress}`, { defaultValue: progress }),
+    })
+    : appI18n.t(`ui.TimelineDrawer.event_titles.${evento.titulo}`, { defaultValue: evento.titulo });
+  const description = evento.descripcion && appI18n.t(`ui.TimelineDrawer.event_descriptions.${evento.descripcion.replace(/\.$/, '')}`, { defaultValue: evento.descripcion });
+  const descLarga = description && description.length > 100;
 
   return (
     <div className="flex gap-4">
@@ -162,7 +170,7 @@ const EventoCard: React.FC<{ evento: Evento; isLast: boolean }> = ({ evento, isL
       {/* Contenido */}
       <div className={`pb-6 flex-1 ${isLast ? '' : ''}`}>
         <div className="flex items-start justify-between gap-2">
-          <p className={`font-semibold text-sm ${cfg.color}`}>{evento.titulo}</p>
+          <p className={`font-semibold text-sm ${cfg.color}`}>{title}</p>
           <time className="text-xs text-slate-400 shrink-0 tabular-nums">{fmtFecha(evento.created_at)}</time>
         </div>
 
@@ -176,7 +184,7 @@ const EventoCard: React.FC<{ evento: Evento; isLast: boolean }> = ({ evento, isL
                 onClick={() => setExpandido(e => !e)}
                 className="flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 mt-0.5 transition"
               >
-                {expandido ? <><ChevronUp size={12} /> Ver menos</> : <><ChevronDown size={12} /> Ver más</>}
+                {expandido ? <><ChevronUp size={12} /> {appI18n.t("ui.TimelineDrawer.view_less")}</> : <><ChevronDown size={12} /> {appI18n.t("ui.TimelineDrawer.view_more")}</>}
               </button>
             )}
           </div>
@@ -207,7 +215,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
         const res = await api.get(`/ingresos/${ingresoId}/bitacora?limit=100&orden=recientes`);
         setEventos(res.data.eventos || []);
       } catch (err: any) {
-        setError('No se pudo cargar la bitácora.');
+        setError(appI18n.t('ui.TimelineDrawer.could_not_load_the_activity_log'));
       } finally {
         setLoading(false);
       }
@@ -239,7 +247,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Bitácora de la visita"
+        aria-label={appI18n.t("ui.TimelineDrawer.visit_activity_log_2")}
         className={[
           'fixed z-50 bg-white flex flex-col shadow-2xl',
           // Móvil: desde abajo, ancho completo, altura ~90vh
@@ -256,7 +264,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
           <button
             onClick={onClose}
             className="p-2 -ml-1 rounded-full hover:bg-slate-100 transition text-slate-500 hover:text-slate-900 min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label="Cerrar bitácora"
+            aria-label={appI18n.t("ui.TimelineDrawer.close_activity_log")}
           >
             <X size={20} />
           </button>
@@ -272,7 +280,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
               </div>
             </div>
             <p className="text-sm text-slate-600 mt-2">
-              <span className="font-medium">Cliente:</span> {vehiculoInfo.cliente}
+              <span className="font-medium">{appI18n.t("ui.TimelineDrawer.customer")}</span> {vehiculoInfo.cliente}
             </p>
           </div>
         </div>
@@ -286,7 +294,7 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
         <div className="flex-1 overflow-y-auto p-5 space-y-0">
           <CompartirSeguimiento seguimiento={seguimiento} />
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">
-            Bitácora de la Visita
+            {appI18n.t("ui.TimelineDrawer.visit_activity_log")}
           </p>
 
           {loading && (
@@ -304,8 +312,8 @@ const TimelineDrawer: React.FC<TimelineDrawerProps> = ({ ingresoId, vehiculoInfo
           {!loading && !error && eventos.length === 0 && (
             <div className="text-center py-12 text-slate-400">
               <ClipboardList size={40} className="mx-auto mb-3 opacity-20" />
-              <p className="font-medium">Sin eventos registrados</p>
-              <p className="text-sm mt-1">Los eventos aparecerán aquí a medida que avance la orden.</p>
+              <p className="font-medium">{appI18n.t("ui.TimelineDrawer.no_events_recorded")}</p>
+              <p className="text-sm mt-1">{appI18n.t("ui.TimelineDrawer.events_will_appear_here_as_the_order_progresses")}</p>
             </div>
           )}
 

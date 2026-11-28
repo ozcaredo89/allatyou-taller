@@ -1,4 +1,5 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import appI18n from '../i18n';
+import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 
 export interface Evidencia {
@@ -77,10 +78,10 @@ function Archivo({ evidencia, ingresoId, token, numero }: {
             <img src={actual.url} alt={etiqueta + ' del avance'} className="max-h-80 w-full rounded-lg object-contain" />
           </a>
       ) : intento && !actual ? (
-        <p role="status" className="p-3 text-sm text-slate-600">Cargando {etiqueta.toLowerCase()}…</p>
+        <p role="status" className="p-3 text-sm text-slate-600">{appI18n.t("ui.ReporteRepuestos.loading")} {etiqueta.toLowerCase()}…</p>
       ) : (
         <button type="button" className="p-3 text-sm font-medium text-indigo-800" onClick={() => setIntento(n => n + 1)}>
-          {actual ? 'Reintentar ' : 'Ver '}{etiqueta.toLowerCase()}
+          {actual ? appI18n.t("ui.Inventario.retry") : appI18n.t("ui.CRM.view")}{etiqueta.toLowerCase()}
         </button>
       )}
     </div>

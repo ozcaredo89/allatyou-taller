@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useEffect, useId } from 'react';
 import { X, AlertTriangle, Trash2, Info, CheckCircle2, Loader2 } from 'lucide-react';
 
@@ -83,7 +84,7 @@ export const ModalConfirmacion: React.FC<ModalConfirmacionProps> = ({
         <button
           onClick={onClose}
           disabled={loading}
-          aria-label="Cerrar modal"
+          aria-label={appI18n.t("ui.ModalConfirmacion.close_dialog")}
           className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50"
         >
           <X size={20} />

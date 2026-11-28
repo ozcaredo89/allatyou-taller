@@ -1,3 +1,4 @@
+import appI18n from "../i18n";
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, CheckSquare, Loader2, ArrowLeft, Plus, Trash2, Package, Wrench, MessageCircle, ThumbsUp, Edit2, Check, X, Car, Phone, FileText, AlertTriangle, Users, FileEdit, Gauge, Fuel, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -106,6 +107,7 @@ const Checkout: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [ultimoAceite, setUltimoAceite] = useState<SugerenciaAceite | null>(null);
   const [mostrarWhatsApp, setMostrarWhatsApp] = useState(false);
+  const [expenseDialog, setExpenseDialog] = useState<{ titleKey: string; action?: () => Promise<void> }>();
   const [nuevoTipo, setNuevoTipo] = useState<'repuesto' | 'mano_obra'>('repuesto');
   const [nuevoDesc, setNuevoDesc] = useState('');
   const [nuevoCant, setNuevoCant] = useState(1);
@@ -283,24 +285,32 @@ const Checkout: React.FC = () => {
     setModalGastoOpen(true);
   };
 
-  const handleDesvincularGastoDeItem = async (gastoId: string) => {
-    if (!window.confirm('¿Deseas desvincular este gasto del repuesto? (Permanecerá en la orden como costo general)')) return;
-    try {
-      await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: id, item_id: null });
-      await cargarGastos();
-    } catch (err) {
-      console.error('[handleDesvincularGastoDeItem] Error:', err);
-    }
+  const handleDesvincularGastoDeItem = (gastoId: string) => {
+    setExpenseDialog({
+      titleKey: 'ui.Checkout.unlink_this_expense_from_the_part_it_will',
+      action: async () => {
+        try {
+          await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: id, item_id: null });
+          await cargarGastos();
+        } catch (err) {
+          console.error('[handleDesvincularGastoDeItem] Error:', err);
+        }
+      },
+    });
   };
 
-  const handleDesvincularGastoDeOrden = async (gastoId: string) => {
-    if (!window.confirm('¿Deseas desvincular este gasto de la orden completamente?')) return;
-    try {
-      await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: null, item_id: null });
-      await cargarGastos();
-    } catch (err) {
-      console.error('[handleDesvincularGastoDeOrden] Error:', err);
-    }
+  const handleDesvincularGastoDeOrden = (gastoId: string) => {
+    setExpenseDialog({
+      titleKey: 'ui.Checkout.unlink_this_expense_from_the_order',
+      action: async () => {
+        try {
+          await api.patch(`/gastos/${gastoId}/vinculo`, { ingreso_id: null, item_id: null });
+          await cargarGastos();
+        } catch (err) {
+          console.error('[handleDesvincularGastoDeOrden] Error:', err);
+        }
+      },
+    });
   };
 
   const cargarIngreso = async () => {
@@ -551,7 +561,7 @@ const Checkout: React.FC = () => {
       const v = ingreso?.taller_vehiculos;
       cargarCatalogoItems(v?.marca, v?.linea);
     } catch (err) {
-      setError(isAxiosError(err) ? err.response?.data?.error || 'Error al guardar la orden.' : 'Error al guardar la orden.');
+      setError(isAxiosError(err) ? err.response?.data?.error || appI18n.t('ui.Checkout.could_not_save_the_order') : appI18n.t('ui.Checkout.could_not_save_the_order'));
     } finally {
       setSaving(false);
     }
@@ -629,7 +639,7 @@ const Checkout: React.FC = () => {
 
       if (!telefono) {
         if (newWindow) newWindow.close();
-        setError('El cliente no tiene un número de teléfono registrado.');
+        setError(appI18n.t('ui.Checkout.the_customer_has_no_phone_number_on_file'));
         return;
       }
 
@@ -659,7 +669,7 @@ const Checkout: React.FC = () => {
       setIngreso((prev: any) => ({ ...prev, ...data }));
     } catch {
       if (newWindow) newWindow.close();
-      setError('Error al notificar al cliente por WhatsApp.');
+      setError(appI18n.t('ui.Checkout.could_not_notify_the_customer_via_whatsapp'));
     } finally {
       setNotificando(false);
     }
@@ -673,7 +683,7 @@ const Checkout: React.FC = () => {
       await api.put(`/ingresos/${id}`, { estado: 'en_reparacion' });
       navigate(`/${slug}`);
     } catch {
-      setError('Error al aprobar la orden.');
+      setError(appI18n.t('ui.Checkout.could_not_approve_the_order'));
     } finally {
       setAprobando(false);
     }
@@ -733,7 +743,7 @@ const Checkout: React.FC = () => {
         navigate(`/${slug}`);
       }
     } catch (error) {
-      setError(isAxiosError(error) ? error.response?.data?.error || 'Error al entregar.' : 'Error al entregar.');
+      setError(isAxiosError(error) ? error.response?.data?.error || appI18n.t('ui.Checkout.could_not_mark_the_vehicle_as_delivered') : appI18n.t('ui.Checkout.could_not_mark_the_vehicle_as_delivered'));
     } finally {
       setEntregando(false);
       setShowConfirmEntregarSinTecnico(false);
@@ -762,10 +772,24 @@ const Checkout: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
-      <ModalConfirmacion isOpen={mostrarWhatsApp} title="Vista previa de WhatsApp" tipo="info" confirmText="Abrir WhatsApp"
+      <ModalConfirmacion isOpen={mostrarWhatsApp} title={appI18n.t("ui.Checkout.whatsapp_preview")} tipo="info" confirmText="Abrir WhatsApp"
         onClose={() => setMostrarWhatsApp(false)} onConfirm={() => { setMostrarWhatsApp(false); void handleNotificarCliente(); }}>
         <pre className="max-h-[52vh] overflow-y-auto whitespace-pre-wrap rounded-lg bg-emerald-50 p-3 font-sans text-sm">{mostrarWhatsApp ? mensajeCotizacion() : ''}</pre>
       </ModalConfirmacion>
+      {expenseDialog && (
+        <ModalConfirmacion
+          isOpen
+          tipo={expenseDialog.action ? 'warning' : 'info'}
+          title={appI18n.t(expenseDialog.titleKey)}
+          confirmText={appI18n.t(expenseDialog.action ? 'ui.Checkout.unlink_expense' : 'ui.ModalConfirmacion.close_dialog')}
+          cancelText={appI18n.t('ui.CRM.cancel')}
+          onClose={() => setExpenseDialog(undefined)}
+          onConfirm={() => {
+            setExpenseDialog(undefined);
+            void expenseDialog.action?.();
+          }}
+        />
+      )}
       {/* Botones Header */}
       <div className="flex justify-between items-center print:hidden">
         <button onClick={() => navigate(`/${slug}`)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
@@ -790,7 +814,7 @@ const Checkout: React.FC = () => {
             ingreso.renting_sync_at ? (
               <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-xs">
                 <CheckCircle2 size={16} className="text-emerald-600" />
-                Gasto Renting Sincronizado
+                {appI18n.t("ui.Checkout.renting_expense_synced")}
               </span>
             ) : (
               <button
@@ -812,7 +836,7 @@ const Checkout: React.FC = () => {
                 className="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
               >
                 <AlertCircle size={16} className="text-slate-950" />
-                Gasto Renting Pendiente (Crear Gasto)
+                {appI18n.t("ui.Checkout.renting_expense_pending_create_expense")}
               </button>
             )
           )}
@@ -822,7 +846,7 @@ const Checkout: React.FC = () => {
             <button
               onClick={handleAprobarOrden}
               disabled={!puedeAprobar || aprobando}
-              title={!puedeAprobar ? 'Guarda la orden primero' : ''}
+              title={!puedeAprobar ? appI18n.t('ui.Checkout.save_the_order_first') : ''}
               className={`px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center gap-2 ${
                 puedeAprobar
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
@@ -838,7 +862,7 @@ const Checkout: React.FC = () => {
           <button
             onClick={() => setMostrarWhatsApp(true)}
             disabled={!puedeNotificar || notificando}
-            title={!puedeNotificar ? 'Agrega ítems a la orden primero' : ''}
+            title={!puedeNotificar ? appI18n.t('ui.Checkout.add_items_to_the_order_first') : ''}
             className={`px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center gap-2 ${
               puedeNotificar
                 ? 'bg-[#25D366] hover:bg-[#1ebd5a] text-white'
@@ -886,12 +910,12 @@ const Checkout: React.FC = () => {
 
       {isEditMode && ingreso.inventario_faltantes?.length > 0 && (
         <p role="status" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Descuento de stock pendiente para {ingreso.inventario_faltantes.join(', ')}. Después de registrar la entrada en bodega, vuelve a guardar la orden para completar el descuento.
+          {appI18n.t("ui.Checkout.stock_deduction_pending_for")} {ingreso.inventario_faltantes.join(', ')}{appI18n.t("ui.Checkout.after_recording_the_stock_receipt_save_the_order")}
         </p>
       )}
       {faltantesBodega.length > 0 && (
           <p role="status" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Stock físico insuficiente para {faltantesBodega.map(producto => producto.nombre).join(', ')}. Puedes guardar la orden abierta.
+            {appI18n.t("ui.Checkout.insufficient_stock_on_hand_for")} {faltantesBodega.map(producto => producto.nombre).join(', ')}{appI18n.t("ui.Checkout.you_can_save_the_order_as_open")}
           </p>
         )}
         {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 print:hidden">{error}</div>}
@@ -975,13 +999,13 @@ const Checkout: React.FC = () => {
                   {tecnicosAsignados.map((tItem: any, idx: number) => (
                     <span key={tItem.taller_tecnicos?.id || idx} className="bg-white text-indigo-900 border border-indigo-200 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
                       <Wrench size={12} className="text-indigo-600" />
-                      {tItem.taller_tecnicos?.nombre || 'Técnico'}
+                      {tItem.taller_tecnicos?.nombre || appI18n.t('ui.Checkout.technician')}
                     </span>
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-slate-500 font-medium mt-0.5">
-                  Sin técnicos asignados a esta orden
+                  {appI18n.t("ui.Checkout.no_technicians_assigned_to_this_order")}
                 </p>
               )}
             </div>
@@ -992,7 +1016,7 @@ const Checkout: React.FC = () => {
             className="self-start sm:self-auto text-xs font-bold px-3.5 py-2 rounded-lg border border-slate-300 hover:border-indigo-400 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <Wrench size={14} />
-            {tieneTecnicos ? 'Modificar Técnicos' : t('checkout.btn_asignar_tecnico')}
+            {tieneTecnicos ? appI18n.t('ui.Checkout.edit_assigned_technicians') : t('checkout.btn_asignar_tecnico')}
           </button>
         </div>
 
@@ -1060,10 +1084,10 @@ const Checkout: React.FC = () => {
           {ultimoAceite && <div className="px-4 pb-2 print:hidden">
             <button type="button" className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-900 disabled:opacity-60"
               disabled={!ultimoAceite.producto || items.some(item => item.inventario_item_id === ultimoAceite.producto?.id)} onClick={agregarUltimoAceite}>
-              Último cambio: {ultimoAceite.viscosidad || ultimoAceite.nombre} · {mostrarCuartos(Number(ultimoAceite.litros))}{ultimoAceite.fecha && ` · ${ultimoAceite.fecha.split('-').reverse().join('/')}`}
+              {appI18n.t("ui.Checkout.last_oil_change")} {ultimoAceite.viscosidad || ultimoAceite.nombre} · {mostrarCuartos(Number(ultimoAceite.litros))}{ultimoAceite.fecha && ` · ${ultimoAceite.fecha.split('-').reverse().join('/')}`}
             </button>
-            {ultimoAceite.sustituto && <p className="mt-1 text-xs text-slate-600">Alternativa disponible: {ultimoAceite.producto?.nombre}</p>}
-            {!ultimoAceite.producto && <p className="mt-1 text-xs text-slate-600">Sin una alternativa disponible de la misma viscosidad.</p>}
+            {ultimoAceite.sustituto && <p className="mt-1 text-xs text-slate-600">{appI18n.t("ui.Checkout.available_alternative")} {ultimoAceite.producto?.nombre}</p>}
+            {!ultimoAceite.producto && <p className="mt-1 text-xs text-slate-600">{appI18n.t("ui.Checkout.no_alternative_available_with_the_same_viscosity")}</p>}
           </div>}
           {showForm && (
             <div className="mb-4 p-4 bg-indigo-50 border border-dashed border-indigo-200 rounded-xl space-y-3 print:hidden">
@@ -1086,13 +1110,13 @@ const Checkout: React.FC = () => {
               {nuevoTipo === 'repuesto' && !sugerenciaAplicada?.inventario && pareceManoObra(nuevoDesc) && (
                 <div className="flex flex-wrap items-center gap-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-3 py-2 text-xs">
                   <AlertTriangle size={14} className="shrink-0" />
-                  <span className="flex-1">Esta descripción parece <b>mano de obra</b>, pero está marcada como <b>repuesto</b>.</span>
+                  <span className="flex-1">{appI18n.t("ui.Checkout.this_description_looks_like")} <b>{appI18n.t("ui.Checkout.labor_2")}</b>{appI18n.t("ui.Checkout.but_it_is_marked_as_a")} <b>{appI18n.t("ui.Checkout.part")}</b>.</span>
                   <button
                     type="button"
                     onClick={() => { setNuevoTipo('mano_obra'); setSugerenciaAplicada(null); setSugerenciaIdx(-1); }}
                     className="px-2.5 py-1 rounded-md bg-purple-600 text-white font-semibold hover:bg-purple-700"
                   >
-                    Cambiar a mano de obra
+                    {appI18n.t("ui.Checkout.change_to_labor")}
                   </button>
                 </div>
               )}
@@ -1131,10 +1155,10 @@ const Checkout: React.FC = () => {
                                 </span>
                               )}
                               {sug.inventario ? (
-                                <span>{sug.inventario.codigo} · {sug.inventario.viscosidad && `${sug.inventario.viscosidad} · `}Stock {sug.inventario.tipo_producto === 'aceite' ? mostrarCuartos(sug.inventario.stock_actual * (sug.inventario.es_granel ? 1 : sug.inventario.contenido_litros ?? 0)) : `${sug.inventario.stock_actual} ${sug.inventario.unidad}`}</span>
-                              ) : <span>Usado {sug.ocurrencias_totales} {sug.ocurrencias_totales === 1 ? 'vez' : 'veces'}</span>}
+                                <span>{sug.inventario.codigo} · {sug.inventario.viscosidad && `${sug.inventario.viscosidad} · `}{appI18n.t("ui.Checkout.stock_2")} {sug.inventario.tipo_producto === 'aceite' ? mostrarCuartos(sug.inventario.stock_actual * (sug.inventario.es_granel ? 1 : sug.inventario.contenido_litros ?? 0)) : `${sug.inventario.stock_actual} ${sug.inventario.unidad}`}</span>
+                              ) : <span>{appI18n.t("ui.Checkout.used")} {appI18n.t("ui.Checkout.usage_count", { count: sug.ocurrencias_totales })}</span>}
                               {sug.precio_promedio !== sug.precio_sugerido && (
-                                <span>· Prom: ${sug.precio_promedio.toLocaleString('es-CO')}</span>
+                                <span>{appI18n.t("ui.Checkout.avg")}{sug.precio_promedio.toLocaleString('es-CO')}</span>
                               )}
                             </div>
                           </div>
@@ -1159,26 +1183,26 @@ const Checkout: React.FC = () => {
                   <label className="text-xs text-slate-500 mb-0.5 block">{t('checkout.cantidad')}</label>
                   <input type="number" min={0.001} step={0.001} value={nuevoCant} onChange={e => setNuevoCant(Number(e.target.value))} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                   {granelNuevo && <>
-                    <select aria-label="Unidad de aceite" value={unidadCaptura} className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm"
+                    <select aria-label={appI18n.t("ui.Checkout.oil_unit")} value={unidadCaptura} className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm"
                       onChange={e => {
                         const unidad = e.target.value as UnidadVolumen;
                         setUnidadCaptura(unidad);
                         setNuevoPrecio(formatearPrecio((sugerenciaAplicada?.precio_sugerido ?? 0) * factorLitros[unidad]));
                       }}>
-                      <option value="cuarto">Cuartos</option><option value="litro">Litros</option><option value="galón">Galones</option>
+                      <option value="cuarto">{appI18n.t("ui.Checkout.quarts")}</option><option value="litro">{appI18n.t("ui.Checkout.liters")}</option><option value="galón">{appI18n.t("ui.Checkout.gallons")}</option>
                     </select>
-                    <span className="text-xs text-slate-500">{cantidadNuevaStock.toLocaleString('es-CO')} L de inventario</span>
+                    <span className="text-xs text-slate-500">{cantidadNuevaStock.toLocaleString('es-CO')} {appI18n.t("ui.Checkout.l_in_inventory")}</span>
                   </>}
                 </div>
                 <div className="flex-[2]">
                   <label className="text-xs text-slate-500 mb-0.5 block">{granelNuevo ? `Precio por ${unidadCaptura} (COP)` : t('checkout.precio_unitario')}</label>
                   <input type="text" placeholder="0" value={nuevoPrecio} onChange={handlePrecioChange} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                   {sugerenciaAplicada?.inventario && stockInsuficiente(sugerenciaAplicada.inventario, cantidadNuevaStock) && (
-                    <p role="status" className="mt-1 text-xs text-amber-800">Stock físico insuficiente para la cantidad solicitada.</p>
+                    <p role="status" className="mt-1 text-xs text-amber-800">{appI18n.t("ui.Checkout.insufficient_stock_on_hand_for_the_requested_quantity")}</p>
                   )}
                   {sugerenciaAplicada && !sugerenciaAplicada.inventario && (
                     <p className="text-[11px] text-indigo-600 mt-1">
-                      Valor sugerido{sugerenciaAplicada.vehiculo_match && ingreso?.taller_vehiculos?.linea ? ` para ${ingreso.taller_vehiculos.linea}` : ''} ({sugerenciaAplicada.ocurrencias} {sugerenciaAplicada.ocurrencias === 1 ? 'registro' : 'registros'}) · editable
+                      {appI18n.t("ui.Checkout.suggested_price")}{sugerenciaAplicada.vehiculo_match && ingreso?.taller_vehiculos?.linea ? ` para ${ingreso.taller_vehiculos.linea}` : ''} ({appI18n.t("ui.Checkout.record_count", { count: sugerenciaAplicada.ocurrencias })}{appI18n.t("ui.Checkout.editable")}
                     </p>
                   )}
                 </div>
@@ -1289,15 +1313,15 @@ const Checkout: React.FC = () => {
                                 type="button"
                                 onClick={() => {
                                   if (gastos.some(g => g.item_id === item.id)) {
-                                    window.alert('Este ítem tiene un costo de compra vinculado. Desvincúlalo antes de cambiarlo a mano de obra.');
+                                    setExpenseDialog({ titleKey: 'ui.Checkout.this_item_has_a_linked_purchase_cost_unlink' });
                                     return;
                                   }
                                   setItems(prev => prev.map(i => (i.id === item.id ? { ...i, tipo: 'mano_obra' } : i)));
                                 }}
                                 className="print:hidden text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-bold hover:bg-amber-200"
-                                title="Parece mano de obra pero está como repuesto. Clic para cambiarlo."
+                                title={appI18n.t("ui.Checkout.looks_like_labor_but_is_marked_as_a")}
                               >
-                                ¿Mano de obra?
+                                {appI18n.t("ui.Checkout.labor")}
                               </button>
                             )}
                             {item.categoria_crm && (
@@ -1314,7 +1338,7 @@ const Checkout: React.FC = () => {
                                     <button
                                       onClick={() => setPopoverItemId(popoverItemId === item.id ? null : item.id)}
                                       className="text-indigo-400 hover:text-indigo-600 transition p-0.5 rounded"
-                                      title="Ver justificación"
+                                      title={appI18n.t("ui.Checkout.view_explanation")}
                                     >
                                       <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     </button>
@@ -1346,7 +1370,7 @@ const Checkout: React.FC = () => {
                                   <button
                                     onClick={() => handleJustificarRepuesto(item)}
                                     disabled={justificandoItemId === item.id}
-                                    title="Generar justificación con IA"
+                                    title={appI18n.t("ui.Checkout.generate_explanation_with_ai")}
                                     className="flex items-center gap-0.5 text-[11px] font-medium text-slate-400 hover:text-indigo-500 transition disabled:opacity-50 ml-0.5"
                                   >
                                     {justificandoItemId === item.id
@@ -1373,7 +1397,7 @@ const Checkout: React.FC = () => {
                                   return (
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span className="text-red-700 font-bold text-[11px] bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
-                                        Costo: ${costoTotal.toLocaleString('es-CO')}
+                                        {appI18n.t("ui.Checkout.cost_2")}{costoTotal.toLocaleString('es-CO')}
                                       </span>
                                       <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
                                         util >= 0 ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'
@@ -1384,9 +1408,9 @@ const Checkout: React.FC = () => {
                                         type="button"
                                         onClick={() => handleOpenModalGasto(item.id, item.descripcion, 'nuevo')}
                                         className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline"
-                                        title="Registrar gasto adicional para este ítem"
+                                        title={appI18n.t("ui.Checkout.record_an_additional_expense_for_this_item")}
                                       >
-                                        + Gasto
+                                        {appI18n.t("ui.Checkout.expense")}
                                       </button>
                                     </div>
                                   );
@@ -1404,7 +1428,7 @@ const Checkout: React.FC = () => {
                                           onClick={() => handleOpenModalGasto(item.id, item.descripcion, 'nuevo')}
                                           className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline"
                                         >
-                                          + Costo
+                                          {appI18n.t("ui.Checkout.cost")}
                                         </button>
                                         <span className="text-slate-300">·</span>
                                         <button
@@ -1412,12 +1436,12 @@ const Checkout: React.FC = () => {
                                           onClick={() => handleOpenModalGasto(item.id, item.descripcion, 'existente')}
                                           className="text-[10px] text-slate-500 hover:text-slate-700 font-medium underline"
                                         >
-                                          Vincular
+                                          {appI18n.t("ui.Checkout.link")}
                                         </button>
                                       </div>
                                     ) : (
                                       <span className="text-[10px] text-amber-600 italic">
-                                        (Guarda la orden para vincular)
+                                        {appI18n.t("ui.Checkout.save_the_order_to_link_expenses")}
                                       </span>
                                     )}
                                   </div>
@@ -1430,7 +1454,7 @@ const Checkout: React.FC = () => {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.tipo === 'repuesto' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>{item.tipo === 'repuesto' ? t('checkout.repuesto') : t('checkout.mano_obra')}</span>
                         </td>
                         <td className="py-2.5 text-right text-slate-600 px-2">{mostrarCantidad(item)}</td>
-                        <td className="py-2.5 text-right text-slate-600 px-2">${formatearPrecio(item.precio_unitario_captura ?? item.precio_unitario)}{item.unidad_captura ? ` / ${item.unidad_captura}` : item.contenido_aceite_litros ? ' / tarro' : ''}</td>
+                        <td className="py-2.5 text-right text-slate-600 px-2">${formatearPrecio(item.precio_unitario_captura ?? item.precio_unitario)}{item.unidad_captura ? ` / ${item.unidad_captura}` : item.contenido_aceite_litros ? appI18n.t("ui.Checkout.container") : ''}</td>
                         <td className="py-2.5 text-right font-bold text-slate-800 px-2">${item.total.toLocaleString('es-CO')}</td>
                         <td className="py-2.5 text-right print:hidden whitespace-nowrap">
                           <button onClick={() => startEdit(item)} className="text-indigo-400 hover:text-indigo-600 transition p-1 mr-1"><Edit2 size={14} /></button>
